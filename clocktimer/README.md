@@ -23,8 +23,11 @@ A minimalist, tactile, and highly customizable Android timer and stopwatch. Unli
 
 | Timer Mode | Stopwatch Mode |
 | :---: | :---: |
-| <img src="demo/timer.png" width="400"> | <img src="demo/stopwatch.png" width="400"> |
+| <img src="demo/timer_shot.png" width="400"> | <img src="demo/stopwatch_shot.png" width="400"> |
 
+| Settings |
+| :---: |
+| <img src="demo/settings.png" width="400"> |
 
 <!-- ![Timer Mode](demo/timer_shot.png)
 
