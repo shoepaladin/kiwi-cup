@@ -6,6 +6,9 @@
 
 A minimalist, tactile, and highly customizable Android timer and stopwatch. Unlike standard digital clocks, **VisualTimer** uses a physical-inspired clock face that allows users to "set" time by dragging their finger across the dial, providing an intuitive sense of remaining time.
 
+Primarily made with Claude, with assistance from Gemini and ChatGPT!
+
+
 ## ✨ Features
 
 * **Tactile Gesture Control:** Drag your finger around the clock face to intuitively set the timer duration.
