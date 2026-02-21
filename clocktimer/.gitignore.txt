@@ -1,0 +1,34 @@
+# --- Android Studio / IntelliJ ---
+.idea/
+*.iml
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+cmake-build-*/
+.navigation/
+
+# --- Build Outputs ---
+# We keep the source, but never the generated binaries
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# --- Signing Keys (CRITICAL: Never upload these) ---
+*.jks
+*.keystore
+*.pk8
+*.p12
+google-services.json
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+
+# --- Log files ---
+*.log
