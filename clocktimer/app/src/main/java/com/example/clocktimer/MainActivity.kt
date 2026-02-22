@@ -130,19 +130,19 @@ fun VisualTimerApp() {
             ) {
                 if (mode == TimerMode.TIMER) {
                     PresetButton("+1 MIN") {
+                        targetTimeInSeconds += 60
                         if (!isRunning) {
-                            targetTimeInSeconds += 60
                             currentTimeInSeconds = targetTimeInSeconds
-                            vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
                         }
+                        vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
                     }
                     PresetButton(if (showMinutes) "MINUTES" else "SECONDS") {
+                        showMinutes = !showMinutes
+                        targetTimeInSeconds = if (showMinutes) 60 else 30
                         if (!isRunning) {
-                            showMinutes = !showMinutes
-                            targetTimeInSeconds = if (showMinutes) 60 else 30
                             currentTimeInSeconds = targetTimeInSeconds
-                            vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
                         }
+                        vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
                     }
                 }
             }
@@ -165,7 +165,7 @@ fun VisualTimerApp() {
             Box(
                 modifier = Modifier
                     .size(320.dp)
-                    .pointerInput(Unit) {
+                    .pointerInput(mode, isRunning) {
                         if (mode == TimerMode.TIMER && !isRunning) {
                             var lastMinutes = -1
                             detectDragGestures { change, _ ->
