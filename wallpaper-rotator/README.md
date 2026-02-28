@@ -2,6 +2,9 @@
 
 A production-quality Android app that automatically rotates your wallpapers through a customizable set of photos with precise positioning control. Built with Material 3 design and professional-grade architecture.
 
+Made with heavy assistance from Claude and support from Gemini!
+
+
 ## Features
 
 ### Core Functionality
