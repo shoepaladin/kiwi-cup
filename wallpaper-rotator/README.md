@@ -254,10 +254,6 @@ Required permissions:
 - Notched and non-notched displays
 - Devices from multiple manufacturers
 
-## Known Issues
-
-### Minor Issues
-- **App icon off-center**: Icon appears slightly off-center in launcher (cosmetic only)
 
 ### Limitations
 - Minimum interval: 15 minutes (WorkManager constraint)
@@ -270,120 +266,14 @@ Required permissions:
 **Cause:** Battery optimization killing the app  
 **Fix:** Settings → Apps → WallpaperRotator → Battery → Unrestricted
 
-### Wallpaper doesn't match preview
-**Cause:** Old configuration with previous cropping method  
-**Fix:** Delete wallpaper and re-add with current version
-
 ### App crashes when adding folder
 **Cause:** Too many large images  
 **Fix:** Add images in smaller batches
-
-### Toolbar hidden behind status bar
-**Cause:** System window insets not properly handled  
-**Fix:** Update to latest version (fixed in current release)
-
-## Technical Deep Dive
-
-### Why This Cropping Method Works
-
-**The Problem with Pre-Cropping:**
-```kotlin
-// ❌ Common mistake (causes misalignment)
-val croppedBitmap = Bitmap.createBitmap(original, x, y, width, height)
-val scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, screenW, screenH, true)
-wallpaperManager.setBitmap(scaledBitmap) // System repositions → misalignment
-```
-
-**The Proper Way:**
-```kotlin
-// ✅ Correct approach (perfect alignment)
-val visibleRect = Rect(cropX, cropY, cropRight, cropBottom) // In bitmap coords
-wallpaperManager.setBitmap(
-    fullBitmap,      // Full original image
-    visibleRect,     // Which part to show
-    true,            // Allow backup
-    FLAG_LOCK        // Home or lock screen
-)
-// System handles all scaling/positioning perfectly
-```
-
-**Benefits:**
-- System knows full image context
-- System handles parallax correctly
-- System knows screen aspect ratio
-- System handles navigation bars/notches
-- Zero stretching or distortion
-
-### Coordinate System
-
-**Display coordinates** (what user drags):
-- Screen space: pixels on the display
-- Frame position: fixed RectF in view
-
-**Bitmap coordinates** (what we save):
-- Image space: pixels in original bitmap
-- Inverse matrix transformation
-
-**Normalized coordinates** (what we store):
-- Range: 0.0 to 1.0 (percentage)
-- Independent of image resolution
-- Works with any bitmap size
-
-**Example flow:**
-```
-User drags image → Frame shows area 500,500 to 2500,4000 pixels
-                 ↓
-Matrix inversion → Convert to bitmap coords
-                 ↓
-Normalize       → RectF(0.167, 0.125, 0.833, 1.0)
-                 ↓
-Save to config  → Persisted in SharedPreferences
-                 ↓
-Apply wallpaper → Convert back to bitmap coords
-                 ↓
-System renders  → Perfect alignment
-```
-
-## Production Readiness Checklist
-
-This app includes:
-- ✅ Comprehensive error handling with try-catch
-- ✅ Progress indicators for all async operations
-- ✅ Empty states with helpful illustrations
-- ✅ Undo functionality for destructive actions
-- ✅ Material 3 design system
-- ✅ MVVM architecture with clear separation
-- ✅ Memory leak prevention with proper lifecycle
-- ✅ Configuration change handling (screen rotation)
-- ✅ Battery optimization awareness
-- ✅ Kotlin null safety throughout
-- ✅ Background thread offloading for I/O
-- ✅ Comprehensive logging for debugging
-- ✅ URI permission management
-- ✅ User-friendly error messages
-- ✅ Consistent UI/UX patterns
-
-## Future Enhancements
-
-Potential additions (not currently implemented):
-- [ ] Live wallpaper preview with phone frame mockup
-- [ ] Smart crop suggestions using face detection
-- [ ] Wallpaper collections/playlists
-- [ ] Crossfade transition animations
-- [ ] Cloud backup/sync integration
-- [ ] Home screen widget for manual skip
-- [ ] Dark/Light theme toggle
-- [ ] Export/Import configurations
-- [ ] Wallpaper statistics (most used, etc.)
-- [ ] Time-based wallpaper scheduling
 
 ## Contributing
 
 This is a personal project demonstrating Android best practices. Feel free to fork and modify for your own use.
 
-## License
-
-[Your License Here]
 
 ## Credits
 
