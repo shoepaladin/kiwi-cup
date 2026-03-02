@@ -9,20 +9,18 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
-    <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".WallpaperRotatorApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/Theme.WallpaperRotator">
 
-        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,13 +31,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Crop Activity -->
         <activity
             android:name=".CropActivity"
             android:label="Position Wallpaper"
             android:parentActivityName=".MainActivity" />
 
-        <!-- Wallpaper Receiver -->
         <receiver
             android:name=".WallpaperReceiver"
             android:exported="false">
@@ -49,7 +45,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Boot Receiver -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
@@ -57,6 +52,16 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            WorkManager Foreground Service configuration for Android 14+
+            The foregroundServiceType MUST be declared here to match the type used in code.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:replace="android:foregroundServiceType" />
 
     </application>
 

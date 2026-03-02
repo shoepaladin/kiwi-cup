@@ -20,6 +20,12 @@ Primarily made with Claude, with assistance from Gemini and ChatGPT!
 * **Persistent Looping Alarm:** Features a custom Ringtone Picker that loops the audio until you hit "Stop."
 * **Quick Toggles:** One-tap presets to add time or switch between Minute and Second precision.
 
+### Getting notifications from the timer
+A system dialog should now appear asking for permission to send notifications. Tap Allow. Once allowed, the notification will appear when the timer finishes.
+
+If you previously denied this permission, you might need to enable it manually:
+Long-press the app icon -> App info -> Notifications -> Toggle All Clock Timer notifications to ON.
+
 ---
 
 ## 📸 Preview

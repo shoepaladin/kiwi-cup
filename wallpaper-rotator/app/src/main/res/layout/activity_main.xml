@@ -10,14 +10,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fitsSystemWindows="true"
-        android:elevation="4dp">
+        android:elevation="4dp"
+        android:background="@color/purple_500">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="Wallpaper Rotator"
-            app:titleTextColor="?attr/colorOnPrimary" />
+            app:titleTextColor="@android:color/white" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -38,7 +39,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 app:cardElevation="2dp"
-                app:cardCornerRadius="12dp">
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="@color/purple_500">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -52,20 +54,25 @@
                         android:text="Rotation Settings"
                         android:textSize="18sp"
                         android:textStyle="bold"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="16dp"
+                        android:textColor="@android:color/white" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Interval (minutes)"
                         android:textSize="14sp"
-                        android:layout_marginBottom="4dp" />
+                        android:layout_marginBottom="4dp"
+                        android:textColor="@android:color/white" />
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="16dp"
-                        app:boxBackgroundMode="outline">
+                        app:boxBackgroundMode="outline"
+                        app:hintTextColor="@android:color/white"
+                        android:textColorHint="@android:color/white"
+                        app:boxStrokeColor="@android:color/white">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/intervalInput"
@@ -73,7 +80,8 @@
                             android:layout_height="wrap_content"
                             android:inputType="number"
                             android:hint="Enter minutes"
-                            android:text="60" />
+                            android:text="60"
+                            android:textColor="@android:color/white" />
 
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -82,7 +90,8 @@
                         android:layout_height="wrap_content"
                         android:text="Mode"
                         android:textSize="14sp"
-                        android:layout_marginBottom="4dp" />
+                        android:layout_marginBottom="4dp"
+                        android:textColor="@android:color/white" />
 
                     <Spinner
                         android:id="@+id/rotationModeSpinner"
@@ -95,7 +104,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Change on unlock"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="16dp"
+                        android:textColor="@android:color/white"
+                        app:buttonTint="@android:color/white" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -109,7 +120,9 @@
                             android:layout_weight="1"
                             android:text="Start"
                             android:layout_marginEnd="8dp"
-                            style="@style/Widget.Material3.Button.TonalButton" />
+                            style="@style/Widget.MaterialComponents.Button"
+                            app:backgroundTint="@android:color/white"
+                            android:textColor="@color/purple_500" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/stopButton"
@@ -117,7 +130,9 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Stop"
-                            style="@style/Widget.Material3.Button.OutlinedButton" />
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:textColor="@android:color/white"
+                            app:strokeColor="@android:color/white" />
 
                     </LinearLayout>
 
@@ -219,10 +234,10 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:layout_marginTop="?attr/actionBarSize"
-        android:background="?attr/colorPrimaryContainer"
+        android:background="?attr/colorPrimaryVariant"
         android:elevation="8dp"
         android:visibility="gone"
-        app:titleTextColor="?attr/colorOnPrimaryContainer"
+        app:titleTextColor="?attr/colorOnPrimary"
         app:navigationIcon="@drawable/ic_close" />
 
     <!-- FAB Menu -->
