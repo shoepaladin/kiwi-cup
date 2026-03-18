@@ -53,6 +53,10 @@ dependencies {
 
     implementation("androidx.compose.material:material-icons-extended:1.7.6")
     implementation("androidx.compose.foundation:foundation:1.7.6")
+    
+    // Jetpack Glance for Widgets
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
