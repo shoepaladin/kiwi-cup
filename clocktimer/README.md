@@ -11,6 +11,7 @@ Primarily made with Claude, with assistance from Gemini and ChatGPT!
 
 ## ✨ Features
 
+* **Widget:** create up to three present timers. You can specify the display colors too.
 * **Tactile Gesture Control:** Drag your finger around the clock face to intuitively set the timer duration.
 * **Dual Mode:** Seamlessly toggle between a **Visual Timer** (Sweep dial) and a precise **Hand-Style Stopwatch**.
 * **Customizable Aesthetics:**
