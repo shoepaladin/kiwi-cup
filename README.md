@@ -4,6 +4,11 @@
 Personal github of fun projects
 
 # Projects
+
+**screen-my-texts**
+Create a simple filter for your text messages. Supports direct filter and regex based filters.
+
+
 **clocktimer**
  [[Readme]](https://github.com/shoepaladin/kiwi-cup/tree/main/clocktimer) [[package]](https://github.com/shoepaladin/kiwi-cup/tree/main/releases/clocktimer.apk)
 
