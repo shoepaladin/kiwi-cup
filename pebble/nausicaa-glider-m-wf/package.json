@@ -1,0 +1,34 @@
+{
+  "name": "nausicaa-mowe-face",
+  "author": "Data Scientist & Clarinetist",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "dependencies": {
+    "pebble-clay": "^1.0.3"
+  },
+  "pebble": {
+    "displayName": "Nausicaa Mowe",
+    "uuid": "a8527b13-918d-4a11-b0e9-7cb18e57924c",
+    "sdkVersion": "3",
+    "targetPlatforms": ["emery", "chalk", "diorite"],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": {
+      "BackgroundColor": 100,
+      "TimeFormat": 101,
+      "TimeFontSize": 102,
+      "TemperatureUnit": 103,
+      "Temperature": 104
+    },
+    "resources": {
+      "media": [
+        {
+          "type": "png",
+          "name": "IMAGE_NAUSICAA",
+          "file": "images/nausicaa.png"
+        }
+      ]
+    }
+  }
+}
