@@ -1,0 +1,58 @@
+[
+  {
+    "type": "heading",
+    "defaultValue": "Nausicaa Watchface Settings"
+  },
+  {
+    "type": "section",
+    "items": [
+      {
+        "type": "heading",
+        "label": "Theme Settings"
+      },
+      {
+        "type": "color",
+        "messageKey": "BackgroundColor",
+        "defaultValue": "0x1A1C1E",
+        "label": "Background Color"
+      },
+      {
+        "type": "select",
+        "messageKey": "TimeFormat",
+        "defaultValue": 0,
+        "label": "Time Display Format",
+        "options": [
+          { "label": "Watch System Default", "value": 0 },
+          { "label": "Force 12-Hour", "value": 1 },
+          { "label": "Force 24-Hour", "value": 2 }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "TimeFontSize",
+        "defaultValue": 1,
+        "label": "Time Text Size",
+        "options": [
+          { "label": "Small Typography", "value": 0 },
+          { "label": "Medium Typography", "value": 1 },
+          { "label": "Large Typography", "value": 2 },
+          { "label": "Extra Large (Oversized)", "value": 3 }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "TemperatureUnit",
+        "defaultValue": 0,
+        "label": "Weather Temperature Metrics",
+        "options": [
+          { "label": "Fahrenheit (°F)", "value": 0 },
+          { "label": "Celsius (°C)", "value": 1 }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "submit",
+    "value": "Save Settings Configurations"
+  }
+]
