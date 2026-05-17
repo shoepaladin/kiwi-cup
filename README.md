@@ -32,6 +32,14 @@ No stopwatch / timer tabs! Simply tap the clock to move between stopwatch / time
 [Pebble Store link for MGS Watchface](https://apps.repebble.com/de5b5b388f8b4adea2857f14)
 
 
+<img src="https://apps.repebble.com/og/f117fb3ec20e45f3b03781a2.png?v=2026-05-17T04%3A35%3A29.901-680a32581ab34c418666d195-1778992594190", width="400">
+
+[Pebble Store link for Nausicaa Watchface](https://apps.repebble.com/f117fb3ec20e45f3b03781a2)
+
+
+
+
+
 
 
 
