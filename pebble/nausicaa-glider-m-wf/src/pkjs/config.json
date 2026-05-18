@@ -1,58 +1,35 @@
-[
-  {
-    "type": "heading",
-    "defaultValue": "Nausicaa Watchface Settings"
+{
+  "name": "nausicaa-glider-m-face",
+  "author": "Julian Hsu",
+  "version": "1.0.3",
+  "keywords": ["pebble-face"],
+  "dependencies": {
+    "pebble-clay": "^1.0.3"
   },
-  {
-    "type": "section",
-    "items": [
-      {
-        "type": "heading",
-        "label": "Theme Settings"
-      },
-      {
-        "type": "color",
-        "messageKey": "BackgroundColor",
-        "defaultValue": "0x1A1C1E",
-        "label": "Background Color"
-      },
-      {
-        "type": "select",
-        "messageKey": "TimeFormat",
-        "defaultValue": 0,
-        "label": "Time Display Format",
-        "options": [
-          { "label": "Watch System Default", "value": 0 },
-          { "label": "Force 12-Hour", "value": 1 },
-          { "label": "Force 24-Hour", "value": 2 }
-        ]
-      },
-      {
-        "type": "select",
-        "messageKey": "TimeFontSize",
-        "defaultValue": 1,
-        "label": "Time Text Size",
-        "options": [
-          { "label": "Small Typography", "value": 0 },
-          { "label": "Medium Typography", "value": 1 },
-          { "label": "Large Typography", "value": 2 },
-          { "label": "Extra Large (Oversized)", "value": 3 }
-        ]
-      },
-      {
-        "type": "select",
-        "messageKey": "TemperatureUnit",
-        "defaultValue": 0,
-        "label": "Weather Temperature Metrics",
-        "options": [
-          { "label": "Fahrenheit (°F)", "value": 0 },
-          { "label": "Celsius (°C)", "value": 1 }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "submit",
-    "value": "Save Settings Configurations"
+  "pebble": {
+    "displayName": "Nausicaa Glider",
+    "uuid": "a8527b13-918d-4a11-b0e9-7cb18e57924c",
+    "sdkVersion": "3",
+    "targetPlatforms": ["emery", "chalk", "diorite"],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": {
+      "BackgroundColor": 100,
+      "TimeFormat": 101,
+      "TimeFontSize": 102,
+      "TemperatureUnit": 103,
+      "Temperature": 104,
+      "StepsPerChevron": 105
+    },
+    "resources": {
+      "media": [
+        {
+          "type": "png",
+          "name": "IMAGE_NAUSICAA",
+          "file": "images/nausicaa.png"
+        }
+      ]
+    }
   }
-]
+}
