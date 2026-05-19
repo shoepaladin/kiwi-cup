@@ -57,6 +57,27 @@ static GPath *s_chevron_path = NULL;
 static GPathInfo s_chevron_path_info;
 static GPoint s_chevron_pts[6];
 
+// Build the chevron GPath ONCE at window load. The previous version rebuilt
+// the path inside the update_proc, which destroyed and reallocated the
+// GPath on every redraw -- on emery (Pebble Time 2) that heap churn can
+// eventually return NULL from gpath_create, leading to gpath_draw_filled(NULL)
+// hard-faulting the watchapp and forcing OS fallback to the prior face.
+static void chevron_build_path(int w, int h) {
+  int flat_x  = (w * 5) / 7;   // top/bottom flat-edge length
+  int notch_x = (w * 2) / 7;   // notch indent depth
+  s_chevron_pts[0] = GPoint(0, 0);                // top-left
+  s_chevron_pts[1] = GPoint(flat_x, 0);           // end of top flat edge
+  s_chevron_pts[2] = GPoint(w, h / 2);            // right-side point
+  s_chevron_pts[3] = GPoint(flat_x, h);           // start of bottom flat edge
+  s_chevron_pts[4] = GPoint(0, h);                // bottom-left
+  s_chevron_pts[5] = GPoint(notch_x, h / 2);      // notch tip (V indent)
+  s_chevron_path_info.num_points = 6;
+  s_chevron_path_info.points = s_chevron_pts;
+  if (s_chevron_path == NULL) {
+    s_chevron_path = gpath_create(&s_chevron_path_info);
+  }
+}
+
 // Option A geometry: 6-point classic chevron arrow.
 //
 //   (0,0)─────────(flat_x, 0)
@@ -69,20 +90,7 @@ static GPoint s_chevron_pts[6];
 // flat_x is where the flat top/bottom edges end before the right diagonal
 // begins; notch_x is how far the V-notch indents into the shape from the
 // left edge. Both are ~29% of the chevron width.
-static void chevron_init_path(int w, int h) {
-  int flat_x  = (w * 5) / 7;   // top/bottom flat-edge length
-  int notch_x = (w * 2) / 7;   // notch indent depth
-  s_chevron_pts[0] = GPoint(0, 0);                // top-left
-  s_chevron_pts[1] = GPoint(flat_x, 0);           // end of top flat edge
-  s_chevron_pts[2] = GPoint(w, h / 2);            // right-side point
-  s_chevron_pts[3] = GPoint(flat_x, h);           // start of bottom flat edge
-  s_chevron_pts[4] = GPoint(0, h);                // bottom-left
-  s_chevron_pts[5] = GPoint(notch_x, h / 2);      // notch tip (V indent)
-  s_chevron_path_info.num_points = 6;
-  s_chevron_path_info.points = s_chevron_pts;
-  if (s_chevron_path) gpath_destroy(s_chevron_path);
-  s_chevron_path = gpath_create(&s_chevron_path_info);
-}
+
 
 // Draw N chevrons left-to-right, then draw the step count text immediately
 // after the last chevron (with a small gap). N is capped at 5; only earned
@@ -98,16 +106,20 @@ static void chevron_layer_update_proc(Layer *layer, GContext *ctx) {
 
   GColor fg = s_current_text_color;
 
-  // Build the chevron path at full row height.
-  chevron_init_path(CHEVRON_FIXED_W, b.size.h);
-
-  // Draw the filled chevrons starting from the left edge.
+  // Draw the filled chevrons starting from the left edge. The GPath is built
+  // once in main_window_load; never reallocate per-redraw.
   int cursor_x = 0;
   graphics_context_set_fill_color(ctx, fg);
-  for (int i = 0; i < filled; i++) {
-    gpath_move_to(s_chevron_path, GPoint(cursor_x, 0));
-    gpath_draw_filled(ctx, s_chevron_path);
-    cursor_x += CHEVRON_FIXED_W + CHEVRON_GAP;
+  if (s_chevron_path != NULL) {
+    for (int i = 0; i < filled; i++) {
+      gpath_move_to(s_chevron_path, GPoint(cursor_x, 0));
+      gpath_draw_filled(ctx, s_chevron_path);
+      cursor_x += CHEVRON_FIXED_W + CHEVRON_GAP;
+    }
+  } else {
+    // Fallback in case the path failed to allocate: still advance the cursor
+    // so the step count text stays placed where the chevrons would have been.
+    cursor_x = filled * (CHEVRON_FIXED_W + CHEVRON_GAP);
   }
 
   // Draw step count text right after the last chevron.
@@ -313,6 +325,7 @@ static void bt_handler(bool connected) {
 // Then: Nausicaa image fills the bottom half.
 // ---------------------------------------------------------------------------
 static void main_window_load(Window *window) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Nausicaa window_load starting");
   Layer *window_layer = window_get_root_layer(window);
 
   GRect time_frame, date_frame, temp_frame, chev_frame;
@@ -368,6 +381,10 @@ static void main_window_load(Window *window) {
   layer_set_update_proc(s_chevron_layer, chevron_layer_update_proc);
   layer_add_child(window_layer, s_chevron_layer);
 
+  // Build the chevron GPath exactly once, here. The update_proc will reuse it
+  // for every redraw rather than allocating each time.
+  chevron_build_path(CHEVRON_FIXED_W, chev_frame.size.h);
+
   // Image.
   s_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_NAUSICAA);
   s_icon_layer = bitmap_layer_create(image_frame);
@@ -404,18 +421,20 @@ static void main_window_load(Window *window) {
   render_temperature();
 }
 
+// Defensively guard every pointer: window_destroy() in deinit() will fire
+// this handler again if anything else has already popped the window stack
+// (e.g. quick-launch pre-emption on Pebble Time 2). Without these guards,
+// the second call dereferences freed pointers and Pebble OS terminates the
+// app -- and if it happens often enough, uninstalls the watchface.
 static void main_window_unload(Window *window) {
-  text_layer_destroy(s_time_layer);
-  text_layer_destroy(s_date_layer);
-  text_layer_destroy(s_temp_layer);
-  layer_destroy(s_chevron_layer);
-  layer_destroy(s_battery_layer);
-  bitmap_layer_destroy(s_icon_layer);
-  gbitmap_destroy(s_icon_bitmap);
-  if (s_chevron_path) {
-    gpath_destroy(s_chevron_path);
-    s_chevron_path = NULL;
-  }
+  if (s_time_layer)    { text_layer_destroy(s_time_layer);   s_time_layer = NULL; }
+  if (s_date_layer)    { text_layer_destroy(s_date_layer);   s_date_layer = NULL; }
+  if (s_temp_layer)    { text_layer_destroy(s_temp_layer);   s_temp_layer = NULL; }
+  if (s_chevron_layer) { layer_destroy(s_chevron_layer);     s_chevron_layer = NULL; }
+  if (s_battery_layer) { layer_destroy(s_battery_layer);     s_battery_layer = NULL; }
+  if (s_icon_layer)    { bitmap_layer_destroy(s_icon_layer); s_icon_layer = NULL; }
+  if (s_icon_bitmap)   { gbitmap_destroy(s_icon_bitmap);     s_icon_bitmap = NULL; }
+  if (s_chevron_path)  { gpath_destroy(s_chevron_path);      s_chevron_path = NULL; }
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
@@ -424,6 +443,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 }
 
 static void init() {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Nausicaa init() starting");
   s_main_window = window_create();
   window_set_window_handlers(s_main_window, (WindowHandlers) {
     .load = main_window_load,
@@ -438,13 +458,19 @@ static void init() {
   connection_service_subscribe((ConnectionHandlers) {
     .pebble_app_connection_handler = bt_handler,
   });
+  APP_LOG(APP_LOG_LEVEL_INFO, "Nausicaa init() complete");
 }
 
 static void deinit() {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Nausicaa deinit() starting");
   connection_service_unsubscribe();
   tick_timer_service_unsubscribe();
   app_message_deregister_callbacks();
-  window_destroy(s_main_window);
+  if (s_main_window) {
+    window_destroy(s_main_window);
+    s_main_window = NULL;
+  }
+  APP_LOG(APP_LOG_LEVEL_INFO, "Nausicaa deinit() complete");
 }
 
 int main(void) {
