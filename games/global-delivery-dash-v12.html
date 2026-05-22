@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Delivery Dash 📦</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Fredoka+One&display=swap');
+:root { --coral:#f4845f; --mint:#52b788; --warm:#f9c74f; --dark:#2d3436; --mid:#636e72; --hud:64px; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Nunito',sans-serif; width:100vw; height:100vh; overflow:hidden; user-select:none; background:#9ecde4; }
+
+#loading { position:fixed; inset:0; background:linear-gradient(155deg,#c9e8ff 0%,#b0ddb5 55%,#ffe0a3 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:300; transition:opacity 0.5s; }
+#loading.gone { opacity:0; pointer-events:none; }
+.spinner { width:46px; height:46px; border:5px solid rgba(0,0,0,0.1); border-top-color:#52b788; border-radius:50%; animation:spin 0.75s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.load-title { font-family:'Fredoka One',cursive; font-size:1.7rem; color:#2d5a27; }
+.load-sub { font-size:.88rem; font-weight:700; color:#555; }
+
+#cont-screen { position:fixed; inset:0; background:linear-gradient(155deg,#c9e8ff 0%,#b0ddb5 55%,#ffe0a3 100%); display:flex; flex-direction:row; align-items:center; justify-content:center; gap:32px; padding:24px; z-index:100; transition:opacity .45s,transform .45s; }
+#cont-screen.hidden { opacity:0; pointer-events:none; transform:scale(1.04); }
+#cont-left { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+.game-title { font-family:'Fredoka One',cursive; font-size:clamp(1.6rem,4vw,3rem); color:#2d5a27; text-shadow:3px 3px 0 #ffe066,5px 5px 0 rgba(0,0,0,.07); margin-bottom:6px; text-align:center; }
+.game-sub { font-size:1rem; font-weight:700; color:#555; margin-bottom:24px; }
+.cont-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; width:460px; }
+.cont-btn { background:white; border:3px solid transparent; border-radius:18px; padding:14px 8px 10px; cursor:pointer; box-shadow:0 5px 18px rgba(0,0,0,.1); display:flex; flex-direction:column; align-items:center; gap:5px; transition:transform .16s,box-shadow .16s,border-color .16s; }
+.cont-btn:hover { transform:translateY(-5px) scale(1.04); box-shadow:0 13px 28px rgba(0,0,0,.14); border-color:var(--warm); }
+.cont-emoji { font-size:2.2rem; line-height:1; }
+.cont-name { font-family:'Fredoka One',cursive; font-size:.9rem; color:var(--dark); }
+.cont-desc { font-size:.63rem; color:var(--mid); font-weight:700; text-align:center; }
+/* ── Save panel ── */
+#cont-right { width:270px; flex-shrink:0; }
+#saves-panel { background:white; border-radius:20px; box-shadow:0 6px 24px rgba(0,0,0,.12); padding:16px; display:flex; flex-direction:column; gap:10px; }
+.saves-header { font-family:'Fredoka One',cursive; font-size:1.05rem; color:var(--dark); }
+#saves-list { display:flex; flex-direction:column; gap:7px; max-height:340px; overflow-y:auto; }
+#saves-list::-webkit-scrollbar { width:4px; } #saves-list::-webkit-scrollbar-thumb { background:#ddd; border-radius:4px; }
+.save-item { background:#f6f6f6; border-radius:12px; padding:9px 11px; }
+.save-item-name { font-family:'Fredoka One',cursive; font-size:.93rem; color:var(--dark); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.save-item-meta { font-size:.68rem; color:var(--mid); font-weight:700; margin-top:1px; }
+.save-item-btns { display:flex; gap:5px; margin-top:6px; }
+.save-load-btn { flex:1; background:#52b788; color:white; border:none; border-radius:99px; padding:4px 0; font-family:'Fredoka One',cursive; font-size:.78rem; cursor:pointer; transition:background .14s; }
+.save-load-btn:hover { background:#3da672; }
+.save-del-btn { background:#f4845f; color:white; border:none; border-radius:99px; padding:4px 10px; font-family:'Fredoka One',cursive; font-size:.78rem; cursor:pointer; transition:background .14s; }
+.save-del-btn:hover { background:#e06a45; }
+.saves-empty { font-size:.8rem; color:#bbb; text-align:center; padding:14px 0; }
+.saves-sep { height:1px; background:#efefef; }
+.saves-new-label { font-size:.66rem; font-weight:900; color:var(--mid); text-transform:uppercase; letter-spacing:.07em; }
+.saves-new-row { display:flex; gap:6px; align-items:center; }
+#save-name-input { flex:1; min-width:0; border:2px solid #e0e0e0; border-radius:99px; padding:5px 12px; font-family:'Nunito',sans-serif; font-size:.83rem; outline:none; }
+#save-name-input:focus { border-color:#52b788; }
+#do-save-btn { background:#f9c74f; color:#4a3a00; border:none; border-radius:99px; padding:5px 14px; font-family:'Fredoka One',cursive; font-size:.82rem; cursor:pointer; white-space:nowrap; transition:background .14s; }
+#do-save-btn:hover { background:#f0b830; }
+
+#hud { position:fixed; top:0; left:0; right:0; height:var(--hud); background:rgba(255,255,255,.93); backdrop-filter:blur(10px); border-bottom:2px solid rgba(255,255,255,.55); display:none; align-items:center; padding:0 14px; gap:12px; box-shadow:0 4px 14px rgba(0,0,0,.08); z-index:50; }
+.hud-logo { font-family:'Fredoka One',cursive; font-size:1.1rem; color:#2d5a27; flex-shrink:0; }
+.sep { width:2px; height:26px; background:rgba(0,0,0,.08); border-radius:2px; flex-shrink:0; }
+.hb { display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+.hl { font-size:.55rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--mid); }
+.hv { font-family:'Fredoka One',cursive; font-size:1rem; color:var(--dark); }
+.prog-wrap { flex:1; min-width:0; }
+.prog-bar { background:#e0e0e0; border-radius:99px; height:7px; overflow:hidden; }
+.prog-fill { height:100%; background:linear-gradient(90deg,#52b788,#f9c74f); border-radius:99px; transition:width .4s cubic-bezier(.34,1.56,.64,1); }
+.prog-lbl { font-size:.62rem; font-weight:700; color:var(--mid); margin-top:2px; }
+.dots { display:flex; gap:3px; align-items:center; }
+.dot { width:11px; height:11px; border-radius:3px; background:#e0e0e0; transition:background .3s,transform .3s; }
+.dot.on { background:#4361ee; transform:scale(1.18); }
+#cd-wrap { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+#cd-svg { width:36px; height:36px; }
+#cd-bg  { fill:none; stroke:#e0e0e0; stroke-width:4; }
+#cd-ring{ fill:none; stroke:var(--coral); stroke-width:4; stroke-linecap:round; stroke-dasharray:101; stroke-dashoffset:101; transform:rotate(-90deg); transform-origin:50% 50%; transition:stroke-dashoffset .1s linear; }
+#cd-lbl { font-family:'Fredoka One',cursive; font-size:.78rem; color:var(--coral); opacity:0; transition:opacity .2s; white-space:nowrap; }
+#cd-lbl.on { opacity:1; }
+
+/* Region button */
+#region-btn { font-family:'Fredoka One',cursive; font-size:.82rem; background:#f0f0f0; border:2px solid #ddd; border-radius:99px; padding:4px 12px; cursor:pointer; color:var(--dark); transition:background .15s; flex-shrink:0; }
+#region-btn:hover { background:#ffe066; border-color:#f9c74f; }
+
+/* Key legend */
+#key-legend { position:fixed; top:var(--hud); left:0; right:0; background:rgba(45,52,54,0.82); color:#fff; font-size:.72rem; font-weight:700; padding:5px 16px; display:none; align-items:center; gap:16px; z-index:49; letter-spacing:.02em; }
+.kl { background:rgba(255,255,255,.18); border-radius:4px; padding:1px 6px; font-family:monospace; font-size:.8rem; }
+#target-strip { position:fixed; top:calc(var(--hud) + 26px); left:0; right:0; min-height:34px; background:rgba(255,255,255,.94); color:var(--dark); border-bottom:1px solid rgba(0,0,0,.08); display:none; align-items:center; justify-content:center; gap:8px; padding:7px 16px; z-index:48; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+.ts-label { font-size:.68rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:var(--mid); }
+.ts-value { font-family:'Fredoka One',cursive; font-size:.92rem; color:#2d5a27; text-align:center; }
+
+#game-wrap { position:fixed; inset:0; opacity:0; pointer-events:none; transition:opacity .6s; }
+#game-wrap.visible { opacity:1; pointer-events:all; }
+#gc { display:block; width:100%; height:100%; cursor:grab; outline:none; }
+#gc.grabbing { cursor:grabbing; }
+
+#banner { position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-14px); background:linear-gradient(135deg,#f9c74f,#f4845f); color:white; font-family:'Fredoka One',cursive; font-size:1.2rem; padding:7px 26px; border-radius:99px; box-shadow:0 7px 22px rgba(244,132,95,.4); opacity:0; pointer-events:none; z-index:60; white-space:nowrap; transition:opacity .28s,transform .28s; }
+#banner.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+#win { position:fixed; inset:0; background:rgba(255,255,255,.92); backdrop-filter:blur(14px); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .5s; z-index:200; gap:16px; }
+#win.show { opacity:1; pointer-events:all; }
+.win-emoji { font-size:5rem; animation:bob .6s infinite alternate; }
+@keyframes bob { from{transform:translateY(0)} to{transform:translateY(-13px)} }
+.win-title { font-family:'Fredoka One',cursive; font-size:2.7rem; color:#2d5a27; }
+.win-sub { font-size:.95rem; color:var(--mid); font-weight:700; }
+.replay-btn { background:linear-gradient(135deg,#52b788,#2dc653); color:white; border:none; border-radius:99px; padding:12px 36px; font-family:'Fredoka One',cursive; font-size:1.2rem; cursor:pointer; box-shadow:0 6px 18px rgba(82,183,136,.4); transition:transform .15s; }
+.replay-btn:hover { transform:scale(1.06); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="load-title">📦 Global Delivery Dash</div>
+  <div class="load-sub" id="load-sub">Fetching map data…</div>
+</div>
+
+<div id="cont-screen" class="hidden">
+  <div id="cont-left">
+    <div class="game-title">🌍 Global Delivery Dash</div>
+    <div class="game-sub">Find the city — dodge the planes!</div>
+    <div class="cont-grid">
+      <button class="cont-btn" data-c="world">        <span class="cont-emoji">🌍</span><span class="cont-name">World</span>        <span class="cont-desc">278 cities</span></button>
+      <button class="cont-btn" data-c="europe">       <span class="cont-emoji">🏰</span><span class="cont-name">Europe</span>       <span class="cont-desc">56 cities</span></button>
+      <button class="cont-btn" data-c="northamerica"> <span class="cont-emoji">🗽</span><span class="cont-name">N. America</span>  <span class="cont-desc">27 cities</span></button>
+      <button class="cont-btn" data-c="southamerica"> <span class="cont-emoji">🦫</span><span class="cont-name">S. America</span>  <span class="cont-desc">29 cities</span></button>
+      <button class="cont-btn" data-c="asia">         <span class="cont-emoji">🏯</span><span class="cont-name">Asia</span>         <span class="cont-desc">77 cities</span></button>
+      <button class="cont-btn" data-c="africa">       <span class="cont-emoji">🦁</span><span class="cont-name">Africa</span>       <span class="cont-desc">60 cities</span></button>
+      <button class="cont-btn" data-c="oceania">      <span class="cont-emoji">🦘</span><span class="cont-name">Oceania</span>      <span class="cont-desc">48 cities</span></button>
+    </div>
+  </div>
+  <div id="cont-right">
+    <div id="saves-panel">
+      <div class="saves-header">💾 Save Files</div>
+      <div id="saves-list"></div>
+      <div id="saves-new">
+        <div class="saves-sep"></div>
+        <div class="saves-new-label" style="margin-bottom:6px">Save current run</div>
+        <div class="saves-new-row">
+          <input id="save-name-input" type="text" placeholder="Enter a name…" maxlength="28" autocomplete="off">
+          <button id="do-save-btn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div class="hud-logo">📦</div>
+  <button id="region-btn">⬅ Region</button>
+  <div class="sep"></div>
+  <div class="hb"><div class="hl">Level</div><div class="hv" id="h-lv">1</div></div>
+  <div class="sep"></div>
+  <div class="hb"><div class="hl">Deliveries</div><div class="dots" id="h-dots"></div></div>
+  <div class="prog-wrap">
+    <div class="prog-bar"><div class="prog-fill" id="h-fill" style="width:0%"></div></div>
+    <div class="prog-lbl" id="h-prog">Level 1 of 20</div>
+  </div>
+  <div id="cd-wrap">
+    <svg id="cd-svg" viewBox="0 0 38 38">
+      <circle id="cd-bg" cx="19" cy="19" r="16"/>
+      <circle id="cd-ring" cx="19" cy="19" r="16"/>
+      <text id="cd-num" x="19" y="23" text-anchor="middle" font-family="Fredoka One,cursive" font-size="10" fill="#f4845f"></text>
+    </svg>
+    <div id="cd-lbl">Reloading…</div>
+  </div>
+</div>
+
+<div id="key-legend">
+  <span><span class="kl">I</span> Zoom In</span>
+  <span><span class="kl">O</span> Zoom Out</span>
+  <span><span class="kl">↑↓←→</span> Pan</span>
+  <span style="margin-left:8px;opacity:.7">Hover a country to see its cities · Click the target city to dispatch</span>
+</div>
+<div id="target-strip">
+  <span class="ts-label">Delivery Target</span>
+  <span class="ts-value" id="target-text">Pick a region to begin</span>
+</div>
+
+<div id="game-wrap"><canvas id="gc" tabindex="0"></canvas></div>
+<div id="banner"></div>
+<div id="win">
+  <div class="win-emoji">🎉</div>
+  <div class="win-title">All Delivered!</div>
+  <div class="win-sub" id="win-sub"></div>
+  <button class="replay-btn" id="replay-btn">Play Again 🚀</button>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+// ─── FULL CITY POOL (~200) ────────────────────────────────────
+var CITY_POOL = [
+  // Oceania (48)
+  {name:"Sydney",           country:"Australia",         lon:151.21, lat:-33.87},
+  {name:"Melbourne",        country:"Australia",         lon:144.96, lat:-37.81},
+  {name:"Brisbane",         country:"Australia",         lon:153.03, lat:-27.47},
+  {name:"Perth",            country:"Australia",         lon:115.86, lat:-31.95},
+  {name:"Adelaide",         country:"Australia",         lon:138.60, lat:-34.93},
+  {name:"Darwin",           country:"Australia",         lon:130.84, lat:-12.46},
+  {name:"Cairns",           country:"Australia",         lon:145.77, lat:-16.92},
+  {name:"Hobart",           country:"Australia",         lon:147.33, lat:-42.88},
+  {name:"Canberra",         country:"Australia",         lon:149.13, lat:-35.28},
+  {name:"Gold Coast",       country:"Australia",         lon:153.43, lat:-28.02},
+  {name:"Newcastle",        country:"Australia",         lon:151.78, lat:-32.93},
+  {name:"Wollongong",       country:"Australia",         lon:150.89, lat:-34.42},
+  {name:"Geelong",          country:"Australia",         lon:144.35, lat:-38.15},
+  {name:"Townsville",       country:"Australia",         lon:146.82, lat:-19.26},
+  {name:"Alice Springs",    country:"Australia",         lon:133.88, lat:-23.70},
+  {name:"Ballarat",         country:"Australia",         lon:143.86, lat:-37.56},
+  {name:"Bendigo",          country:"Australia",         lon:144.28, lat:-36.76},
+  {name:"Launceston",       country:"Australia",         lon:147.13, lat:-41.44},
+  {name:"Mackay",           country:"Australia",         lon:149.19, lat:-21.14},
+  {name:"Rockhampton",      country:"Australia",         lon:150.51, lat:-23.38},
+  {name:"Auckland",         country:"New Zealand",       lon:174.76, lat:-36.86},
+  {name:"Wellington",       country:"New Zealand",       lon:174.78, lat:-41.29},
+  {name:"Christchurch",     country:"New Zealand",       lon:172.63, lat:-43.53},
+  {name:"Hamilton",         country:"New Zealand",       lon:175.28, lat:-37.79},
+  {name:"Tauranga",         country:"New Zealand",       lon:176.17, lat:-37.69},
+  {name:"Dunedin",          country:"New Zealand",       lon:170.50, lat:-45.87},
+  {name:"Palmerston North", country:"New Zealand",       lon:175.61, lat:-40.36},
+  {name:"Napier",           country:"New Zealand",       lon:176.92, lat:-39.49},
+  {name:"Nelson",           country:"New Zealand",       lon:173.28, lat:-41.27},
+  {name:"Port Moresby",     country:"Papua New Guinea",  lon:147.19, lat:-9.44},
+  {name:"Lae",              country:"Papua New Guinea",  lon:146.99, lat:-6.73},
+  {name:"Suva",             country:"Fiji",              lon:178.44, lat:-18.14},
+  {name:"Nadi",             country:"Fiji",              lon:177.45, lat:-17.79},
+  {name:"Honiara",          country:"Solomon Islands",   lon:159.96, lat:-9.43},
+  {name:"Port Vila",        country:"Vanuatu",           lon:168.32, lat:-17.74},
+  {name:"Apia",             country:"Samoa",             lon:-171.84,lat:-13.83},
+  {name:"Nuku'alofa",       country:"Tonga",             lon:-175.22,lat:-21.14},
+  {name:"Papeete",          country:"French Polynesia",  lon:-149.57,lat:-17.53},
+  {name:"Noumea",           country:"New Caledonia",     lon:166.46, lat:-22.28},
+  {name:"Funafuti",         country:"Tuvalu",            lon:179.21, lat:-8.52},
+  {name:"Tarawa",           country:"Kiribati",          lon:173.02, lat:1.33},
+  {name:"Majuro",           country:"Marshall Islands",  lon:171.38, lat:7.10},
+  {name:"Palikir",          country:"Micronesia",        lon:158.15, lat:6.92},
+  {name:"Yaren",            country:"Nauru",             lon:166.92, lat:-0.55},
+  {name:"Mata-Utu",         country:"Wallis & Futuna",   lon:-171.94,lat:-13.28},
+  {name:"Alofi",            country:"Niue",              lon:-169.92,lat:-19.06},
+  {name:"Avarua",           country:"Cook Islands",      lon:-159.78,lat:-21.21},
+  {name:"Adamstown",        country:"Pitcairn Islands",  lon:-130.10,lat:-25.07},
+  // Asia (77)
+  {name:"Tokyo",            country:"Japan",             lon:139.69, lat:35.69},
+  {name:"Osaka",            country:"Japan",             lon:135.50, lat:34.69},
+  {name:"Nagoya",           country:"Japan",             lon:136.91, lat:35.18},
+  {name:"Sapporo",          country:"Japan",             lon:141.35, lat:43.06},
+  {name:"Fukuoka",          country:"Japan",             lon:130.42, lat:33.59},
+  {name:"Kobe",             country:"Japan",             lon:135.19, lat:34.69},
+  {name:"Kyoto",            country:"Japan",             lon:135.77, lat:35.01},
+  {name:"Sendai",           country:"Japan",             lon:140.87, lat:38.27},
+  {name:"Seoul",            country:"South Korea",       lon:126.98, lat:37.57},
+  {name:"Busan",            country:"South Korea",       lon:129.04, lat:35.10},
+  {name:"Incheon",          country:"South Korea",       lon:126.71, lat:37.45},
+  {name:"Daegu",            country:"South Korea",       lon:128.60, lat:35.87},
+  {name:"Beijing",          country:"China",             lon:116.40, lat:39.91},
+  {name:"Shanghai",         country:"China",             lon:121.47, lat:31.23},
+  {name:"Guangzhou",        country:"China",             lon:113.27, lat:23.13},
+  {name:"Shenzhen",         country:"China",             lon:114.06, lat:22.54},
+  {name:"Chengdu",          country:"China",             lon:104.07, lat:30.57},
+  {name:"Wuhan",            country:"China",             lon:114.31, lat:30.59},
+  {name:"Chongqing",        country:"China",             lon:106.55, lat:29.56},
+  {name:"Tianjin",          country:"China",             lon:117.19, lat:39.14},
+  {name:"Xi'an",            country:"China",             lon:108.95, lat:34.27},
+  {name:"Harbin",           country:"China",             lon:126.64, lat:45.75},
+  {name:"Nanjing",          country:"China",             lon:118.80, lat:32.06},
+  {name:"Hangzhou",         country:"China",             lon:120.15, lat:30.27},
+  {name:"Zhengzhou",        country:"China",             lon:113.63, lat:34.75},
+  {name:"Kunming",          country:"China",             lon:102.73, lat:25.05},
+  {name:"Mumbai",           country:"India",             lon:72.88,  lat:19.08},
+  {name:"Delhi",            country:"India",             lon:77.21,  lat:28.61},
+  {name:"Bangalore",        country:"India",             lon:77.59,  lat:12.97},
+  {name:"Chennai",          country:"India",             lon:80.28,  lat:13.09},
+  {name:"Kolkata",          country:"India",             lon:88.36,  lat:22.57},
+  {name:"Hyderabad",        country:"India",             lon:78.49,  lat:17.39},
+  {name:"Ahmedabad",        country:"India",             lon:72.57,  lat:23.02},
+  {name:"Pune",             country:"India",             lon:73.86,  lat:18.52},
+  {name:"Surat",            country:"India",             lon:72.83,  lat:21.17},
+  {name:"Jaipur",           country:"India",             lon:75.79,  lat:26.91},
+  {name:"Lucknow",          country:"India",             lon:80.95,  lat:26.85},
+  {name:"Nagpur",           country:"India",             lon:79.09,  lat:21.15},
+  {name:"Singapore",        country:"Singapore",         lon:103.82, lat:1.35},
+  {name:"Bangkok",          country:"Thailand",          lon:100.52, lat:13.75},
+  {name:"Chiang Mai",       country:"Thailand",          lon:98.98,  lat:18.79},
+  {name:"Jakarta",          country:"Indonesia",         lon:106.84, lat:-6.21},
+  {name:"Surabaya",         country:"Indonesia",         lon:112.75, lat:-7.25},
+  {name:"Medan",            country:"Indonesia",         lon:98.67,  lat:3.58},
+  {name:"Bandung",          country:"Indonesia",         lon:107.61, lat:-6.91},
+  {name:"Makassar",         country:"Indonesia",         lon:119.42, lat:-5.13},
+  {name:"Kuala Lumpur",     country:"Malaysia",          lon:101.69, lat:3.14},
+  {name:"Penang",           country:"Malaysia",          lon:100.33, lat:5.41},
+  {name:"Manila",           country:"Philippines",       lon:120.98, lat:14.60},
+  {name:"Cebu",             country:"Philippines",       lon:123.89, lat:10.31},
+  {name:"Davao",            country:"Philippines",       lon:125.61, lat:7.07},
+  {name:"Ho Chi Minh",      country:"Vietnam",           lon:106.63, lat:10.82},
+  {name:"Hanoi",            country:"Vietnam",           lon:105.85, lat:21.03},
+  {name:"Da Nang",          country:"Vietnam",           lon:108.22, lat:16.05},
+  {name:"Taipei",           country:"Taiwan",            lon:121.56, lat:25.04},
+  {name:"Kaohsiung",        country:"Taiwan",            lon:120.30, lat:22.63},
+  {name:"Dubai",            country:"UAE",               lon:55.30,  lat:25.20},
+  {name:"Abu Dhabi",        country:"UAE",               lon:54.37,  lat:24.47},
+  {name:"Riyadh",           country:"Saudi Arabia",      lon:46.72,  lat:24.69},
+  {name:"Jeddah",           country:"Saudi Arabia",      lon:39.18,  lat:21.49},
+  {name:"Tehran",           country:"Iran",              lon:51.42,  lat:35.70},
+  {name:"Mashhad",          country:"Iran",              lon:59.61,  lat:36.30},
+  {name:"Istanbul",         country:"Turkey",            lon:28.95,  lat:41.01},
+  {name:"Ankara",           country:"Turkey",            lon:32.86,  lat:39.93},
+  {name:"Karachi",          country:"Pakistan",          lon:67.01,  lat:24.86},
+  {name:"Lahore",           country:"Pakistan",          lon:74.31,  lat:31.55},
+  {name:"Dhaka",            country:"Bangladesh",        lon:90.41,  lat:23.72},
+  {name:"Chittagong",       country:"Bangladesh",        lon:91.84,  lat:22.33},
+  {name:"Yangon",           country:"Myanmar",           lon:96.16,  lat:16.87},
+  {name:"Colombo",          country:"Sri Lanka",         lon:79.86,  lat:6.93},
+  {name:"Kathmandu",        country:"Nepal",             lon:85.32,  lat:27.72},
+  {name:"Almaty",           country:"Kazakhstan",        lon:76.95,  lat:43.25},
+  {name:"Nur-Sultan",       country:"Kazakhstan",        lon:71.45,  lat:51.18},
+  {name:"Tashkent",         country:"Uzbekistan",        lon:69.27,  lat:41.30},
+  {name:"Ulaanbaatar",      country:"Mongolia",          lon:106.91, lat:47.90},
+  {name:"Tbilisi",          country:"Georgia",           lon:44.79,  lat:41.69},
+  {name:"Baghdad",          country:"Iraq",              lon:44.36,  lat:33.34},
+  // Americas (37)
+  {name:"New York",         country:"United States",     lon:-74.00, lat:40.71},
+  {name:"Los Angeles",      country:"United States",     lon:-118.24,lat:34.05},
+  {name:"Chicago",          country:"United States",     lon:-87.63, lat:41.88},
+  {name:"Houston",          country:"United States",     lon:-95.37, lat:29.76},
+  {name:"Phoenix",          country:"United States",     lon:-112.07,lat:33.45},
+  {name:"Philadelphia",     country:"United States",     lon:-75.16, lat:39.95},
+  {name:"San Antonio",      country:"United States",     lon:-98.49, lat:29.42},
+  {name:"Dallas",           country:"United States",     lon:-96.80, lat:32.78},
+  {name:"San Francisco",    country:"United States",     lon:-122.42,lat:37.77},
+  {name:"Seattle",          country:"United States",     lon:-122.33,lat:47.61},
+  {name:"Denver",           country:"United States",     lon:-104.99,lat:39.74},
+  {name:"Miami",            country:"United States",     lon:-80.19, lat:25.77},
+  {name:"Atlanta",          country:"United States",     lon:-84.39, lat:33.75},
+  {name:"Boston",           country:"United States",     lon:-71.06, lat:42.36},
+  {name:"Minneapolis",      country:"United States",     lon:-93.27, lat:44.98},
+  {name:"Portland",         country:"United States",     lon:-122.68,lat:45.52},
+  {name:"Las Vegas",        country:"United States",     lon:-115.14,lat:36.17},
+  {name:"Detroit",          country:"United States",     lon:-83.05, lat:42.33},
+  {name:"Toronto",          country:"Canada",            lon:-79.38, lat:43.65},
+  {name:"Vancouver",        country:"Canada",            lon:-123.12,lat:49.28},
+  {name:"Montreal",         country:"Canada",            lon:-73.57, lat:45.51},
+  {name:"Calgary",          country:"Canada",            lon:-114.07,lat:51.05},
+  {name:"Ottawa",           country:"Canada",            lon:-75.70, lat:45.42},
+  {name:"Mexico City",      country:"Mexico",            lon:-99.13, lat:19.43},
+  {name:"Guadalajara",      country:"Mexico",            lon:-103.35,lat:20.66},
+  {name:"Monterrey",        country:"Mexico",            lon:-100.32,lat:25.67},
+  {name:"São Paulo",        country:"Brazil",            lon:-46.63, lat:-23.55},
+  {name:"Rio de Janeiro",   country:"Brazil",            lon:-43.18, lat:-22.91},
+  {name:"Brasília",         country:"Brazil",            lon:-47.93, lat:-15.78},
+  {name:"Curitiba",         country:"Brazil",            lon:-49.27, lat:-25.43},
+  {name:"Fortaleza",        country:"Brazil",            lon:-38.54, lat:-3.72},
+  {name:"Salvador",         country:"Brazil",            lon:-38.51, lat:-12.97},
+  {name:"Recife",           country:"Brazil",            lon:-34.88, lat:-8.05},
+  {name:"Manaus",           country:"Brazil",            lon:-60.02, lat:-3.10},
+  {name:"Porto Alegre",     country:"Brazil",            lon:-51.23, lat:-30.03},
+  {name:"Belém",            country:"Brazil",            lon:-48.50, lat:-1.46},
+  {name:"Buenos Aires",     country:"Argentina",         lon:-58.38, lat:-34.60},
+  {name:"Córdoba",          country:"Argentina",         lon:-64.19, lat:-31.42},
+  {name:"Rosario",          country:"Argentina",         lon:-60.65, lat:-32.95},
+  {name:"Lima",             country:"Peru",              lon:-77.04, lat:-12.04},
+  {name:"Arequipa",         country:"Peru",              lon:-71.54, lat:-16.41},
+  {name:"Trujillo",         country:"Peru",              lon:-79.03, lat:-8.11},
+  {name:"Bogotá",           country:"Colombia",          lon:-74.08, lat:4.71},
+  {name:"Medellín",         country:"Colombia",          lon:-75.56, lat:6.23},
+  {name:"Cali",             country:"Colombia",          lon:-76.53, lat:3.43},
+  {name:"Santiago",         country:"Chile",             lon:-70.65, lat:-33.46},
+  {name:"Caracas",          country:"Venezuela",         lon:-66.90, lat:10.49},
+  {name:"Maracaibo",        country:"Venezuela",         lon:-71.64, lat:10.63},
+  {name:"Quito",            country:"Ecuador",           lon:-78.50, lat:-0.23},
+  {name:"Guayaquil",        country:"Ecuador",           lon:-79.90, lat:-2.17},
+  {name:"La Paz",           country:"Bolivia",           lon:-68.15, lat:-16.50},
+  {name:"Santa Cruz",       country:"Bolivia",           lon:-63.18, lat:-17.80},
+  {name:"Montevideo",       country:"Uruguay",           lon:-56.19, lat:-34.90},
+  {name:"Asunción",         country:"Paraguay",          lon:-57.67, lat:-25.29},
+  {name:"Georgetown",       country:"Guyana",            lon:-58.16, lat:6.80},
+  {name:"Havana",           country:"Cuba",              lon:-82.38, lat:23.14},
+  // Africa (60)
+  {name:"Cairo",            country:"Egypt",             lon:31.24,  lat:30.06},
+  {name:"Alexandria",       country:"Egypt",             lon:29.92,  lat:31.21},
+  {name:"Luxor",            country:"Egypt",             lon:32.64,  lat:25.69},
+  {name:"Lagos",            country:"Nigeria",           lon:3.39,   lat:6.46},
+  {name:"Abuja",            country:"Nigeria",           lon:7.49,   lat:9.07},
+  {name:"Kano",             country:"Nigeria",           lon:8.52,   lat:12.00},
+  {name:"Ibadan",           country:"Nigeria",           lon:3.89,   lat:7.38},
+  {name:"Port Harcourt",    country:"Nigeria",           lon:7.01,   lat:4.77},
+  {name:"Kinshasa",         country:"Dem. Rep. Congo",   lon:15.31,  lat:-4.32},
+  {name:"Lubumbashi",       country:"Dem. Rep. Congo",   lon:27.47,  lat:-11.66},
+  {name:"Johannesburg",     country:"South Africa",      lon:28.05,  lat:-26.20},
+  {name:"Cape Town",        country:"South Africa",      lon:18.42,  lat:-33.93},
+  {name:"Durban",           country:"South Africa",      lon:31.02,  lat:-29.86},
+  {name:"Pretoria",         country:"South Africa",      lon:28.19,  lat:-25.75},
+  {name:"Port Elizabeth",   country:"South Africa",      lon:25.57,  lat:-33.96},
+  {name:"Nairobi",          country:"Kenya",             lon:36.82,  lat:-1.29},
+  {name:"Mombasa",          country:"Kenya",             lon:39.67,  lat:-4.05},
+  {name:"Kisumu",           country:"Kenya",             lon:34.76,  lat:-0.10},
+  {name:"Dar es Salaam",    country:"Tanzania",          lon:39.28,  lat:-6.79},
+  {name:"Dodoma",           country:"Tanzania",          lon:35.74,  lat:-6.17},
+  {name:"Mwanza",           country:"Tanzania",          lon:32.90,  lat:-2.51},
+  {name:"Addis Ababa",      country:"Ethiopia",          lon:38.74,  lat:9.02},
+  {name:"Dire Dawa",        country:"Ethiopia",          lon:41.86,  lat:9.59},
+  {name:"Casablanca",       country:"Morocco",           lon:-7.59,  lat:33.59},
+  {name:"Rabat",            country:"Morocco",           lon:-6.84,  lat:34.02},
+  {name:"Marrakesh",        country:"Morocco",           lon:-8.01,  lat:31.63},
+  {name:"Fez",              country:"Morocco",           lon:-5.00,  lat:34.03},
+  {name:"Accra",            country:"Ghana",             lon:-0.21,  lat:5.56},
+  {name:"Kumasi",           country:"Ghana",             lon:-1.62,  lat:6.69},
+  {name:"Dakar",            country:"Senegal",           lon:-17.44, lat:14.69},
+  {name:"Tunis",            country:"Tunisia",           lon:10.18,  lat:36.82},
+  {name:"Sfax",             country:"Tunisia",           lon:10.76,  lat:34.74},
+  {name:"Algiers",          country:"Algeria",           lon:3.05,   lat:36.74},
+  {name:"Oran",             country:"Algeria",           lon:-0.63,  lat:35.70},
+  {name:"Khartoum",         country:"Sudan",             lon:32.53,  lat:15.55},
+  {name:"Omdurman",         country:"Sudan",             lon:32.48,  lat:15.65},
+  {name:"Abidjan",          country:"Côte d'Ivoire",     lon:-4.03,  lat:5.35},
+  {name:"Yamoussoukro",     country:"Côte d'Ivoire",     lon:-5.28,  lat:6.82},
+  {name:"Kampala",          country:"Uganda",            lon:32.58,  lat:0.32},
+  {name:"Lusaka",           country:"Zambia",            lon:28.28,  lat:-15.42},
+  {name:"Ndola",            country:"Zambia",            lon:28.63,  lat:-12.97},
+  {name:"Harare",           country:"Zimbabwe",          lon:31.05,  lat:-17.83},
+  {name:"Bulawayo",         country:"Zimbabwe",          lon:28.58,  lat:-20.17},
+  {name:"Antananarivo",     country:"Madagascar",        lon:47.52,  lat:-18.91},
+  {name:"Toamasina",        country:"Madagascar",        lon:49.40,  lat:-18.16},
+  {name:"Maputo",           country:"Mozambique",        lon:32.59,  lat:-25.97},
+  {name:"Beira",            country:"Mozambique",        lon:34.84,  lat:-19.84},
+  {name:"Luanda",           country:"Angola",            lon:13.23,  lat:-8.84},
+  {name:"Kigali",           country:"Rwanda",            lon:30.06,  lat:-1.94},
+  {name:"Douala",           country:"Cameroon",          lon:9.70,   lat:4.05},
+  {name:"Yaoundé",          country:"Cameroon",          lon:11.52,  lat:3.87},
+  {name:"Tripoli",          country:"Libya",             lon:13.18,  lat:32.90},
+  {name:"Benghazi",         country:"Libya",             lon:20.06,  lat:32.12},
+  {name:"Conakry",          country:"Guinea",            lon:-13.71, lat:9.54},
+  {name:"Bamako",           country:"Mali",              lon:-8.00,  lat:12.65},
+  {name:"Ouagadougou",      country:"Burkina Faso",      lon:-1.52,  lat:12.36},
+  {name:"Niamey",           country:"Niger",             lon:2.11,   lat:13.51},
+  {name:"N'Djamena",        country:"Chad",              lon:14.99,  lat:12.10},
+  {name:"Mogadishu",        country:"Somalia",           lon:45.34,  lat:2.05},
+  {name:"Djibouti",         country:"Djibouti",          lon:43.15,  lat:11.59},
+  // Europe (56)
+  {name:"London",           country:"United Kingdom",    lon:-0.12,  lat:51.51},
+  {name:"Paris",            country:"France",            lon:2.35,   lat:48.85},
+  {name:"Berlin",           country:"Germany",           lon:13.40,  lat:52.52},
+  {name:"Madrid",           country:"Spain",             lon:-3.70,  lat:40.42},
+  {name:"Rome",             country:"Italy",             lon:12.50,  lat:41.90},
+  {name:"Amsterdam",        country:"Netherlands",       lon:4.90,   lat:52.37},
+  {name:"Vienna",           country:"Austria",           lon:16.37,  lat:48.21},
+  {name:"Warsaw",           country:"Poland",            lon:21.01,  lat:52.23},
+  {name:"Lisbon",           country:"Portugal",          lon:-9.14,  lat:38.72},
+  {name:"Athens",           country:"Greece",            lon:23.73,  lat:37.98},
+  {name:"Stockholm",        country:"Sweden",            lon:18.07,  lat:59.33},
+  {name:"Oslo",             country:"Norway",            lon:10.75,  lat:59.91},
+  {name:"Copenhagen",       country:"Denmark",           lon:12.57,  lat:55.68},
+  {name:"Helsinki",         country:"Finland",           lon:24.94,  lat:60.17},
+  {name:"Brussels",         country:"Belgium",           lon:4.35,   lat:50.85},
+  {name:"Zurich",           country:"Switzerland",       lon:8.54,   lat:47.38},
+  {name:"Prague",           country:"Czechia",           lon:14.42,  lat:50.08},
+  {name:"Budapest",         country:"Hungary",           lon:19.04,  lat:47.50},
+  {name:"Bucharest",        country:"Romania",           lon:26.10,  lat:44.43},
+  {name:"Sofia",            country:"Bulgaria",          lon:23.32,  lat:42.70},
+  {name:"Belgrade",         country:"Serbia",            lon:20.46,  lat:44.80},
+  {name:"Zagreb",           country:"Croatia",           lon:15.98,  lat:45.81},
+  {name:"Kyiv",             country:"Ukraine",           lon:30.52,  lat:50.45},
+  {name:"Minsk",            country:"Belarus",           lon:27.57,  lat:53.90},
+  {name:"Vilnius",          country:"Lithuania",         lon:25.28,  lat:54.69},
+  {name:"Riga",             country:"Latvia",            lon:24.11,  lat:56.95},
+  {name:"Tallinn",          country:"Estonia",           lon:24.75,  lat:59.44},
+  {name:"Dublin",           country:"Ireland",           lon:-6.26,  lat:53.33},
+  {name:"Edinburgh",        country:"United Kingdom",    lon:-3.19,  lat:55.95},
+  {name:"Barcelona",        country:"Spain",             lon:2.15,   lat:41.39},
+  {name:"Munich",           country:"Germany",           lon:11.58,  lat:48.14},
+  {name:"Milan",            country:"Italy",             lon:9.19,   lat:45.46},
+  {name:"Naples",           country:"Italy",             lon:14.27,  lat:40.85},
+  {name:"Marseille",        country:"France",            lon:5.37,   lat:43.30},
+  {name:"Lyon",             country:"France",            lon:4.83,   lat:45.75},
+  {name:"Hamburg",          country:"Germany",           lon:10.00,  lat:53.55},
+  {name:"Rotterdam",        country:"Netherlands",       lon:4.48,   lat:51.92},
+  {name:"Seville",          country:"Spain",             lon:-5.98,  lat:37.39},
+  {name:"Porto",            country:"Portugal",          lon:-8.61,  lat:41.15},
+  {name:"Thessaloniki",     country:"Greece",            lon:22.94,  lat:40.64},
+  {name:"Kraków",           country:"Poland",            lon:19.94,  lat:50.06},
+  {name:"Moscow",           country:"Russia",            lon:37.62,  lat:55.75},
+  {name:"St Petersburg",    country:"Russia",            lon:30.32,  lat:59.95},
+  {name:"Novosibirsk",      country:"Russia",            lon:82.93,  lat:55.05},
+  {name:"Yekaterinburg",    country:"Russia",            lon:60.60,  lat:56.85},
+  {name:"Vladivostok",      country:"Russia",            lon:131.90, lat:43.12},
+  {name:"Kazan",            country:"Russia",            lon:49.12,  lat:55.80},
+  {name:"Chelyabinsk",      country:"Russia",            lon:61.40,  lat:55.15},
+  {name:"Omsk",             country:"Russia",            lon:73.37,  lat:54.99},
+  {name:"Samara",           country:"Russia",            lon:50.15,  lat:53.20},
+  {name:"Rostov-on-Don",    country:"Russia",            lon:39.71,  lat:47.24},
+  {name:"Sarajevo",         country:"Bosnia",            lon:18.42,  lat:43.85},
+  {name:"Tirana",           country:"Albania",           lon:19.82,  lat:41.33},
+  {name:"Reykjavik",        country:"Iceland",           lon:-21.94, lat:64.13},
+  {name:"Valletta",         country:"Malta",             lon:14.51,  lat:35.90},
+  {name:"Nicosia",          country:"Cyprus",            lon:33.38,  lat:35.17},
+];
+
+var REGION_FILTER = {
+  world:         function() { return true; },
+  europe:        function(c) { return ["United Kingdom","France","Germany","Spain","Italy","Netherlands","Austria","Poland","Portugal","Greece","Sweden","Norway","Denmark","Finland","Belgium","Switzerland","Czechia","Hungary","Romania","Bulgaria","Serbia","Croatia","Ukraine","Belarus","Lithuania","Latvia","Estonia","Ireland","Russia","Bosnia","Albania","Iceland","Malta","Cyprus"].includes(c.country); },
+  northamerica:  function(c) { return ["United States","Canada","Mexico","Cuba"].includes(c.country); },
+  southamerica:  function(c) { return ["Brazil","Argentina","Peru","Colombia","Chile","Venezuela","Ecuador","Bolivia","Uruguay","Paraguay","Guyana"].includes(c.country); },
+  asia:          function(c) { return ["Japan","South Korea","China","India","Singapore","Thailand","Indonesia","Malaysia","Philippines","Vietnam","Taiwan","UAE","Saudi Arabia","Iran","Turkey","Pakistan","Bangladesh","Myanmar","Sri Lanka","Nepal","Kazakhstan","Uzbekistan","Mongolia","Georgia","Iraq"].includes(c.country); },
+  africa:        function(c) { return ["Egypt","Nigeria","Dem. Rep. Congo","South Africa","Kenya","Tanzania","Ethiopia","Morocco","Ghana","Senegal","Tunisia","Algeria","Sudan","Côte d'Ivoire","Uganda","Zambia","Zimbabwe","Madagascar","Mozambique","Angola","Rwanda","Cameroon","Libya","Guinea","Mali","Burkina Faso","Niger","Chad","Somalia","Djibouti"].includes(c.country); },
+  oceania:       function(c) { return ["Australia","New Zealand","Papua New Guinea","Fiji","Solomon Islands","Vanuatu","Samoa","Tonga","French Polynesia","New Caledonia","Tuvalu","Kiribati","Marshall Islands","Micronesia","Nauru","Wallis & Futuna","Niue","Cook Islands","Pitcairn Islands"].includes(c.country); },
+};
+
+// Each region has a curated list of major-city hubs; one is picked per level.
+var REGION_HUB_OPTIONS = {
+  world: [
+    {lon:6.14,  lat:46.20, label:"Geneva, Switzerland"},
+    {lon:-0.12, lat:51.51, label:"London, UK"},
+    {lon:55.30, lat:25.20, label:"Dubai, UAE"},
+    {lon:103.82,lat:1.35,  label:"Singapore"},
+    {lon:-74.00,lat:40.71, label:"New York, USA"},
+    {lon:139.69,lat:35.69, label:"Tokyo, Japan"},
+    {lon:-46.63,lat:-23.55,label:"São Paulo, Brazil"},
+    {lon:31.24, lat:30.06, label:"Cairo, Egypt"},
+    {lon:151.21,lat:-33.87,label:"Sydney, Australia"},
+    {lon:72.88, lat:19.08, label:"Mumbai, India"},
+    {lon:36.82, lat:-1.29, label:"Nairobi, Kenya"},
+    {lon:8.68,  lat:50.11, label:"Frankfurt, Germany"},
+  ],
+  europe: [
+    {lon:8.68,  lat:50.11, label:"Frankfurt, Germany"},
+    {lon:-0.12, lat:51.51, label:"London, UK"},
+    {lon:2.35,  lat:48.85, label:"Paris, France"},
+    {lon:4.90,  lat:52.37, label:"Amsterdam, Netherlands"},
+    {lon:-3.70, lat:40.42, label:"Madrid, Spain"},
+    {lon:12.50, lat:41.90, label:"Rome, Italy"},
+    {lon:16.37, lat:48.21, label:"Vienna, Austria"},
+    {lon:21.01, lat:52.23, label:"Warsaw, Poland"},
+    {lon:28.95, lat:41.01, label:"Istanbul, Turkey"},
+    {lon:8.54,  lat:47.38, label:"Zurich, Switzerland"},
+    {lon:4.35,  lat:50.85, label:"Brussels, Belgium"},
+    {lon:12.57, lat:55.68, label:"Copenhagen, Denmark"},
+    {lon:18.07, lat:59.33, label:"Stockholm, Sweden"},
+  ],
+  northamerica: [
+    {lon:-87.63,lat:41.88, label:"Chicago, USA"},
+    {lon:-74.00,lat:40.71, label:"New York, USA"},
+    {lon:-118.24,lat:34.05,label:"Los Angeles, USA"},
+    {lon:-79.38,lat:43.65, label:"Toronto, Canada"},
+    {lon:-99.13,lat:19.43, label:"Mexico City, Mexico"},
+    {lon:-84.39,lat:33.75, label:"Atlanta, USA"},
+    {lon:-96.80,lat:32.78, label:"Dallas, USA"},
+    {lon:-95.37,lat:29.76, label:"Houston, USA"},
+    {lon:-80.19,lat:25.77, label:"Miami, USA"},
+    {lon:-122.33,lat:47.61,label:"Seattle, USA"},
+    {lon:-104.99,lat:39.74,label:"Denver, USA"},
+    {lon:-123.12,lat:49.28,label:"Vancouver, Canada"},
+    {lon:-73.57,lat:45.51, label:"Montréal, Canada"},
+  ],
+  southamerica: [
+    {lon:-46.63,lat:-23.55,label:"São Paulo, Brazil",       icon:"🦫"},
+    {lon:-58.38,lat:-34.60,label:"Buenos Aires, Argentina", icon:"🦫"},
+    {lon:-74.08,lat:4.71,  label:"Bogotá, Colombia",        icon:"🦫"},
+    {lon:-77.04,lat:-12.04,label:"Lima, Peru",              icon:"🦫"},
+    {lon:-70.65,lat:-33.46,label:"Santiago, Chile",         icon:"🦫"},
+    {lon:-43.18,lat:-22.91,label:"Rio de Janeiro, Brazil",  icon:"🦫"},
+    {lon:-66.90,lat:10.49, label:"Caracas, Venezuela",      icon:"🦫"},
+    {lon:-56.19,lat:-34.90,label:"Montevideo, Uruguay",     icon:"🦫"},
+  ],
+  asia: [
+    {lon:121.47,lat:31.23, label:"Shanghai, China"},
+    {lon:103.82,lat:1.35,  label:"Singapore"},
+    {lon:139.69,lat:35.69, label:"Tokyo, Japan"},
+    {lon:55.30, lat:25.20, label:"Dubai, UAE"},
+    {lon:72.88, lat:19.08, label:"Mumbai, India"},
+    {lon:100.52,lat:13.75, label:"Bangkok, Thailand"},
+    {lon:116.40,lat:39.91, label:"Beijing, China"},
+    {lon:126.98,lat:37.57, label:"Seoul, South Korea"},
+    {lon:101.69,lat:3.14,  label:"Kuala Lumpur, Malaysia"},
+    {lon:106.84,lat:-6.21, label:"Jakarta, Indonesia"},
+    {lon:77.21, lat:28.61, label:"Delhi, India"},
+    {lon:120.98,lat:14.60, label:"Manila, Philippines"},
+  ],
+  africa: [
+    {lon:36.82, lat:-1.29, label:"Nairobi, Kenya"},
+    {lon:31.24, lat:30.06, label:"Cairo, Egypt"},
+    {lon:3.39,  lat:6.46,  label:"Lagos, Nigeria"},
+    {lon:28.05, lat:-26.20,label:"Johannesburg, South Africa"},
+    {lon:-7.59, lat:33.59, label:"Casablanca, Morocco"},
+    {lon:38.74, lat:9.02,  label:"Addis Ababa, Ethiopia"},
+    {lon:39.28, lat:-6.79, label:"Dar es Salaam, Tanzania"},
+    {lon:-0.21, lat:5.56,  label:"Accra, Ghana"},
+    {lon:13.23, lat:-8.84, label:"Luanda, Angola"},
+    {lon:18.42, lat:-33.93,label:"Cape Town, South Africa"},
+  ],
+  oceania: [
+    {lon:151.21,lat:-33.87,label:"Sydney, Australia"},
+    {lon:174.76,lat:-36.86,label:"Auckland, New Zealand"},
+    {lon:144.96,lat:-37.81,label:"Melbourne, Australia"},
+    {lon:153.03,lat:-27.47,label:"Brisbane, Australia"},
+    {lon:115.86,lat:-31.95,label:"Perth, Australia"},
+    {lon:147.19,lat:-9.44, label:"Port Moresby, PNG"},
+    {lon:130.84,lat:-12.46,label:"Darwin, Australia"},
+    {lon:149.13,lat:-35.28,label:"Canberra, Australia"},
+  ],
+};
+
+var REGION_BOUNDS = {
+  world:        [[-180,-60],[180,75]],
+  europe:       [[-28,33], [50,72]],
+  northamerica: [[-170,5], [-52,75]],
+  southamerica: [[-82,-56],[-34,14]],
+  asia:         [[22,-12],[155,57]],
+  africa:       [[-22,-38],[55,38]],
+  oceania:      [[108,-50],[182,-3]],
+};
+
+var REGION_COLORS = {
+  world:        {water:"#a8cfe8",stroke:"#8cbf87"},
+  europe:       {water:"#a8cfe8",stroke:"#8cbf87"},
+  northamerica: {water:"#9ecde4",stroke:"#92c27a"},
+  southamerica: {water:"#9ecde4",stroke:"#92c27a"},
+  asia:         {water:"#b3d4f0",stroke:"#9acc8e"},
+  africa:       {water:"#a8d4ec",stroke:"#b5c972"},
+  oceania:      {water:"#90d4e8",stroke:"#7ec4a8"},
+};
+
+// Soft distinguishable palette cycled per country (keyed by feature numeric id)
+var COUNTRY_PALETTE = [
+  '#c8ddb5', // light green
+  '#f5d5d5', // light pink
+  '#e2e2e2', // light gray
+  '#fde8c0', // light orange
+  '#dfc9a8', // light brown/tan
+  '#f0e8c0', // light yellow
+  '#cce5f5', // light sky blue
+  '#e8d5f0', // light lavender
+];
+
+// ─── CONSTANTS ────────────────────────────────────────────────
+var DELIVERIES = 5, MAX_LEVEL = 20, COOLDOWN_MS = 2000, PAUSE_MS = 1200;
+var NODE_R = 5, ORIGIN_R = 20, HUD_H = 64, KEY_LEGEND_H = 26, TARGET_STRIP_H = 34, PAD = 40;
+var MAP_Y_OFFSET = 150, SMALL_FEATURE_HIT_R = 18, SMALL_FEATURE_SCREEN_MAX = 24;
+var MIN_ZOOM = 0.65, MAX_ZOOM = 12;  // 0.65 avoids Russia antimeridian artifacts
+var SAMPLE_SIZE = 45;  // cities shown per level
+var PKG_SPEED_PX = 3.8; // world-space px per frame
+
+// ─── HAZARD GEO DATA ──────────────────────────────────────────
+// Volcanoes active in the past ~1000 years
+var VOLCANO_POINTS = [
+  // Alaska / Aleutians
+  {lon:-152.7, lat:60.5},  // Redoubt
+  {lon:-159.4, lat:56.2},  // Veniaminof
+  {lon:-161.9, lat:55.4},  // Pavlof
+  {lon:-163.9, lat:54.8},  // Shishaldin
+  {lon:-169.9, lat:52.8},  // Cleveland
+  // US Pacific Northwest
+  {lon:-122.2, lat:46.2},  // Mt. St. Helens (1980)
+  {lon:-121.7, lat:46.9},  // Mt. Rainier
+  {lon:-121.5, lat:40.5},  // Lassen Peak (1915)
+  // Mexico / Central America
+  {lon:-98.6,  lat:19.0},  // Popocatépetl
+  {lon:-103.6, lat:19.5},  // Colima
+  {lon:-93.2,  lat:17.4},  // El Chichón (1982)
+  {lon:-91.0,  lat:14.5},  // Santiaguito / Guatemalan chain
+  // Caribbean
+  {lon:-62.2,  lat:16.7},  // Soufrière Hills, Montserrat (1995)
+  // South America
+  {lon:-77.4,  lat:1.2},   // Galeras, Colombia
+  {lon:-75.4,  lat:4.9},   // Nevado del Ruiz (1985)
+  {lon:-78.5,  lat:-1.5},  // Tungurahua, Ecuador
+  {lon:-78.4,  lat:-0.7},  // Cotopaxi, Ecuador
+  {lon:-70.9,  lat:-16.6}, // Huaynaputina, Peru (1600)
+  {lon:-71.9,  lat:-39.4}, // Villarrica, Chile
+  {lon:-72.6,  lat:-41.3}, // Calbuco, Chile (2015)
+  // Iceland
+  {lon:-19.6,  lat:63.6},  // Eyjafjallajökull (2010)
+  {lon:-19.7,  lat:64.0},  // Hekla
+  {lon:-18.2,  lat:64.1},  // Laki (1783)
+  {lon:-17.3,  lat:64.4},  // Grímsvötn (2011)
+  // Mediterranean
+  {lon:14.4,   lat:40.8},  // Mt. Vesuvius (79 CE + eruptions since)
+  {lon:15.0,   lat:37.7},  // Mt. Etna (continuously active)
+  {lon:15.2,   lat:38.8},  // Stromboli (continuously active)
+  {lon:25.4,   lat:36.4},  // Santorini / Nea Kameni
+  // East Africa / Rift Valley
+  {lon:29.25,  lat:-1.52}, // Nyiragongo, DRC (2002, 2021)
+  {lon:35.9,   lat:-2.77}, // Ol Doinyo Lengai, Tanzania
+  {lon:40.7,   lat:13.6},  // Erta Ale, Ethiopia
+  // Réunion Island
+  {lon:55.7,   lat:-21.2}, // Piton de la Fournaise (continuously active)
+  // Russia / Kamchatka
+  {lon:160.6,  lat:55.8},  // Klyuchevskaya (continuously active)
+  {lon:163.0,  lat:55.1},  // Bezymianny
+  // Japan
+  {lon:138.7,  lat:35.4},  // Mt. Fuji (1707)
+  {lon:130.7,  lat:31.6},  // Sakurajima (continuously active)
+  {lon:131.1,  lat:32.9},  // Aso
+  {lon:139.5,  lat:34.1},  // Miyake-jima (2000)
+  {lon:130.9,  lat:31.9},  // Shinmoe-dake (2011)
+  // Philippines
+  {lon:120.4,  lat:15.1},  // Pinatubo (1991)
+  {lon:121.0,  lat:14.0},  // Taal (2020)
+  {lon:123.7,  lat:12.4},  // Mayon
+  // Indonesia
+  {lon:105.4,  lat:-6.1},  // Krakatoa (1883, Anak Krakatau 2018)
+  {lon:110.4,  lat:-7.5},  // Merapi (2010)
+  {lon:115.5,  lat:-8.3},  // Agung, Bali (2017)
+  {lon:112.3,  lat:-7.9},  // Kelut
+  {lon:98.4,   lat:3.2},   // Sinabung (2013)
+  {lon:118.0,  lat:-8.3},  // Tambora (1815)
+  // Papua New Guinea
+  {lon:152.2,  lat:-4.3},  // Rabaul (1994)
+  {lon:151.3,  lat:-5.1},  // Ulawun
+  // Vanuatu
+  {lon:169.4,  lat:-19.5}, // Yasur (continuously active)
+  {lon:168.4,  lat:-16.5}, // Lopevi
+  // New Zealand
+  {lon:175.6,  lat:-39.3}, // Ruapehu
+  {lon:175.7,  lat:-39.1}, // Tongariro (2012)
+  {lon:177.2,  lat:-37.5}, // Whakaari / White Island (2019)
+  // Hawaii
+  {lon:-155.3, lat:19.4},  // Kīlauea (continuously active)
+  {lon:-155.6, lat:19.5},  // Mauna Loa (2022)
+  // Yellowstone (supervolcano)
+  {lon:-110.7, lat:44.4},  // Yellowstone caldera
+];
+
+// Named historical storm tracks — each is a sequence of [lon, lat] waypoints.
+// Storms follow these exactly, moving at STORM_SPEED_DEG_S degrees/second of path distance.
+var STORM_SPEED_DEG_S = 2.0; // degrees of path per second (gameplay speed)
+var STORM_TRACKS = [
+  // ── Atlantic Hurricanes ──
+  // 1. Hugo-type: Cape Verde → Lesser Antilles → South Carolina (1989)
+  {type:'hurricane', pts:[[-26,13],[-38,14],[-50,15],[-62,16],[-70,20],[-78,27],[-80,33]]},
+  // 2. Katrina-type: Bahamas → south Florida → Gulf → New Orleans (2005)
+  {type:'hurricane', pts:[[-74,23],[-79,25],[-82,25],[-86,26],[-89,28],[-90,29]]},
+  // 3. Sandy-type: Caribbean → US East Coast → sharp left into NJ (2012)
+  {type:'hurricane', pts:[[-76,14],[-77,19],[-77,25],[-76,30],[-74,36],[-74,41]]},
+  // 4. Irma-type: Cape Verde → straight track → Caribbean → Florida (2017)
+  {type:'hurricane', pts:[[-25,14],[-40,17],[-55,17],[-65,18],[-74,22],[-82,25],[-82,27]]},
+  // 5. Mitch-type: Central Caribbean → stall over Central America (1998)
+  {type:'hurricane', pts:[[-67,13],[-73,14],[-80,14],[-84,14],[-88,15],[-91,20]]},
+  // ── Western Pacific Typhoons ──
+  // 6. Haiyan-type: Open Pacific → Philippines → Vietnam (2013)
+  {type:'typhoon',  pts:[[153,8],[142,11],[130,12],[122,12],[117,14],[108,18]]},
+  // 7. Hagibis-type: Open Pacific → recurves sharply → Japan (2019)
+  {type:'typhoon',  pts:[[155,17],[150,20],[145,23],[140,27],[138,33],[140,37],[144,40]]},
+  // 8. Rammasun-type: Philippines → South China Sea → southern China (2014)
+  {type:'typhoon',  pts:[[132,14],[124,16],[118,18],[113,21],[109,23],[107,25]]},
+  // 9. Jebi-type: Open Pacific → tracks NNW → Japan direct (2018)
+  {type:'typhoon',  pts:[[149,19],[143,23],[137,28],[133,32],[131,34],[130,36]]},
+  // 10. Bopha-type: Far western Pacific at very low latitude → Mindanao (2012)
+  {type:'typhoon',  pts:[[158,6],[147,7],[135,7],[124,8],[118,10],[113,13]]},
+];
+
+// ─── STATE ────────────────────────────────────────────────────
+var G = {
+  region:null, allCities:[], activeCities:[], hub:null, colors:null,
+  level:1, delivered:0, totalDelivered:0,
+  cooldown:false, cooldownStart:0,
+  pkg:null, particles:[], planes:[], hazards:[], hazardTimer:0,
+  request:null, pausing:false, pauseUntil:0,
+  camX:0, camY:0, zoom:1,
+  dragging:false, dragStartX:0, dragStartY:0, camStartX:0, camStartY:0,
+  hoveredFeature:null, hoveredCityIdx:-1, hubOptionIdx:-1,
+  resumeLevelOnRegionSelect:false,
+  keysDown:{},
+};
+
+// ─── CANVAS ───────────────────────────────────────────────────
+var canvas = document.getElementById('gc');
+var ctx = canvas.getContext('2d');
+var TOP_OFFSET; // HUD_H + KEY_LEGEND_H
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  TOP_OFFSET = HUD_H + KEY_LEGEND_H + TARGET_STRIP_H;
+  if (G.region) resetCamera();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ─── PROJECTION ───────────────────────────────────────────────
+var _mx0, _my0, _mx1, _my1, _baseScale, _baseOffX, _baseOffY;
+
+function mercXY(lon, lat) {
+  var x = lon * Math.PI / 180;
+  var sinLat = Math.sin(Math.max(-89.9, Math.min(89.9, lat)) * Math.PI / 180);
+  var y = Math.log((1 + sinLat) / (1 - sinLat)) / 2;
+  return [x, y];
+}
+
+function buildBaseProjection(bounds) {
+  var west=bounds[0][0], south=bounds[0][1], east=bounds[1][0], north=bounds[1][1];
+  var W=canvas.width, H=canvas.height;
+  var drawW=W-2*PAD, drawH=H-TOP_OFFSET-2*PAD;
+  var m0=mercXY(west,south), m1=mercXY(east,north);
+  _mx0=m0[0]; _my0=m0[1]; _mx1=m1[0]; _my1=m1[1];
+  var scaleX=drawW/(_mx1-_mx0), scaleY=drawH/(_my1-_my0);
+  _baseScale=Math.min(scaleX,scaleY);
+  var projW=(_mx1-_mx0)*_baseScale, projH=(_my1-_my0)*_baseScale;
+  _baseOffX=PAD+(drawW-projW)/2;
+  _baseOffY=TOP_OFFSET+PAD+(drawH-projH)/2;
+}
+
+function lonLatToWorld(lon, lat) {
+  var m=mercXY(lon,lat);
+  return [_baseOffX+(m[0]-_mx0)*_baseScale, _baseOffY+(_my1-m[1])*_baseScale+MAP_Y_OFFSET];
+}
+
+function worldToScreen(wx, wy) { return [wx*G.zoom+G.camX, wy*G.zoom+G.camY]; }
+function screenToWorld(sx, sy) { return [(sx-G.camX)/G.zoom, (sy-G.camY)/G.zoom]; }
+
+function worldToLonLat(wx, wy) {
+  var mx=(wx-_baseOffX)/_baseScale+_mx0;
+  var my=_my1-(wy-_baseOffY-MAP_Y_OFFSET)/_baseScale;
+  return [mx*180/Math.PI, Math.atan(Math.sinh(my))*180/Math.PI];
+}
+
+function cityScreen(city) {
+  var w=lonLatToWorld(city.lon,city.lat); return worldToScreen(w[0],w[1]);
+}
+function hubScreen() {
+  var w=lonLatToWorld(G.hub.lon,G.hub.lat); return worldToScreen(w[0],w[1]);
+}
+
+function resetCamera() {
+  buildBaseProjection(REGION_BOUNDS[G.region]);
+  G.zoom=1; G.camX=0; G.camY=0;
+}
+
+// ─── MAP DATA ─────────────────────────────────────────────────
+var countryFeatures=null;
+
+async function loadMap() {
+  try {
+    await loadScript('https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js');
+    var resp=await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json');
+    if (!resp.ok) throw new Error('fetch failed');
+    var world=await resp.json();
+    countryFeatures=topojson.feature(world,world.objects.countries).features;
+    document.getElementById('loading').classList.add('gone');
+    setTimeout(function(){
+      document.getElementById('loading').style.display='none';
+      document.getElementById('cont-screen').classList.remove('hidden');
+      renderSavesPanel();
+    },450);
+  } catch(e) {
+    document.getElementById('load-sub').textContent='⚠️ Could not load map — check connection and reload.';
+  }
+}
+
+function loadScript(src) {
+  return new Promise(function(resolve,reject){
+    var s=document.createElement('script'); s.src=src; s.onload=resolve; s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ─── GEOMETRY HELPERS ─────────────────────────────────────────
+function isNearBounds(feature, bounds) {
+  var w=bounds[0][0]-15, s=bounds[0][1]-15, e=bounds[1][0]+15, n=bounds[1][1]+15;
+  var geom=feature.geometry; if (!geom) return false;
+  var rings=geom.type==='Polygon'?geom.coordinates:geom.type==='MultiPolygon'?geom.coordinates.flat(1):[];
+  return rings.some(function(ring){return ring.some(function(pt){
+    var lons=[pt[0],pt[0]+360,pt[0]-360];
+    return lons.some(function(l){return l>=w&&l<=e;})&&pt[1]>=s&&pt[1]<=n;
+  });});
+}
+
+function pointInRing(px,py,ring) {
+  var inside=false;
+  for (var i=0,j=ring.length-1;i<ring.length;j=i++){
+    var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+function pointInFeature(lon,lat,feature) {
+  var geom=feature.geometry; if (!geom) return false;
+  var polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+  return polys.some(function(poly){return pointInRing(lon,lat,poly[0]);});
+}
+
+function isNearSmallFeature(lon,lat,feature) {
+  var geom=feature.geometry; if (!geom) return false;
+  var rings=geom.type==='Polygon'?geom.coordinates:geom.type==='MultiPolygon'?geom.coordinates.flat(1):[];
+  if(!rings.length) return false;
+  var cursor=lonLatToWorld(lon,lat);
+  var minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, minDist=Infinity;
+  rings.forEach(function(ring){
+    ring.forEach(function(pt){
+      var w=lonLatToWorld(pt[0],pt[1]);
+      if(w[0]<minX) minX=w[0];
+      if(w[1]<minY) minY=w[1];
+      if(w[0]>maxX) maxX=w[0];
+      if(w[1]>maxY) maxY=w[1];
+      minDist=Math.min(minDist,Math.hypot(w[0]-cursor[0],w[1]-cursor[1]));
+    });
+  });
+  var screenW=(maxX-minX)*G.zoom, screenH=(maxY-minY)*G.zoom;
+  return screenW<=SMALL_FEATURE_SCREEN_MAX&&screenH<=SMALL_FEATURE_SCREEN_MAX&&minDist<SMALL_FEATURE_HIT_R/G.zoom;
+}
+
+// Build a map of country name → cities for current active set
+var _countryToCities={};
+function buildCountryIndex() {
+  _countryToCities={};
+  G.activeCities.forEach(function(c){
+    if(!_countryToCities[c.country]) _countryToCities[c.country]=[];
+    _countryToCities[c.country].push(c);
+  });
+}
+
+// Match feature to city countries (Natural Earth uses English names)
+function featureCountryCities(feature) {
+  var name=feature.properties&&feature.properties.name; if(!name) return [];
+  // Direct match or substring match
+  var result=[];
+  Object.keys(_countryToCities).forEach(function(cn){
+    if(name===cn||name.indexOf(cn)!==-1||cn.indexOf(name)!==-1) {
+      result=result.concat(_countryToCities[cn]);
+    }
+  });
+  return result;
+}
+
+// ─── ANTIMERIDIAN SPLIT ───────────────────────────────────────
+// Split a lon/lat ring into sub-rings wherever consecutive vertices
+// cross the antimeridian (longitude jump > 180°). This prevents the
+// canvas from drawing a straight line across the screen for polygons
+// like Russia's far-east or Canada's Aleutian-adjacent territory.
+function splitRingAtAntimeridian(ring) {
+  if (ring.length < 2) return [ring];
+  var segments = [], current = [ring[0]];
+  for (var i = 1; i < ring.length; i++) {
+    var prev = ring[i - 1], pt = ring[i];
+    if (Math.abs(pt[0] - prev[0]) > 180) {
+      if (current.length > 1) segments.push(current);
+      current = [pt];
+    } else {
+      current.push(pt);
+    }
+  }
+  if (current.length > 1) segments.push(current);
+  return segments.length > 0 ? segments : [ring];
+}
+
+// ─── DRAW MAP ─────────────────────────────────────────────────
+function drawMap() {
+  var col=G.colors;
+  ctx.fillStyle=col.water;
+  ctx.fillRect(0,TOP_OFFSET,canvas.width,canvas.height-TOP_OFFSET);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,TOP_OFFSET,canvas.width,canvas.height-TOP_OFFSET); ctx.clip();
+  ctx.save();
+  ctx.translate(G.camX,G.camY); ctx.scale(G.zoom,G.zoom);
+
+  var bounds=REGION_BOUNDS[G.region];
+  countryFeatures.forEach(function(feat){
+    if(!isNearBounds(feat,bounds)) return;
+    var geom=feat.geometry; if(!geom) return;
+    var rings=geom.type==='Polygon'?geom.coordinates:geom.type==='MultiPolygon'?geom.coordinates.flat(1):[];
+    if(!rings.length) return;
+    var isHov=(feat===G.hoveredFeature);
+    // Pick a stable color from the palette using the feature's numeric id
+    var palIdx=(parseInt(feat.id)||0)%COUNTRY_PALETTE.length;
+    var baseFill=COUNTRY_PALETTE[palIdx];
+    ctx.beginPath();
+    rings.forEach(function(ring){
+      var segs=splitRingAtAntimeridian(ring);
+      segs.forEach(function(seg){
+        seg.forEach(function(pt,i){
+          var w=lonLatToWorld(pt[0],pt[1]);
+          if(i===0) ctx.moveTo(w[0],w[1]); else ctx.lineTo(w[0],w[1]);
+        });
+        ctx.closePath();
+      });
+    });
+    ctx.fillStyle=isHov?'#ffe5cc':baseFill; ctx.fill();
+    ctx.strokeStyle=isHov?'#f4845f':col.stroke;
+    ctx.lineWidth=isHov?2/G.zoom:0.5/G.zoom; ctx.stroke();
+  });
+
+  ctx.restore(); ctx.restore();
+}
+
+// ─── DRAW CITIES & LABELS ─────────────────────────────────────
+function drawCityLabel(sx, sy, text) {
+  var LABEL_H=17, LABEL_PAD=8;
+  ctx.font='bold 11px Nunito,sans-serif';
+  var tw=ctx.measureText(text).width;
+  var lw=tw+LABEL_PAD*2;
+  var lx=sx, ly=sy-NODE_R-LABEL_H-4;
+  ctx.fillStyle='rgba(25,25,35,0.84)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(lx-lw/2,ly,lw,LABEL_H,4);
+  else ctx.rect(lx-lw/2,ly,lw,LABEL_H);
+  ctx.fill();
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text, lx, ly+LABEL_H/2);
+}
+
+function drawCities() {
+  // Collect cities to label from hovered country feature
+  var toLabel=[];
+  if (G.hoveredFeature) {
+    G.activeCities.forEach(function(city,i){
+      if(pointInFeature(city.lon,city.lat,G.hoveredFeature)) {
+        var s=cityScreen(city); toLabel.push({city,i,sx:s[0],sy:s[1]});
+      }
+    });
+  }
+
+  // Draw all dots; highlight the dot-hovered city
+  G.activeCities.forEach(function(city,i){
+    var s=cityScreen(city);
+    var isHovDot=(i===G.hoveredCityIdx);
+    ctx.beginPath(); ctx.arc(s[0]+1,s[1]+1,NODE_R,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.10)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(s[0],s[1],isHovDot?NODE_R+3:NODE_R,0,Math.PI*2);
+    ctx.fillStyle=isHovDot?'#f4845f':'#4361ee'; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=isHovDot?2.5:1.5; ctx.stroke();
+  });
+
+  // Labels for hovered country's cities (staggered to avoid overlap)
+  if (toLabel.length) {
+    toLabel.sort(function(a,b){return a.sy-b.sy;});
+    var LABEL_H=17, LABEL_PAD=8;
+    var placed=[];
+    toLabel.forEach(function(item){
+      ctx.font='bold 11px Nunito,sans-serif';
+      var tw=ctx.measureText(item.city.name+', '+item.city.country).width;
+      var lw=tw+LABEL_PAD*2;
+      var lx=item.sx, ly=item.sy-NODE_R-LABEL_H-4;
+      for (var attempts=0;attempts<12;attempts++){
+        var clash=placed.some(function(p){return Math.abs(p.x-lx)<(lw+p.w)/2&&Math.abs(p.y-ly)<LABEL_H+2;});
+        if(!clash) break;
+        ly+=LABEL_H+3;
+      }
+      placed.push({x:lx,y:ly,w:lw});
+      drawCityLabel(item.sx, item.sy, item.city.name+', '+item.city.country);
+    });
+  }
+
+  // Label for dot-hovered city (always shown, overrides country hover)
+  if (G.hoveredCityIdx>=0 && G.activeCities[G.hoveredCityIdx]) {
+    var hc=G.activeCities[G.hoveredCityIdx];
+    var hs=cityScreen(hc);
+    drawCityLabel(hs[0], hs[1], hc.name+', '+hc.country);
+  }
+}
+
+// ─── OFF-SCREEN TARGET INDICATOR ─────────────────────────────
+function drawOffScreenIndicator(now) {
+  if (!G.request || !G.activeCities[G.request.cityIdx]) return;
+  var city = G.activeCities[G.request.cityIdx];
+  var s = cityScreen(city);
+  var MARGIN = 48; // px inset from canvas edge for arrow placement
+  var top = TOP_OFFSET + MARGIN, bot = canvas.height - MARGIN;
+  var lft = MARGIN, rgt = canvas.width - MARGIN;
+
+  var offScreen = s[0] < lft || s[0] > rgt || s[1] < top || s[1] > bot;
+  if (!offScreen) return;
+
+  // Ray from screen centre toward city — find where it hits the viewport rect
+  var cx = canvas.width / 2, cy = (TOP_OFFSET + canvas.height) / 2;
+  var dx = s[0] - cx, dy = s[1] - cy;
+  var angle = Math.atan2(dy, dx);
+
+  // Parametric intersection with the inset rectangle
+  var tx = dx !== 0 ? (dx > 0 ? (rgt - cx) : (lft - cx)) / dx : Infinity;
+  var ty = dy !== 0 ? (dy > 0 ? (bot - cy) : (top - cy)) / dy : Infinity;
+  var t = Math.min(Math.abs(tx), Math.abs(ty));
+  var ax = cx + dx * t, ay = cy + dy * t;
+
+  // Clamp to inset rect
+  ax = Math.max(lft, Math.min(rgt, ax));
+  ay = Math.max(top, Math.min(bot, ay));
+
+  // Pulsing opacity
+  var pulse = 0.65 + 0.35 * Math.abs(Math.sin(now * 0.004));
+
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  ctx.translate(ax, ay);
+  ctx.rotate(angle);
+
+  // Draw a bold arrow triangle
+  var SZ = 18;
+  ctx.beginPath();
+  ctx.moveTo(SZ, 0);
+  ctx.lineTo(-SZ * 0.6, -SZ * 0.65);
+  ctx.lineTo(-SZ * 0.6,  SZ * 0.65);
+  ctx.closePath();
+  ctx.fillStyle = '#f4845f';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // City name label next to arrow (rotated back to horizontal)
+  ctx.rotate(-angle);
+  var label = city.name;
+  ctx.font = 'bold 11px Nunito,sans-serif';
+  var tw = ctx.measureText(label).width + 12;
+  // Offset label so it doesn't overlap the arrow
+  var lox = Math.cos(angle) * (SZ + 6), loy = Math.sin(angle) * (SZ + 6);
+  // Keep label on the trailing side of arrow
+  lox = -Math.cos(angle) * (SZ + tw / 2 + 4);
+  loy = -Math.sin(angle) * (SZ + 6);
+  ctx.fillStyle = 'rgba(25,25,35,0.80)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(lox - tw / 2, loy - 9, tw, 18, 4);
+  else ctx.rect(lox - tw / 2, loy - 9, tw, 18);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, lox, loy);
+
+  ctx.restore();
+}
+
+// ─── DRAW HUB + SPEECH BUBBLE ─────────────────────────────────
+function drawHub(now) {
+  var s=hubScreen(), ox=s[0], oy=s[1];
+  var pulse=Math.sin(now*.003)*.1+0.92;
+  var grd=ctx.createRadialGradient(ox,oy,0,ox,oy,ORIGIN_R*2.2);
+  grd.addColorStop(0,'rgba(249,199,79,.5)'); grd.addColorStop(1,'rgba(249,199,79,0)');
+  ctx.beginPath(); ctx.arc(ox,oy,ORIGIN_R*2.2,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
+  ctx.beginPath(); ctx.arc(ox,oy,ORIGIN_R*pulse,0,Math.PI*2);
+  ctx.fillStyle='#f9c74f'; ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.stroke();
+  ctx.font=ORIGIN_R+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(G.hub.icon||'🏭',ox,oy);
+  ctx.fillStyle='#4a3a00'; ctx.font='bold 10px Nunito,sans-serif';
+  ctx.fillText(G.hub.label,ox,oy+ORIGIN_R+12);
+}
+
+// ─── DRAW PACKAGE (constant world-space speed) ────────────────
+function drawPackage(pkg) {
+  var big=G.level===MAX_LEVEL;
+  var hs=hubScreen(), cs=cityScreen(G.activeCities[pkg.targetIdx]);
+  var px=hs[0]+(cs[0]-hs[0])*pkg.progress;
+  var py=hs[1]+(cs[1]-hs[1])*pkg.progress;
+  // Dotted line
+  ctx.save();
+  ctx.strokeStyle='#f4845f'; ctx.lineWidth=big?4:2.5; ctx.lineCap='round';
+  ctx.setLineDash(big?[10,5]:[6,4]); ctx.globalAlpha=0.8;
+  ctx.beginPath(); ctx.moveTo(hs[0],hs[1]);
+  ctx.lineTo(px,py); ctx.stroke();
+  ctx.restore();
+  var sz=big?22:15;
+  ctx.save(); ctx.translate(px,py);
+  ctx.font=sz+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('📦',0,0);
+  ctx.restore();
+}
+
+// ─── PLANES (city-to-city, icon size fixed under zoom) ────────
+function planeRouteWorld(pl) {
+  var from=G.activeCities[pl.fromIdx], to=G.activeCities[pl.toIdx];
+  if(!from||!to) return null;
+  var a=lonLatToWorld(from.lon,from.lat), b=lonLatToWorld(to.lon,to.lat);
+  return {ax:a[0], ay:a[1], bx:b[0], by:b[1]};
+}
+
+function assignPlaneRoute(pl, startIdx) {
+  if(!G.activeCities.length) return;
+  var fromIdx=typeof startIdx==='number'?startIdx:Math.floor(Math.random()*G.activeCities.length);
+  var toIdx=fromIdx;
+  if(G.activeCities.length>1){
+    while(toIdx===fromIdx) toIdx=Math.floor(Math.random()*G.activeCities.length);
+  }
+  pl.fromIdx=fromIdx;
+  pl.toIdx=toIdx;
+  pl.progress=0;
+}
+
+function updatePlane(pl) {
+  var route=planeRouteWorld(pl);
+  if(!route) return;
+  var a=worldToScreen(route.ax,route.ay), b=worldToScreen(route.bx,route.by);
+  var screenDist=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
+  pl.progress+=pl.speedPx/screenDist;
+  if(pl.progress>=1){
+    var nextStart=pl.toIdx;
+    assignPlaneRoute(pl,nextStart);
+  }
+}
+
+function planePx(pl) {
+  var route=planeRouteWorld(pl);
+  if(!route) return {x:-9999,y:-9999,angle:0};
+  var x=route.ax+(route.bx-route.ax)*pl.progress;
+  var y=route.ay+(route.by-route.ay)*pl.progress;
+  var screen=worldToScreen(x,y);
+  return {
+    x:screen[0],
+    y:screen[1],
+    angle:Math.atan2(route.by-route.ay,route.bx-route.ax)
+  };
+}
+
+function drawPlane(pl) {
+  var pos=planePx(pl);
+  var ICON=32;
+  // setTransform replaces the full matrix — guarantees no zoom/pan scale bleeds in
+  var cos=Math.cos(pos.angle), sin=Math.sin(pos.angle);
+  ctx.save();
+  ctx.setTransform(cos, sin, -sin, cos, pos.x, pos.y);
+  ctx.font='bold '+ICON+'px sans-serif';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.fillText('✈',2,2);
+  ctx.strokeStyle='rgba(255,255,255,0.9)';
+  ctx.lineWidth=ICON*0.18;
+  ctx.lineJoin='round';
+  ctx.strokeText('✈',0,0);
+  ctx.fillStyle=pl.color;
+  ctx.fillText('✈',0,0);
+  ctx.restore();
+}
+
+// ─── HAZARDS (volcanoes + hurricanes/typhoons) ────────────────
+function inRegionBounds(lon, lat) {
+  var b = REGION_BOUNDS[G.region]; // [[west,south],[east,north]]
+  var W=b[0][0], S=b[0][1], E=b[1][0], N=b[1][1];
+  return lon>=W && lon<=E && lat>=S && lat<=N;
+}
+
+function spawnHazard() {
+  var maxH = Math.min(G.level, 6);
+  if (G.hazards.length >= maxH) return;
+
+  // Filter by region: volcano points and storm tracks whose first waypoint is in bounds
+  var vCands = VOLCANO_POINTS.filter(function(p){ return inRegionBounds(p.lon, p.lat); });
+  var sCands = STORM_TRACKS.filter(function(t){ return inRegionBounds(t.pts[0][0], t.pts[0][1]); });
+  if (!vCands.length && !sCands.length) return;
+
+  // 50/50 split — fall back if one type has no candidates in this region
+  var useVolcano;
+  if      (!sCands.length) useVolcano = true;
+  else if (!vCands.length) useVolcano = false;
+  else                     useVolcano = Math.random() < 0.5;
+
+  var now = performance.now();
+
+  if (useVolcano) {
+    var p = vCands[Math.floor(Math.random() * vCands.length)];
+    var wPos = lonLatToWorld(p.lon, p.lat);
+    // Skip if too close to an existing hazard
+    for (var i = 0; i < G.hazards.length; i++) {
+      var dx = G.hazards[i].wx - wPos[0], dy = G.hazards[i].wy - wPos[1];
+      if (Math.sqrt(dx*dx + dy*dy) < 60) return;
+    }
+    G.hazards.push({
+      type:'volcano', emoji:'🌋',
+      lon:p.lon, lat:p.lat, wx:wPos[0], wy:wPos[1],
+      pts:null, seg:0, segProg:0,
+      spawnTime:now, lastUpdate:now, duration:10000, worldSize:18,
+    });
+  } else {
+    var track = sCands[Math.floor(Math.random() * sCands.length)];
+    var sp = track.pts[0];
+    var wPos2 = lonLatToWorld(sp[0], sp[1]);
+    // Skip if too close to an existing hazard
+    for (var j = 0; j < G.hazards.length; j++) {
+      var dx2 = G.hazards[j].wx - wPos2[0], dy2 = G.hazards[j].wy - wPos2[1];
+      if (Math.sqrt(dx2*dx2 + dy2*dy2) < 60) return;
+    }
+    G.hazards.push({
+      type:track.type, emoji:'🌀',
+      lon:sp[0], lat:sp[1], wx:wPos2[0], wy:wPos2[1],
+      pts:track.pts, seg:0, segProg:0,
+      spawnTime:now, lastUpdate:now,
+      duration:20000 + Math.random()*10000, worldSize:22,
+    });
+  }
+}
+
+function updateHazards() {
+  var now = performance.now();
+  G.hazards.forEach(function(h) {
+    if (!h.pts) return; // volcano — stationary, nothing to update
+    var dt = (now - h.lastUpdate) / 1000; // seconds since last frame
+    h.lastUpdate = now;
+
+    // Advance along waypoint segments at STORM_SPEED_DEG_S degrees/sec (path distance)
+    var distLeft = STORM_SPEED_DEG_S * dt;
+    while (distLeft > 0 && h.seg < h.pts.length - 1) {
+      var p0 = h.pts[h.seg], p1 = h.pts[h.seg + 1];
+      var segLen = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]);
+      var remaining = segLen * (1 - h.segProg);
+      if (distLeft >= remaining) {
+        distLeft -= remaining;
+        h.seg++;
+        h.segProg = 0;
+      } else {
+        h.segProg += distLeft / segLen;
+        distLeft = 0;
+      }
+    }
+    // Clamp at final waypoint
+    if (h.seg >= h.pts.length - 1) { h.seg = h.pts.length - 2; h.segProg = 1; }
+
+    var a = h.pts[h.seg], b = h.pts[h.seg + 1] || a;
+    h.lon = a[0] + (b[0]-a[0]) * h.segProg;
+    h.lat = a[1] + (b[1]-a[1]) * h.segProg;
+    var wPos = lonLatToWorld(h.lon, h.lat);
+    h.wx = wPos[0]; h.wy = wPos[1];
+  });
+}
+
+function drawHazards() {
+  var now = performance.now();
+  G.hazards.forEach(function(h) {
+    var age  = now - h.spawnTime;
+    var frac = Math.min(age / h.duration, 1);
+    var sp   = worldToScreen(h.wx, h.wy);
+    var sx   = sp[0], sy = sp[1];
+
+    // Fade out over final 20% of lifetime
+    var alpha = frac > 0.8 ? 1 - (frac - 0.8) / 0.2 : 1;
+    var pulse = 1 + 0.15 * Math.sin(now * 0.004);
+    var sz    = (h.type === 'volcano' ? 32 : 36) * pulse;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Countdown arc — shrinks as time runs out
+    ctx.beginPath();
+    ctx.arc(sx, sy, sz * 0.9, -Math.PI/2, -Math.PI/2 + (1-frac)*2*Math.PI);
+    ctx.strokeStyle = h.type === 'volcano' ? '#ff4500' : '#00bfff';
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    // Storm: outer glow ring to hint movement
+    if (h.type !== 'volcano') {
+      ctx.beginPath();
+      ctx.arc(sx, sy, sz * 1.4, 0, 2*Math.PI);
+      ctx.strokeStyle = 'rgba(0,191,255,0.22)';
+      ctx.lineWidth   = 8;
+      ctx.stroke();
+    }
+
+    ctx.font         = sz + 'px serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(h.emoji, sx, sy);
+    ctx.restore();
+  });
+}
+
+// ─── PARTICLES ────────────────────────────────────────────────
+function spawnParticles(x,y,color,type) {
+  var n=type==='deliver'?18:10;
+  for(var i=0;i<n;i++){
+    var a=(Math.PI*2*i/n)+Math.random()*.4, spd=(type==='deliver'?3:2)+Math.random()*3;
+    G.particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:1,decay:.02+Math.random()*.02,r:(type==='deliver'?6:4)+Math.random()*3,color,type});
+  }
+  if(type==='deliver') for(var j=0;j<5;j++) G.particles.push({x:x+(Math.random()-.5)*60,y:y+(Math.random()-.5)*60,vx:(Math.random()-.5)*2,vy:-2-Math.random()*2,life:1,decay:.014,r:10,color:'#f9c74f',type:'star'});
+}
+function drawParticles() {
+  G.particles.forEach(function(p){
+    ctx.save(); ctx.globalAlpha=p.life;
+    if(p.type==='star'){ ctx.font=(p.r*2)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⭐',p.x,p.y); }
+    else { ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  });
+}
+
+// ─── COLLISION ────────────────────────────────────────────────
+function hitTest(px,py) {
+  var hitR=G.level===MAX_LEVEL?20:14;
+  return G.planes.some(function(pl){
+    var pos=planePx(pl), s=pl.worldSize;
+    return Math.hypot(pos.x-px,pos.y-py)<hitR+s*.82;
+  });
+}
+
+// ─── LEVEL / REQUEST ──────────────────────────────────────────
+function initLevel() {
+  // Rotate hub — pick a new one different from the previous
+  var opts=REGION_HUB_OPTIONS[G.region];
+  var idx=G.hubOptionIdx;
+  if(opts.length>1){ while(idx===G.hubOptionIdx) idx=Math.floor(Math.random()*opts.length); }
+  else idx=0;
+  var prevHub=G.hub;
+  G.hubOptionIdx=idx;
+  G.hub=opts[idx];
+  if(prevHub&&prevHub.label!==G.hub.label) showBanner('New hub: '+G.hub.label+' 🏭');
+
+  // Resample cities each level
+  var pool=G.allCities.slice().sort(function(){return Math.random()-.5;});
+  G.activeCities=pool.slice(0,Math.min(SAMPLE_SIZE,pool.length));
+  buildCountryIndex();
+
+  // Reset hazards — 3s grace period before first one appears
+  G.hazards=[];
+  G.hazardTimer=performance.now()+3000;
+
+  // Planes: count and size vary with level
+  G.planes=[];
+  var count=2+Math.floor(G.level*0.6);
+  // Level affects base size and speed
+  var baseSize=10;  // world-space base; visual size = baseSize*zoom
+  for(var i=0;i<count;i++){
+    var speedT=0.0005+Math.random()*.0004+G.level*.00003;
+    var pl={
+      fromIdx:0, toIdx:0, progress:0,
+      speedPx:speedT*((canvas.width+(canvas.height-TOP_OFFSET))/2),
+      color:(function(){
+        // Vivid, high-contrast palette — avoids greens that blend with map
+        var palette=['#ff3366','#ff8c00','#9b59b6','#e91e63','#00bcd4','#ff5722','#673ab7','#f50057','#00e5ff','#ff6d00'];
+        return palette[Math.floor(Math.random()*palette.length)];
+      })(),
+      worldSize:10+Math.random()*4,  // base world units; scales with zoom
+    };
+    assignPlaneRoute(pl);
+    pl.progress=Math.random();
+    G.planes.push(pl);
+  }
+  pickRequest();
+}
+
+function pickRequest() {
+  var prev=G.request?G.request.cityIdx:-1;
+  var idx; var tries=0;
+  do { idx=Math.floor(Math.random()*G.activeCities.length); tries++; }
+  while(idx===prev&&G.activeCities.length>1&&tries<10);
+  G.request={cityIdx:idx};
+  G.pausing=false;
+  updateTargetStrip();
+}
+
+// ─── HUD ──────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('h-lv').textContent=G.level;
+  document.getElementById('h-fill').style.width=((G.level-1)/MAX_LEVEL*100)+'%';
+  document.getElementById('h-prog').textContent='Level '+G.level+' of '+MAX_LEVEL;
+  var d=document.getElementById('h-dots'); d.innerHTML='';
+  for(var i=0;i<DELIVERIES;i++){
+    var el=document.createElement('div'); el.className='dot'+(i<G.delivered?' on':''); d.appendChild(el);
+  }
+  updateTargetStrip();
+}
+
+function updateTargetStrip() {
+  var el=document.getElementById('target-text');
+  if(!G.region){ el.textContent='Pick a region to begin'; return; }
+  if(G.request!==null&&G.activeCities[G.request.cityIdx]){
+    var city=G.activeCities[G.request.cityIdx];
+    el.textContent=city.name+', '+city.country;
+    return;
+  }
+  el.textContent=G.pausing?'Routing next drop...':'Awaiting target...';
+}
+
+function updateCooldownUI(now) {
+  var ring=document.getElementById('cd-ring'),lbl=document.getElementById('cd-lbl'),num=document.getElementById('cd-num');
+  var circ=2*Math.PI*16;
+  if(G.cooldown){
+    var e=now-G.cooldownStart;
+    ring.style.strokeDashoffset=(circ*(1-Math.min(e/COOLDOWN_MS,1))).toFixed(2);
+    num.textContent=Math.max(0,(COOLDOWN_MS-e)/1000).toFixed(1);
+    lbl.classList.add('on');
+    if(e>=COOLDOWN_MS){G.cooldown=false;ring.style.strokeDashoffset=circ;num.textContent='';lbl.classList.remove('on');}
+  } else {ring.style.strokeDashoffset=circ;num.textContent='';lbl.classList.remove('on');}
+}
+
+// ─── GAME LOOP ────────────────────────────────────────────────
+function loop(now) {
+  if(!G.region) return;
+
+  // Keyboard pan/zoom (smooth)
+  var PAN=4, ZOOM_F=1.025;
+  if(G.keysDown['ArrowLeft']||G.keysDown['a']) G.camX+=PAN;
+  if(G.keysDown['ArrowRight']||G.keysDown['d']) G.camX-=PAN;
+  if(G.keysDown['ArrowUp']||G.keysDown['w']) G.camY+=PAN;
+  if(G.keysDown['ArrowDown']||G.keysDown['s']) G.camY-=PAN;
+  if(G.keysDown['i']||G.keysDown['I']) {
+    var nz=Math.min(MAX_ZOOM,G.zoom*ZOOM_F);
+    var cx2=canvas.width/2, cy2=canvas.height/2;
+    G.camX=cx2-(cx2-G.camX)*(nz/G.zoom); G.camY=cy2-(cy2-G.camY)*(nz/G.zoom); G.zoom=nz;
+  }
+  if(G.keysDown['o']||G.keysDown['O']) {
+    var nz2=Math.max(MIN_ZOOM,G.zoom/ZOOM_F);
+    var cx3=canvas.width/2, cy3=canvas.height/2;
+    G.camX=cx3-(cx3-G.camX)*(nz2/G.zoom); G.camY=cy3-(cy3-G.camY)*(nz2/G.zoom); G.zoom=nz2;
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawMap();
+  G.planes.forEach(function(pl){updatePlane(pl); drawPlane(pl);});
+
+  // ── Hazard lifecycle ──
+  updateHazards();
+  G.hazards = G.hazards.filter(function(h){ return performance.now()-h.spawnTime < h.duration; });
+  if(performance.now() >= G.hazardTimer){ spawnHazard(); G.hazardTimer = performance.now() + 8000 + Math.random()*7000; }
+  drawHazards();
+
+  drawHub(now);
+  drawCities();
+  drawOffScreenIndicator(now);
+
+  if(G.pausing&&now>=G.pauseUntil){G.pausing=false;pickRequest();}
+
+  if(G.pkg&&G.pkg.active){
+    // Constant world-space speed: advance by PKG_SPEED_PX / world-distance
+    var hs=hubScreen(), cs=cityScreen(G.activeCities[G.pkg.targetIdx]);
+    var screenDist=Math.hypot(cs[0]-hs[0],cs[1]-hs[1]);
+    // Convert screen dist to world dist
+    var worldDist=screenDist/G.zoom;
+    var step=worldDist>0?PKG_SPEED_PX/worldDist*G.zoom/G.zoom:0.01;
+    // Simpler: advance by constant screen pixels per frame / screenDist
+    step=screenDist>0?PKG_SPEED_PX/screenDist:0.01;
+    G.pkg.progress=Math.min(1,G.pkg.progress+step);
+
+    var px=hs[0]+(cs[0]-hs[0])*G.pkg.progress;
+    var py=hs[1]+(cs[1]-hs[1])*G.pkg.progress;
+
+    var hit=hitTest(px,py);
+    if(!hit){
+      for(var hi=0;hi<G.hazards.length;hi++){
+        var hz=G.hazards[hi];
+        var hsp=worldToScreen(hz.wx,hz.wy);
+        var hdx=px-hsp[0], hdy=py-hsp[1];
+        if(Math.sqrt(hdx*hdx+hdy*hdy)<20+hz.worldSize*0.82){hit=true;break;}
+      }
+    }
+    if(hit){
+      spawnParticles(px,py,'#f4845f','bounce');
+      G.pkg=null; G.cooldown=true; G.cooldownStart=now;
+    } else if(G.pkg.progress>=1){
+      spawnParticles(cs[0],cs[1],'#f9c74f','deliver');
+      G.pkg=null; G.delivered++; G.totalDelivered++;
+      updateHUD();
+      if(G.delivered>=DELIVERIES){
+        G.delivered=0;
+        if(G.level>=MAX_LEVEL){showWin();return;}
+        G.level++; initLevel(); updateHUD();
+        showBanner('Level '+G.level+' — New cities! 🚀');
+      } else {
+        G.request=null; G.pausing=true; G.pauseUntil=now+PAUSE_MS;
+        updateTargetStrip();
+      }
+    } else { drawPackage(G.pkg); }
+  }
+
+  G.particles.forEach(function(p){p.x+=p.vx;p.y+=p.vy;p.vy+=.07;p.life-=p.decay;});
+  G.particles=G.particles.filter(function(p){return p.life>0;});
+  drawParticles();
+  updateCooldownUI(now);
+  requestAnimationFrame(loop);
+}
+
+// ─── INPUT ────────────────────────────────────────────────────
+function getScreenPos(clientX,clientY){
+  var r=canvas.getBoundingClientRect(); return [clientX-r.left, clientY-r.top];
+}
+
+function getMouseLonLat(clientX,clientY){
+  var r=canvas.getBoundingClientRect();
+  var sx=clientX-r.left, sy=clientY-r.top;
+  var wx=(sx-G.camX)/G.zoom, wy=(sy-G.camY)/G.zoom;
+  return worldToLonLat(wx,wy);
+}
+
+function updateHoverFeature(lon,lat){
+  G.hoveredFeature=null;
+  if(!countryFeatures||!G.region) return;
+  var bounds=REGION_BOUNDS[G.region];
+  for(var i=0;i<countryFeatures.length;i++){
+    var feat=countryFeatures[i];
+    if(!isNearBounds(feat,bounds)) continue;
+    if(featureCountryCities(feat).length===0) continue;
+    if(pointInFeature(lon,lat,feat)||isNearSmallFeature(lon,lat,feat)){G.hoveredFeature=feat; break;}
+  }
+}
+
+function tryDispatch(clientX,clientY){
+  if(!G.region||G.cooldown||G.pkg||G.pausing||G.request===null) return;
+  var sp=getScreenPos(clientX,clientY);
+  G.activeCities.forEach(function(c,i){
+    var s=cityScreen(c);
+    // Allow dispatch via dot proximity OR via dot-hover state (catches small islands)
+    var nearDot=Math.hypot(s[0]-sp[0],s[1]-sp[1])<NODE_R+12;
+    var hovDot=(G.hoveredCityIdx===i);
+    if((nearDot||hovDot)&&i===G.request.cityIdx){
+      G.pkg={targetIdx:i,progress:0,active:true};
+    }
+  });
+}
+
+// Mouse move: hover city dot first, then country feature
+canvas.addEventListener('mousemove',function(e){
+  if(!G.region) return;
+  if(G.dragging){
+    G.camX=G.camStartX+(e.clientX-G.dragStartX);
+    G.camY=G.camStartY+(e.clientY-G.dragStartY);
+    G.hoveredFeature=null; G.hoveredCityIdx=-1;
+    canvas.style.cursor='grabbing'; return;
+  }
+  var sp=getScreenPos(e.clientX,e.clientY);
+  // Check proximity to any city dot first (catches small islands)
+  G.hoveredCityIdx=-1;
+  for(var i=0;i<G.activeCities.length;i++){
+    var s=cityScreen(G.activeCities[i]);
+    if(Math.hypot(s[0]-sp[0],s[1]-sp[1])<=NODE_R+8){G.hoveredCityIdx=i; break;}
+  }
+  var ll=getMouseLonLat(e.clientX,e.clientY);
+  updateHoverFeature(ll[0],ll[1]);
+  canvas.style.cursor=(G.hoveredFeature||G.hoveredCityIdx>=0)?'pointer':'grab';
+});
+
+canvas.addEventListener('click',function(e){ tryDispatch(e.clientX,e.clientY); });
+
+canvas.addEventListener('mousedown',function(e){
+  if(!G.region) return;
+  G.dragging=true; G.dragStartX=e.clientX; G.dragStartY=e.clientY;
+  G.camStartX=G.camX; G.camStartY=G.camY;
+  canvas.classList.add('grabbing');
+});
+window.addEventListener('mouseup',function(){ G.dragging=false; canvas.classList.remove('grabbing'); });
+
+canvas.addEventListener('wheel',function(e){
+  if(!G.region) return; e.preventDefault();
+  var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  var factor=e.deltaY<0?1.12:0.89;
+  var nz=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,G.zoom*factor));
+  var af=nz/G.zoom;
+  G.camX=mx-(mx-G.camX)*af; G.camY=my-(my-G.camY)*af; G.zoom=nz;
+},{passive:false});
+
+// Keyboard
+window.addEventListener('keydown',function(e){
+  G.keysDown[e.key]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup',function(e){ delete G.keysDown[e.key]; });
+
+// Touch
+var _touches={};
+canvas.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  Array.from(e.changedTouches).forEach(function(t){_touches[t.identifier]={x:t.clientX,y:t.clientY,moved:false};});
+},{passive:false});
+
+canvas.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  var nonMeta=Object.keys(_touches).filter(function(k){return k!=='_prevDist';});
+  if(nonMeta.length===1){
+    var t=e.changedTouches[0], old=_touches[t.identifier];
+    if(old){
+      var dx=t.clientX-old.x, dy=t.clientY-old.y;
+      if(Math.hypot(dx,dy)>5) old.moved=true;
+      G.camX+=dx; G.camY+=dy;
+      _touches[t.identifier]={x:t.clientX,y:t.clientY,moved:old.moved};
+    }
+  } else if(e.touches.length===2){
+    var a=e.touches[0], b=e.touches[1];
+    var dist=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    if(_touches._prevDist){
+      var factor=dist/_touches._prevDist;
+      var mx=(a.clientX+b.clientX)/2, my=(a.clientY+b.clientY)/2;
+      var r=canvas.getBoundingClientRect(); mx-=r.left; my-=r.top;
+      var nz=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,G.zoom*factor));
+      var af=nz/G.zoom;
+      G.camX=mx-(mx-G.camX)*af; G.camY=my-(my-G.camY)*af; G.zoom=nz;
+    }
+    _touches._prevDist=dist;
+  }
+},{passive:false});
+
+canvas.addEventListener('touchend',function(e){
+  e.preventDefault();
+  var nonMeta=Object.keys(_touches).filter(function(k){return k!=='_prevDist';});
+  Array.from(e.changedTouches).forEach(function(t){
+    var start=_touches[t.identifier];
+    if(start&&!start.moved&&nonMeta.length===1){
+      // Short tap → hover + dispatch
+      var ll=getMouseLonLat(t.clientX,t.clientY);
+      updateHoverFeature(ll[0],ll[1]);
+      tryDispatch(t.clientX,t.clientY);
+    }
+    delete _touches[t.identifier];
+  });
+  if(Object.keys(_touches).filter(function(k){return k!=='_prevDist';}).length<2) delete _touches._prevDist;
+},{passive:false});
+
+// ─── START GAME ───────────────────────────────────────────────
+document.querySelectorAll('.cont-btn').forEach(function(b){
+  b.addEventListener('click',function(){
+    var key=b.dataset.c;
+    var nextLevel=G.resumeLevelOnRegionSelect?G.level:1;
+    G.region=key;
+    G.allCities=CITY_POOL.filter(REGION_FILTER[key]);
+    G.colors=REGION_COLORS[key];
+    G.level=nextLevel; G.delivered=0; G.totalDelivered=0;
+    G.cooldown=false; G.pkg=null; G.particles=[]; G.planes=[];
+    G.request=null; G.pausing=false; G.hoveredFeature=null; G.hoveredCityIdx=-1;
+    G.hub=null; G.hubOptionIdx=-1;
+    G.resumeLevelOnRegionSelect=false;
+    document.getElementById('cont-screen').classList.add('hidden');
+    document.getElementById('hud').style.display='flex';
+    document.getElementById('key-legend').style.display='flex';
+    document.getElementById('target-strip').style.display='flex';
+    document.getElementById('game-wrap').classList.add('visible');
+    resetCamera();
+    initLevel();
+    updateHUD();
+    canvas.focus();
+    requestAnimationFrame(loop);
+  });
+});
+
+// ─── SAVE SYSTEM ──────────────────────────────────────────────
+var SAVES_KEY='gdd_saves';
+var _pendingSave=null; // run data captured when returning to home screen
+
+var REGION_LABELS={
+  world:'🌍 World', europe:'🏰 Europe', northamerica:'🗽 N. America',
+  southamerica:'🦫 S. America', asia:'🏯 Asia', africa:'🦁 Africa', oceania:'🦘 Oceania'
+};
+
+function getSaves(){try{return JSON.parse(localStorage.getItem(SAVES_KEY)||'[]');}catch(e){return [];}}
+function putSaves(arr){try{localStorage.setItem(SAVES_KEY,JSON.stringify(arr));}catch(e){}}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderSavesPanel(){
+  var saves=getSaves();
+  var list=document.getElementById('saves-list');
+  list.innerHTML='';
+  if(!saves.length){
+    list.innerHTML='<div class="saves-empty">No saves yet</div>';
+  } else {
+    saves.forEach(function(sv,i){
+      var d=new Date(sv.timestamp);
+      var dateStr=d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+      var el=document.createElement('div'); el.className='save-item';
+      el.innerHTML=
+        '<div class="save-item-name">'+escHtml(sv.name)+'</div>'+
+        '<div class="save-item-meta">'+(REGION_LABELS[sv.region]||sv.region)+
+          ' · Lv '+sv.level+' · '+sv.totalDelivered+' delivered · '+dateStr+'</div>'+
+        '<div class="save-item-btns">'+
+          '<button class="save-load-btn" data-i="'+i+'">▶ Load</button>'+
+          '<button class="save-del-btn" data-i="'+i+'">✕ Delete</button>'+
+        '</div>';
+      list.appendChild(el);
+    });
+    list.querySelectorAll('.save-load-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){loadSave(parseInt(btn.dataset.i));});
+    });
+    list.querySelectorAll('.save-del-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){deleteSave(parseInt(btn.dataset.i));});
+    });
+  }
+  // Show save-new area only when there's an active run to save
+  var hasRun=_pendingSave!==null;
+  document.getElementById('saves-new').style.display=hasRun?'flex':'none';
+  document.getElementById('saves-new').style.flexDirection='column';
+  document.getElementById('saves-new').style.gap='8px';
+}
+
+function loadSave(i){
+  var saves=getSaves(); var sv=saves[i]; if(!sv) return;
+  var key=sv.region;
+  G.region=key;
+  G.allCities=CITY_POOL.filter(REGION_FILTER[key]);
+  G.colors=REGION_COLORS[key];
+  G.level=sv.level; G.delivered=sv.delivered||0; G.totalDelivered=sv.totalDelivered||0;
+  G.cooldown=false; G.pkg=null; G.particles=[]; G.planes=[];
+  G.request=null; G.pausing=false; G.hoveredFeature=null; G.hoveredCityIdx=-1;
+  G.hub=null; G.hubOptionIdx=-1; G.resumeLevelOnRegionSelect=false;
+  _pendingSave=null;
+  document.getElementById('cont-screen').classList.add('hidden');
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('key-legend').style.display='flex';
+  document.getElementById('target-strip').style.display='flex';
+  document.getElementById('game-wrap').classList.add('visible');
+  resetCamera(); initLevel(); updateHUD(); canvas.focus();
+  requestAnimationFrame(loop);
+}
+
+function deleteSave(i){
+  var saves=getSaves(); saves.splice(i,1); putSaves(saves); renderSavesPanel();
+}
+
+function doSave(){
+  if(!_pendingSave) return;
+  var inp=document.getElementById('save-name-input');
+  var name=inp.value.trim()||('Run '+(getSaves().length+1));
+  var saves=getSaves();
+  saves.unshift({name:name,region:_pendingSave.region,level:_pendingSave.level,
+    delivered:_pendingSave.delivered,totalDelivered:_pendingSave.totalDelivered,timestamp:Date.now()});
+  putSaves(saves); inp.value=''; _pendingSave=null; renderSavesPanel();
+}
+
+document.getElementById('do-save-btn').addEventListener('click',doSave);
+document.getElementById('save-name-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSave();});
+
+// ─── REGION BUTTON ────────────────────────────────────────────
+document.getElementById('region-btn').addEventListener('click',function(){
+  G.resumeLevelOnRegionSelect=true;
+  // Capture saveable state before clearing region
+  if(G.region&&(G.level>1||G.totalDelivered>0)){
+    _pendingSave={region:G.region,level:G.level,delivered:G.delivered,totalDelivered:G.totalDelivered};
+  }
+  G.region=null;
+  document.getElementById('game-wrap').classList.remove('visible');
+  document.getElementById('hud').style.display='none';
+  document.getElementById('key-legend').style.display='none';
+  document.getElementById('target-strip').style.display='none';
+  document.getElementById('win').classList.remove('show');
+  document.getElementById('cont-screen').classList.remove('hidden');
+  updateTargetStrip();
+  renderSavesPanel();
+});
+
+// ─── BANNER / WIN ─────────────────────────────────────────────
+function showBanner(txt){
+  var b=document.getElementById('banner'); b.textContent=txt; b.classList.add('show');
+  setTimeout(function(){b.classList.remove('show');},2500);
+}
+function showWin(){
+  document.getElementById('win-sub').textContent=G.totalDelivered+' packages delivered across '+G.allCities.length+' cities!';
+  document.getElementById('win').classList.add('show');
+}
+document.getElementById('replay-btn').addEventListener('click',function(){
+  // Capture completed run as a saveable state before resetting
+  if(G.region&&G.totalDelivered>0){
+    _pendingSave={region:G.region,level:G.level,delivered:0,totalDelivered:G.totalDelivered};
+  }
+  document.getElementById('win').classList.remove('show');
+  document.getElementById('game-wrap').classList.remove('visible');
+  document.getElementById('hud').style.display='none';
+  document.getElementById('key-legend').style.display='none';
+  document.getElementById('target-strip').style.display='none';
+  document.getElementById('cont-screen').classList.remove('hidden');
+  G.level=1; G.resumeLevelOnRegionSelect=false; G.region=null;
+  updateTargetStrip(); renderSavesPanel();
+});
+
+// ─── UNIT TESTS: splitRingAtAntimeridian ──────────────────────
+(function(){
+  function assert(cond, msg) {
+    if (!cond) console.error('FAIL: ' + msg);
+    else console.log('PASS: ' + msg);
+  }
+  // 1. Normal ring — no crossing → stays as 1 segment
+  var r1=[[0,0],[10,0],[10,10],[0,10],[0,0]];
+  var s1=splitRingAtAntimeridian(r1);
+  assert(s1.length===1, 'normal ring → 1 segment');
+
+  // 2. Ring crossing antimeridian once (179 → -179) → 2 segments
+  var r2=[[170,50],[179,50],[-179,50],[-170,50],[-170,60],[170,60],[170,50]];
+  var s2=splitRingAtAntimeridian(r2);
+  assert(s2.length===2, 'one antimeridian crossing → 2 segments');
+
+  // 3. All points on same side of antimeridian (far east Russia, ~140–180)
+  var r3=[[140,50],[160,50],[180,50],[180,60],[140,60],[140,50]];
+  var s3=splitRingAtAntimeridian(r3);
+  assert(s3.length===1, 'far-east ring no crossing → 1 segment');
+
+  // 4. Two crossings → 3 segments
+  var r4=[[170,0],[179,0],[-179,0],[-170,0],[-179,10],[179,10],[170,10],[170,0]];
+  var s4=splitRingAtAntimeridian(r4);
+  assert(s4.length===3, 'two antimeridian crossings → 3 segments');
+
+  // 5. Degenerate: single-point ring → returned as-is, no crash
+  var r5=[[100,0]];
+  var s5=splitRingAtAntimeridian(r5);
+  assert(Array.isArray(s5), 'single-point ring → no crash');
+
+  // 6. Jump of exactly 180 — boundary: 0→180 is NOT a crossing (exactly 180)
+  var r6=[[0,0],[180,0],[180,10],[0,10],[0,0]];
+  var s6=splitRingAtAntimeridian(r6);
+  assert(s6.length===1, 'jump of exactly 180 → not split');
+
+  // 7. Jump of 181 → IS a crossing
+  var r7=[[90,0],[179,0],[-90,0],[90,0]];
+  var s7=splitRingAtAntimeridian(r7);
+  assert(s7.length===2, 'jump of 269° (179 to -90) → split');
+
+  console.log('%c Antimeridian unit tests done.', 'color:#52b788;font-weight:bold');
+})();
+
+// ─── BOOT ─────────────────────────────────────────────────────
+loadMap();
+
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
