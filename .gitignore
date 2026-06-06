@@ -1,0 +1,14 @@
+# ── Copyrighted game art — keep local, never publish ───────────────────
+# Machine icons and source grids are derived from Horizon Zero Dawn /
+# Forbidden West art. Fine for a personal watchface build, but kept out of
+# this public repo. The files still live on disk so the watchface builds
+# locally; they are simply not tracked.
+pebble/hzd-machines-wf/resources/images/
+
+# Build artifact embeds the same icons, so it is untracked too.
+releases/hzd-machines-wf.zip
+
+# ── Misc local cruft ───────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+.DS_Store
