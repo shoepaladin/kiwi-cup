@@ -1,0 +1,69 @@
+{
+  "author": "Julian Hsu",
+  "name": "hzd-machines",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "pebble": {
+    "displayName": "HZD Machines",
+    "uuid": "d4a7c2e1-5b8f-4e23-a6d9-1c3f7e2b9045",
+    "sdkVersion": "3",
+    "projectType": "native",
+    "enableMultiJS": true,
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": ["health", "configurable"],
+    "targetPlatforms": ["basalt", "diorite", "emery"],
+    "messageKeys": [
+      "TimeFormat",
+      "IconIndex",
+      "IconMode",
+      "StepGoal",
+      "ThemeColor"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "png",
+          "name": "MENU_ICON",
+          "file": "images/menu_icon.png",
+          "menuIcon": true
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_48",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[0-9: APM]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_62",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[0-9: APM]"
+        },
+
+        { "type": "png", "name": "ICON_00_BURROWER",       "file": "images/icon_burrower.png" },
+        { "type": "png", "name": "ICON_01_CLAWSTRIDER",    "file": "images/icon_clawstrider.png" },
+        { "type": "png", "name": "ICON_02_SLITHERFANG",    "file": "images/icon_slitherfang.png" },
+        { "type": "png", "name": "ICON_03_FANGHORN",       "file": "images/icon_fanghorn.png" },
+        { "type": "png", "name": "ICON_04_SUNWING",        "file": "images/icon_sunwing.png" },
+        { "type": "png", "name": "ICON_05_LEAPLASHER",     "file": "images/icon_leaplasher.png" },
+        { "type": "png", "name": "ICON_06_SCROUNGER",      "file": "images/icon_scrounger.png" },
+        { "type": "png", "name": "ICON_07_SLAUGHTERSPINE", "file": "images/icon_slaughterspine.png" },
+        { "type": "png", "name": "ICON_08_CLAMBERJAW",     "file": "images/icon_clamberjaw.png" },
+        { "type": "png", "name": "ICON_09_TREMORTUSK",     "file": "images/icon_tremortusk.png" },
+        { "type": "png", "name": "ICON_10_BRISTLEBACK",    "file": "images/icon_bristleback.png" },
+        { "type": "png", "name": "ICON_11_ROLLERBACK",     "file": "images/icon_rollerback.png" },
+        { "type": "png", "name": "ICON_12_SHELLSNAPPER",   "file": "images/icon_shellsnapper.png" },
+        { "type": "png", "name": "ICON_13_SKYDRIFTER",     "file": "images/icon_skydrifter.png" },
+        { "type": "png", "name": "ICON_14_WIDEMAW",        "file": "images/icon_widemaw.png" },
+        { "type": "png", "name": "ICON_15_SPIKESNOUT",     "file": "images/icon_spikesnout.png" },
+        { "type": "png", "name": "ICON_16_PLOWHORN",       "file": "images/icon_plowhorn.png" },
+        { "type": "png", "name": "ICON_17_TIDERIPPER",     "file": "images/icon_tideripper.png" },
+        { "type": "png", "name": "ICON_18_DREADWING",      "file": "images/icon_dreadwing.png" },
+        { "type": "png", "name": "ICON_19_SPECTER",        "file": "images/icon_specter.png" },
+        { "type": "png", "name": "ICON_20_SPECTER_PRIME",  "file": "images/icon_specter_prime.png" }
+      ]
+    }
+  }
+}
