@@ -18,13 +18,15 @@ function saveSettings(s) {
 }
 
 // ── Build the HTML settings page as a string ─────────────────────────────
-// No frameworks, no npm — plain HTML/CSS/JS so webpack 1.x bundles cleanly.
+// No frameworks, no npm — plain HTML/CSS/JS so webpack bundles cleanly and
+// it works on CloudPebble without any dependencies.
 function buildConfigPage(s) {
-  var tf    = (s.TimeFormat !== undefined ? s.TimeFormat : 1);
-  var icon  = (s.IconIndex  !== undefined ? s.IconIndex  : 0);
-  var mode  = (s.IconMode   !== undefined ? s.IconMode   : 60);
-  var goal  = (s.StepGoal   !== undefined ? s.StepGoal   : 10000);
-  var color = (s.ThemeColor !== undefined ? s.ThemeColor : 207); // 207 = cyan
+  var tf    = (s.TimeFormat       !== undefined ? s.TimeFormat       : 1);
+  var icon  = (s.IconIndex        !== undefined ? s.IconIndex        : 0);
+  var mode  = (s.IconMode         !== undefined ? s.IconMode         : 60);
+  var goal  = (s.StepGoal         !== undefined ? s.StepGoal         : 10000);
+  var color = (s.ThemeColor       !== undefined ? s.ThemeColor       : 207); // 207 = cyan
+  var vibe  = (s.VibeOnDisconnect !== undefined ? s.VibeOnDisconnect : 1);
 
   var iconOpts = ICONS.map(function(name, i) {
     return '<option value="' + i + '"' + (icon == i ? ' selected' : '') + '>' + name + '</option>';
@@ -69,6 +71,9 @@ function buildConfigPage(s) {
     'input[type=number]{width:100%;box-sizing:border-box;background:#2a2a2a;color:#fff;',
     '       border:1px solid #444;border-radius:4px;padding:9px 8px;font-size:14px}',
     '.hint{color:#666;font-size:11px;margin-top:6px}',
+    '.row{display:flex;align-items:center;justify-content:space-between}',
+    '.row .lbl{margin-bottom:0}',
+    'input[type=checkbox]{width:22px;height:22px;accent-color:#00ffff}',
     'button{display:block;width:100%;padding:14px;background:#00ffff;color:#000;',
     '       border:none;border-radius:6px;font-size:15px;font-weight:bold;',
     '       letter-spacing:2px;text-transform:uppercase;margin-top:8px;cursor:pointer}',
@@ -103,6 +108,14 @@ function buildConfigPage(s) {
     '<div class="hint">Enter a value between 1,000 and 100,000</div>',
     '</div>',
 
+    '<div class="card">',
+    '<div class="row">',
+    '<div class="lbl">Vibrate on Disconnect</div>',
+    '<input type="checkbox" id="vibe"' + (vibe ? ' checked' : '') + '>',
+    '</div>',
+    '<div class="hint">Buzz when the phone connection drops (silenced during Quiet Time)</div>',
+    '</div>',
+
     '<button onclick="save()">Save Settings</button>',
 
     '<script>',
@@ -115,7 +128,8 @@ function buildConfigPage(s) {
     '    IconIndex: +document.getElementById("icon").value,',
     '    IconMode:  +document.getElementById("mode").value,',
     '    StepGoal:  g,',
-    '    ThemeColor:+document.getElementById("color").value',
+    '    ThemeColor:+document.getElementById("color").value,',
+    '    VibeOnDisconnect:document.getElementById("vibe").checked?1:0',
     '  };',
     '  location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify(c));',
     '}',
@@ -144,11 +158,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
   saveSettings(config);
 
   Pebble.sendAppMessage({
-    'TimeFormat': config.TimeFormat | 0,
-    'IconIndex':  config.IconIndex  | 0,
-    'IconMode':   config.IconMode   | 0,
-    'StepGoal':   config.StepGoal   | 0,
-    'ThemeColor': config.ThemeColor | 0
+    'TimeFormat':       config.TimeFormat       | 0,
+    'IconIndex':        config.IconIndex        | 0,
+    'IconMode':         config.IconMode         | 0,
+    'StepGoal':         config.StepGoal         | 0,
+    'ThemeColor':       config.ThemeColor       | 0,
+    'VibeOnDisconnect': config.VibeOnDisconnect | 0
   },
   function()    { console.log('[HZD] settings sent');         },
   function(err) { console.log('[HZD] send error: ' + err);   }

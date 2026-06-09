@@ -19,7 +19,8 @@
       "IconIndex",
       "IconMode",
       "StepGoal",
-      "ThemeColor"
+      "ThemeColor",
+      "VibeOnDisconnect"
     ],
     "resources": {
       "media": [
@@ -38,6 +39,18 @@
         {
           "type": "font",
           "name": "FONT_SHARE_TECH_MONO_62",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[0-9: APM]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_40",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[0-9: APM]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_52",
           "file": "fonts/ShareTechMono-Regular.ttf",
           "characterRegex": "[0-9: APM]"
         },

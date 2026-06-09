@@ -13,6 +13,7 @@
 #define PERSIST_KEY_ICON_MODE     3   // int: 0=static, else minutes between changes
 #define PERSIST_KEY_STEP_GOAL     4   // int: daily step target
 #define PERSIST_KEY_THEME_COLOR   5   // int: GColor argb byte for time + icon
+#define PERSIST_KEY_VIBE_DISC     6   // bool: buzz on Bluetooth disconnect
 
 // ── icon resources (order must match package.json media array) ─────────
 #define NUM_ICONS 21
@@ -65,14 +66,19 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
 //  TIME height accommodates the 48/62 px font with a small top margin.
 //
 #if defined(PBL_PLATFORM_EMERY)
-  // time ends at x=164; AMPM column 164..196
-  #define TIME_RECT     GRect(4,   4, 160, 72)
+  // 12-hour time uses a slightly smaller font so a 5-char value ("10:06")
+  // fits beside the stacked AM/PM column; 24-hour uses the full-size font
+  // across the whole width.
+  #define TIME_FONT_12_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_52
+  #define TIME_FONT_24_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_62
+  // 12h: smaller digits, right edge at x=172; AMPM column 174..200
+  #define TIME_RECT     GRect(4,   8, 168, 72)
   // 24-hour mode has no AMPM column, so the digits use the full width
   #define TIME_RECT_FULL GRect(4,  4, 192, 72)
   // AMPM: big bold A/P over M, stacked tight (cells overlap to close the gap)
   #define AMPM_FONT     FONT_KEY_GOTHIC_28_BOLD
-  #define AMPM_T_RECT   GRect(164,12,  32, 32)
-  #define AMPM_B_RECT   GRect(164,36,  32, 32)
+  #define AMPM_T_RECT   GRect(174,12,  26, 32)
+  #define AMPM_B_RECT   GRect(174,36,  26, 32)
   // icon gets the reclaimed centre space; ~emery PNG is 110 px (centred)
   #define ICON_RECT     GRect(4,  84, 124, 112)
   // step arrow pushed right, snug against the battery dots
@@ -85,14 +91,19 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
   #define SHAFT_W       6
   #define HEAD_SIZE     12
 #else  /* basalt / diorite  144×168 */
-  // time ends at x=120; AMPM column 120..142
-  #define TIME_RECT     GRect(4,   2, 116, 58)
+  // 12-hour time uses a slightly smaller font so a 5-char value ("10:06")
+  // fits beside the stacked AM/PM column; 24-hour uses the full-size font
+  // across the whole width.
+  #define TIME_FONT_12_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_40
+  #define TIME_FONT_24_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_48
+  // 12h: smaller digits, right edge at x=122; AMPM column 122..144
+  #define TIME_RECT     GRect(0,   6, 122, 56)
   // 24-hour mode has no AMPM column, so the digits use the full width
   #define TIME_RECT_FULL GRect(4,  2, 136, 58)
   // AMPM: big bold A/P over M, stacked tight (cells overlap to close the gap)
   #define AMPM_FONT     FONT_KEY_GOTHIC_24_BOLD
-  #define AMPM_T_RECT   GRect(120, 4,  22, 26)
-  #define AMPM_B_RECT   GRect(120,24,  22, 26)
+  #define AMPM_T_RECT   GRect(122, 4,  22, 26)
+  #define AMPM_B_RECT   GRect(122,24,  22, 26)
   // icon gets the reclaimed centre space; base PNG is 80 px (centred)
   #define ICON_RECT     GRect(4,  62,  92,  84)
   // step arrow pushed right, snug against the battery dots
@@ -111,6 +122,7 @@ static bool s_use_12h             = true;   // 12-hour display
 static int  s_icon_index_setting  = 0;      // static icon choice (0-20)
 static int  s_icon_change_minutes = 60;     // 0 = static; else minutes/change
 static int  s_step_goal           = 10000;  // daily step target
+static bool s_vibe_on_disconnect  = true;   // buzz when phone disconnects
 
 // Theme color drives both the time text and the machine-icon tint.
 // On inversion (Bluetooth disconnect) foreground/background swap.
@@ -130,7 +142,8 @@ static Layer       *s_arrow_layer;
 static Layer       *s_dots_layer;
 static Layer       *s_divider_layer;
 #if USE_CUSTOM_FONT
-static GFont        s_time_font;
+static GFont        s_time_font_12;   // smaller: 12h (digits + AM/PM column)
+static GFont        s_time_font_24;   // larger: 24h (full width)
 #endif
 
 static char s_time_buf[6];        // "HH:MM\0"
@@ -285,21 +298,51 @@ static void load_icon(int index) {
   layer_mark_dirty(bitmap_layer_get_layer(s_icon_layer));
 }
 
+// Recolor the *existing* icon to the current foreground color without
+// reloading the resource from flash. Used on theme-color change and on
+// Bluetooth invert, where the bitmap itself does not change — only its color.
+static void retint_icon(void) {
+  if (!s_icon_bitmap || !s_icon_layer) return;
+  if (gbitmap_get_palette(s_icon_bitmap)) {
+    tint_icon(s_icon_bitmap, s_color_fg);          // color: rewrite palette
+    bitmap_layer_set_compositing_mode(s_icon_layer, GCompOpSet);
+  } else {
+    // 1-bit (diorite): flip compositing for the inverted state.
+    bitmap_layer_set_compositing_mode(s_icon_layer,
+      s_bt_inverted ? GCompOpAssignInverted : GCompOpSet);
+  }
+  layer_mark_dirty(bitmap_layer_get_layer(s_icon_layer));
+}
+
 // Apply the current foreground/background colors everywhere. Called on load,
 // on theme-color change, and on Bluetooth connect/disconnect (which inverts).
 static void apply_colors(void) {
+  // On 1-bit (diorite) the theme color collapses to black/white, so a mid
+  // theme color could map to black and vanish against the black field.
+  // Force the accent to white there so indicators stay legible.
+#if defined(PBL_COLOR)
+  GColor accent = s_theme_color;
+#else
+  GColor accent = GColorWhite;
+#endif
+
   if (s_bt_inverted) {
-    s_color_bg = s_theme_color;
+    s_color_bg = accent;
     s_color_fg = GColorBlack;
   } else {
     s_color_bg = GColorBlack;
-    s_color_fg = s_theme_color;
+    s_color_fg = accent;
   }
   if (s_window)         window_set_background_color(s_window, s_color_bg);
   if (s_time_layer)     text_layer_set_text_color(s_time_layer,     s_color_fg);
   if (s_ampm_top_layer) text_layer_set_text_color(s_ampm_top_layer, s_color_fg);
   if (s_ampm_bot_layer) text_layer_set_text_color(s_ampm_bot_layer, s_color_fg);
-  if (s_icon_layer)     load_icon(s_current_icon);   // re-tint to new fg
+  if (s_icon_layer) {
+    // First call (startup) has no bitmap yet → load it; later calls (theme
+    // change / BT invert) just recolor the existing bitmap in place.
+    if (s_icon_bitmap) retint_icon();
+    else               load_icon(s_current_icon);
+  }
   if (s_arrow_layer)    layer_mark_dirty(s_arrow_layer);
   if (s_dots_layer)     layer_mark_dirty(s_dots_layer);
   if (s_divider_layer)  layer_mark_dirty(s_divider_layer);
@@ -308,8 +351,12 @@ static void apply_colors(void) {
 // ── time display ───────────────────────────────────────────────────────
 static void update_time(struct tm *tick_time) {
   if (s_use_12h) {
-    // Narrow rect so the digits sit flush against the AM/PM column.
+    // Narrow rect + smaller font so the digits sit flush against the AM/PM
+    // column without the minutes being clipped to "...".
     layer_set_frame(text_layer_get_layer(s_time_layer), TIME_RECT);
+#if USE_CUSTOM_FONT
+    text_layer_set_font(s_time_layer, s_time_font_12);
+#endif
     strftime(s_time_buf, sizeof(s_time_buf), "%I:%M", tick_time);
     // Drop leading zero: "09:30" → "9:30"
     if (s_time_buf[0] == '0') {
@@ -321,9 +368,12 @@ static void update_time(struct tm *tick_time) {
     layer_set_hidden(text_layer_get_layer(s_ampm_top_layer), false);
     layer_set_hidden(text_layer_get_layer(s_ampm_bot_layer), false);
   } else {
-    // No AM/PM in 24-hour mode → give the digits the full width so the
-    // minutes don't get clipped to "...".
+    // No AM/PM in 24-hour mode → give the digits the full width and the
+    // larger font so the minutes don't get clipped to "...".
     layer_set_frame(text_layer_get_layer(s_time_layer), TIME_RECT_FULL);
+#if USE_CUSTOM_FONT
+    text_layer_set_font(s_time_layer, s_time_font_24);
+#endif
     strftime(s_time_buf, sizeof(s_time_buf), "%H:%M", tick_time);
     layer_set_hidden(text_layer_get_layer(s_ampm_top_layer), true);
     layer_set_hidden(text_layer_get_layer(s_ampm_bot_layer), true);
@@ -333,15 +383,34 @@ static void update_time(struct tm *tick_time) {
 
 // ── step count ─────────────────────────────────────────────────────────
 static void update_steps(void) {
+#if defined(PBL_HEALTH)
+  // Query a real same-day window (start-of-today → now). A zero-length
+  // window (now → now) reports "not available" on some firmwares, which
+  // would silently force the step count to 0.
+  time_t end   = time(NULL);
+  time_t start = time_start_of_today();
   HealthServiceAccessibilityMask mask =
-    health_service_metric_accessible(HealthMetricStepCount, time(NULL), time(NULL));
+    health_service_metric_accessible(HealthMetricStepCount, start, end);
   if (mask & HealthServiceAccessibilityMaskAvailable) {
     s_current_steps = (int)health_service_sum_today(HealthMetricStepCount);
   } else {
     s_current_steps = 0;
   }
+#else
+  s_current_steps = 0;   // watch has no health sensor
+#endif
   if (s_arrow_layer) layer_mark_dirty(s_arrow_layer);
 }
+
+#if defined(PBL_HEALTH)
+// Live step updates: fired whenever HealthService has new data, so the
+// arrow tracks activity without waiting for the next minute tick.
+static void health_handler(HealthEventType event, void *context) {
+  if (event == HealthEventSignificantUpdate || event == HealthEventMovementUpdate) {
+    update_steps();
+  }
+}
+#endif
 
 // ── tick handler ───────────────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
@@ -374,7 +443,10 @@ static void connection_handler(bool connected) {
   if (inverted == s_bt_inverted) return;
   s_bt_inverted = inverted;
   apply_colors();
-  if (inverted) vibes_double_pulse();
+  // Only buzz on a *drop*, if the user enabled it, and never during Quiet Time.
+  if (inverted && s_vibe_on_disconnect && !quiet_time_is_active()) {
+    vibes_double_pulse();
+  }
 }
 
 // ── Clay / AppMessage settings ─────────────────────────────────────────
@@ -418,22 +490,49 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
   }
 
-  // Step goal (slider sends int, min 1000)
+  // Step goal. Clay's number input sends a string; tolerate int too.
   t = dict_find(iterator, MESSAGE_KEY_StepGoal);
   if (t) {
-    int goal = (int)t->value->int32;
+    int goal = (t->type == TUPLE_CSTRING)
+      ? atoi(t->value->cstring)
+      : (int)t->value->int32;
     if (goal >= 1000) s_step_goal = goal;
     persist_write_int(PERSIST_KEY_STEP_GOAL, s_step_goal);
     if (s_arrow_layer) layer_mark_dirty(s_arrow_layer);
   }
 
-  // Theme color (GColor argb byte) drives time text + icon tint.
+  // Theme color. Clay's color picker sends a 24-bit 0xRRGGBB value (>255 for
+  // any real color), which GColorFromHEX maps to the nearest Pebble GColor.
+  // The legacy hand-rolled page sent a raw GColor argb byte (0-255). Accept
+  // both so the watch works regardless of which config page is in use. We
+  // persist the resulting argb byte for forward compatibility.
   t = dict_find(iterator, MESSAGE_KEY_ThemeColor);
   if (t) {
-    s_theme_color.argb = (uint8_t)t->value->int32;
-    persist_write_int(PERSIST_KEY_THEME_COLOR, (int)t->value->int32);
+    uint32_t v = (uint32_t)t->value->int32;
+    if (v > 255) {
+      s_theme_color = GColorFromHEX(v);
+    } else {
+      s_theme_color.argb = (uint8_t)v;
+    }
+    persist_write_int(PERSIST_KEY_THEME_COLOR, (int)s_theme_color.argb);
     apply_colors();
   }
+
+  // Vibrate-on-disconnect toggle (Clay toggle sends 1/0).
+  t = dict_find(iterator, MESSAGE_KEY_VibeOnDisconnect);
+  if (t) {
+    s_vibe_on_disconnect = (bool)t->value->int32;
+    persist_write_bool(PERSIST_KEY_VIBE_DISC, s_vibe_on_disconnect);
+  }
+}
+
+// ── AppMessage failure handlers (resilient settings sync) ──────────────
+static void inbox_dropped_callback(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "AppMessage inbox dropped: %d", (int)reason);
+}
+static void outbox_failed_callback(DictionaryIterator *it,
+                                   AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "AppMessage outbox failed: %d", (int)reason);
 }
 
 // ── load settings from persist storage ────────────────────────────────
@@ -451,6 +550,9 @@ static void load_settings(void) {
 
   s_step_goal = persist_exists(PERSIST_KEY_STEP_GOAL)
     ? persist_read_int(PERSIST_KEY_STEP_GOAL) : 10000;
+
+  s_vibe_on_disconnect = persist_exists(PERSIST_KEY_VIBE_DISC)
+    ? persist_read_bool(PERSIST_KEY_VIBE_DISC) : true;
 
   s_current_icon = persist_exists(PERSIST_KEY_ICON_CURRENT)
     ? persist_read_int(PERSIST_KEY_ICON_CURRENT) : 0;
@@ -480,14 +582,10 @@ static void main_window_load(Window *window) {
   text_layer_set_background_color(s_time_layer, GColorClear);
   text_layer_set_text_color(s_time_layer, COLOR_TEXT);
 #if USE_CUSTOM_FONT
-  #if defined(PBL_PLATFORM_EMERY)
-    s_time_font = fonts_load_custom_font(
-      resource_get_handle(RESOURCE_ID_FONT_SHARE_TECH_MONO_62));
-  #else
-    s_time_font = fonts_load_custom_font(
-      resource_get_handle(RESOURCE_ID_FONT_SHARE_TECH_MONO_48));
-  #endif
-  text_layer_set_font(s_time_layer, s_time_font);
+  s_time_font_12 = fonts_load_custom_font(resource_get_handle(TIME_FONT_12_RES));
+  s_time_font_24 = fonts_load_custom_font(resource_get_handle(TIME_FONT_24_RES));
+  // update_time() selects the right one for the current mode; seed with 24h.
+  text_layer_set_font(s_time_layer, s_time_font_24);
 #else
   text_layer_set_font(s_time_layer, fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS));
 #endif
@@ -552,7 +650,8 @@ static void main_window_unload(Window *window) {
   if (s_dots_layer)     { layer_destroy(s_dots_layer);             s_dots_layer     = NULL; }
   if (s_divider_layer)  { layer_destroy(s_divider_layer);          s_divider_layer  = NULL; }
 #if USE_CUSTOM_FONT
-  if (s_time_font)      { fonts_unload_custom_font(s_time_font);   s_time_font      = NULL; }
+  if (s_time_font_12)   { fonts_unload_custom_font(s_time_font_12); s_time_font_12   = NULL; }
+  if (s_time_font_24)   { fonts_unload_custom_font(s_time_font_24); s_time_font_24   = NULL; }
 #endif
 }
 
@@ -560,8 +659,10 @@ static void main_window_unload(Window *window) {
 static void init(void) {
   load_settings();
 
-  app_message_open(256, 64);
   app_message_register_inbox_received(inbox_received_callback);
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_open(256, 64);
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){
@@ -580,12 +681,18 @@ static void init(void) {
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler,
   });
+#if defined(PBL_HEALTH)
+  health_service_events_subscribe(health_handler, NULL);
+#endif
 }
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
+#if defined(PBL_HEALTH)
+  health_service_events_unsubscribe();
+#endif
   app_message_deregister_callbacks();
   if (s_window) { window_destroy(s_window); s_window = NULL; }
 }
