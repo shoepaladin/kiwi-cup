@@ -1,0 +1,92 @@
+{
+    "author": "Julian",
+    "dependencies": {
+        "pebble-clay": "^1.0.4"
+    },
+    "keywords": [
+        "pebble-app",
+        "watchface"
+    ],
+    "name": "gundam-sd-wf",
+    "pebble": {
+        "capabilities": [
+            "configurable",
+            "health"
+        ],
+        "displayName": "Gundam SD Chibi",
+        "enableMultiJS": true,
+        "messageKeys": [
+            "TimeFormat",
+            "DateFormat",
+            "AccentColor",
+            "BackgroundColor",
+            "ShowSteps",
+            "LowBatteryThreshold",
+            "StepGoal",
+            "SpriteSet"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "images/ae_idle.png",
+                    "name": "AE_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/cb_idle.png",
+                    "name": "CB_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/gpo2a_idle.png",
+                    "name": "GPO2A_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/xi_idle.png",
+                    "name": "XI_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/qubeley_idle.png",
+                    "name": "QUBELEY_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/byarlant_idle.png",
+                    "name": "BYARLANT_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "fonts/BlackOpsOne-Regular-emery.ttf",
+                    "name": "FONT_BLACKOPS_42",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "file": "fonts/BlackOpsOne-Regular-chalk.ttf",
+                    "name": "FONT_BLACKOPS_30",
+                    "targetPlatforms": null,
+                    "type": "font"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "chalk",
+            "emery"
+        ],
+        "uuid": "ab3b2790-3e9e-40af-8c49-fdce37dad507",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.1.0"
+}
