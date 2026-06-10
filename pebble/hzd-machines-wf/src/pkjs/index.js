@@ -27,6 +27,7 @@ function buildConfigPage(s) {
   var goal  = (s.StepGoal         !== undefined ? s.StepGoal         : 10000);
   var color = (s.ThemeColor       !== undefined ? s.ThemeColor       : 207); // 207 = cyan
   var vibe  = (s.VibeOnDisconnect !== undefined ? s.VibeOnDisconnect : 1);
+  var disc  = (s.DisconnectMode   !== undefined ? s.DisconnectMode   : 0);
 
   var iconOpts = ICONS.map(function(name, i) {
     return '<option value="' + i + '"' + (icon == i ? ' selected' : '') + '>' + name + '</option>';
@@ -45,16 +46,26 @@ function buildConfigPage(s) {
 
   // Theme colors: each value is the Pebble GColor argb byte (alpha=3).
   var colorOpts = [
-    ['Cyan',    207],
-    ['Green',   204],
-    ['Yellow',  252],
-    ['Orange',  248],
-    ['Red',     240],
-    ['Magenta', 243],
-    ['Blue',    195],
-    ['White',   255]
+    ['Cyan',         207],
+    ['Focus Purple', 227],
+    ['Green',        204],
+    ['Yellow',       252],
+    ['Orange',       248],
+    ['Red',          240],
+    ['Magenta',      243],
+    ['Blue',         195],
+    ['White',        255]
   ].map(function(o) {
     return '<option value="' + o[1] + '"' + (color == o[1] ? ' selected' : '') + '>' + o[0] + '</option>';
+  }).join('');
+
+  // Disconnect alert styles (visual only; the buzz has its own toggle)
+  var discOpts = [
+    ['Invert colors',    0],
+    ['Status icon only', 1],
+    ['Off',              2]
+  ].map(function(o) {
+    return '<option value="' + o[1] + '"' + (disc == o[1] ? ' selected' : '') + '>' + o[0] + '</option>';
   }).join('');
 
   return [
@@ -109,6 +120,12 @@ function buildConfigPage(s) {
     '</div>',
 
     '<div class="card">',
+    '<div class="lbl">Disconnect Alert</div>',
+    '<select id="disc">' + discOpts + '</select>',
+    '<div class="hint">How the face shows a dropped phone connection</div>',
+    '</div>',
+
+    '<div class="card">',
     '<div class="row">',
     '<div class="lbl">Vibrate on Disconnect</div>',
     '<input type="checkbox" id="vibe"' + (vibe ? ' checked' : '') + '>',
@@ -129,7 +146,8 @@ function buildConfigPage(s) {
     '    IconMode:  +document.getElementById("mode").value,',
     '    StepGoal:  g,',
     '    ThemeColor:+document.getElementById("color").value,',
-    '    VibeOnDisconnect:document.getElementById("vibe").checked?1:0',
+    '    VibeOnDisconnect:document.getElementById("vibe").checked?1:0,',
+    '    DisconnectMode:+document.getElementById("disc").value',
     '  };',
     '  location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify(c));',
     '}',
@@ -163,7 +181,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     'IconMode':         config.IconMode         | 0,
     'StepGoal':         config.StepGoal         | 0,
     'ThemeColor':       config.ThemeColor       | 0,
-    'VibeOnDisconnect': config.VibeOnDisconnect | 0
+    'VibeOnDisconnect': config.VibeOnDisconnect | 0,
+    'DisconnectMode':   config.DisconnectMode   | 0
   },
   function()    { console.log('[HZD] settings sent');         },
   function(err) { console.log('[HZD] send error: ' + err);   }

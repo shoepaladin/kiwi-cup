@@ -20,7 +20,8 @@
       "IconMode",
       "StepGoal",
       "ThemeColor",
-      "VibeOnDisconnect"
+      "VibeOnDisconnect",
+      "DisconnectMode"
     ],
     "resources": {
       "media": [
@@ -53,6 +54,18 @@
           "name": "FONT_SHARE_TECH_MONO_52",
           "file": "fonts/ShareTechMono-Regular.ttf",
           "characterRegex": "[0-9: APM]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_14",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[A-Z0-9:., ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_SHARE_TECH_MONO_18",
+          "file": "fonts/ShareTechMono-Regular.ttf",
+          "characterRegex": "[A-Z0-9:., ]"
         },
 
         { "type": "png", "name": "ICON_00_BURROWER",       "file": "images/icon_burrower.png" },

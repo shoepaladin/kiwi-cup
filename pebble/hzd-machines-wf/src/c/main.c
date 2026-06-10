@@ -14,6 +14,7 @@
 #define PERSIST_KEY_STEP_GOAL     4   // int: daily step target
 #define PERSIST_KEY_THEME_COLOR   5   // int: GColor argb byte for time + icon
 #define PERSIST_KEY_VIBE_DISC     6   // bool: buzz on Bluetooth disconnect
+#define PERSIST_KEY_DISC_MODE     7   // int: 0=invert colors, 1=glyph only, 2=off
 
 // ── icon resources (order must match package.json media array) ─────────
 #define NUM_ICONS 21
@@ -40,6 +41,14 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
   RESOURCE_ID_ICON_18_DREADWING,
   RESOURCE_ID_ICON_19_SPECTER,
   RESOURCE_ID_ICON_20_SPECTER_PRIME,
+};
+
+// Scan-readout labels (order must match s_icon_resources)
+static const char *s_machine_names[NUM_ICONS] = {
+  "BURROWER", "CLAWSTRIDER", "SLITHERFANG", "FANGHORN", "SUNWING", "LEAPLASHER",
+  "SCROUNGER", "SLAUGHTERSPINE", "CLAMBERJAW", "TREMORTUSK", "BRISTLEBACK", "ROLLERBACK",
+  "SHELLSNAPPER", "SKYDRIFTER", "WIDEMAW", "SPIKESNOUT", "PLOWHORN", "TIDERIPPER",
+  "DREADWING", "SPECTER", "SPECTER PRIME"
 };
 
 // ── platform colors ────────────────────────────────────────────────────
@@ -71,6 +80,9 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
   // across the whole width.
   #define TIME_FONT_12_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_52
   #define TIME_FONT_24_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_62
+  // small mono font for the date line and machine-name label
+  #define LABEL_FONT_RES   RESOURCE_ID_FONT_SHARE_TECH_MONO_18
+  #define LABEL_SYS_FONT   FONT_KEY_GOTHIC_18
   // 12h: smaller digits, right edge at x=172; AMPM column 174..200
   #define TIME_RECT     GRect(4,   8, 168, 72)
   // 24-hour mode has no AMPM column, so the digits use the full width
@@ -81,21 +93,36 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
   #define AMPM_B_RECT   GRect(174,36,  26, 32)
   // icon gets the reclaimed centre space; ~emery PNG is 110 px (centred)
   #define ICON_RECT     GRect(4,  84, 124, 112)
-  // step arrow pushed right, snug against the battery dots
-  #define ARROW_RECT    GRect(132, 84,  24, 140)
-  #define DOTS_RECT     GRect(158, 84,  28, 140)
-  // divider: full-width layer; the proc leaves 10 px ends + 20 px centre gap
+  // step arrow pushed right, snug against the battery dots; both columns
+  // stop level with the icon so the name strip below spans the full width
+  #define ARROW_RECT    GRect(132, 84,  24, 112)
+  #define DOTS_RECT     GRect(158, 84,  28, 112)
+  // divider: full-width layer; the proc leaves 10 px ends + a centre gap
+  // wide enough for the date line ("TUE 06.10" at 18 px mono)
   #define DIVIDER_RECT  GRect(0,  80, 200,  2)
-  #define DOT_RADIUS    5
-  #define DOT_SPACING   14
+  #define DIVIDER_GAP   104
+  #define DATE_RECT     GRect(48, 70, 104, 22)
+  // machine-name label strip under the icon/arrow/dots block
+  #define NAME_RECT     GRect(0, 198, 200, 24)
+  #define DOT_RADIUS    4
+  #define DOT_SPACING   11
   #define SHAFT_W       6
   #define HEAD_SIZE     12
+  // Focus HUD: corner bracket arm length; status glyphs above right divider
+  #define BRACKET_LEN   16
+  #define STATUS_Y      73
+  #define STATUS_QT_X   180
+  #define STATUS_BT_X   162
+  #define STATUS_R      5
 #else  /* basalt / diorite  144×168 */
   // 12-hour time uses a slightly smaller font so a 5-char value ("10:06")
   // fits beside the stacked AM/PM column; 24-hour uses the full-size font
   // across the whole width.
   #define TIME_FONT_12_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_40
   #define TIME_FONT_24_RES RESOURCE_ID_FONT_SHARE_TECH_MONO_48
+  // small mono font for the date line and machine-name label
+  #define LABEL_FONT_RES   RESOURCE_ID_FONT_SHARE_TECH_MONO_14
+  #define LABEL_SYS_FONT   FONT_KEY_GOTHIC_14
   // 12h: smaller digits, right edge at x=122; AMPM column 122..144
   #define TIME_RECT     GRect(0,   6, 122, 56)
   // 24-hour mode has no AMPM column, so the digits use the full width
@@ -106,15 +133,27 @@ static const uint32_t s_icon_resources[NUM_ICONS] = {
   #define AMPM_B_RECT   GRect(122,24,  22, 26)
   // icon gets the reclaimed centre space; base PNG is 80 px (centred)
   #define ICON_RECT     GRect(4,  62,  92,  84)
-  // step arrow pushed right, snug against the battery dots
-  #define ARROW_RECT    GRect(100, 62,  16, 102)
-  #define DOTS_RECT     GRect(116,62,  24, 102)
-  // divider: full-width layer; the proc leaves 10 px ends + 20 px centre gap
+  // step arrow pushed right, snug against the battery dots; both columns
+  // stop level with the icon so the name strip below spans the full width
+  #define ARROW_RECT    GRect(100, 62,  16,  84)
+  #define DOTS_RECT     GRect(116,62,  24,  84)
+  // divider: full-width layer; the proc leaves 10 px ends + a centre gap
+  // wide enough for the date line ("TUE 06.10" at 14 px mono)
   #define DIVIDER_RECT  GRect(0,  60, 144,  2)
+  #define DIVIDER_GAP   84
+  #define DATE_RECT     GRect(30, 50, 84, 18)
+  // machine-name label strip under the icon/arrow/dots block
+  #define NAME_RECT     GRect(0, 146, 144, 18)
   #define DOT_RADIUS    3
-  #define DOT_SPACING   10
+  #define DOT_SPACING   8
   #define SHAFT_W       4
   #define HEAD_SIZE     8
+  // Focus HUD: corner bracket arm length; status glyphs above right divider
+  #define BRACKET_LEN   12
+  #define STATUS_Y      53
+  #define STATUS_QT_X   132
+  #define STATUS_BT_X   116
+  #define STATUS_R      4
 #endif
 
 // ── runtime settings (loaded from persist / updated via Clay AppMessage) ──
@@ -123,33 +162,53 @@ static int  s_icon_index_setting  = 0;      // static icon choice (0-20)
 static int  s_icon_change_minutes = 60;     // 0 = static; else minutes/change
 static int  s_step_goal           = 10000;  // daily step target
 static bool s_vibe_on_disconnect  = true;   // buzz when phone disconnects
+static int  s_disconnect_mode     = 0;      // 0=invert colors, 1=glyph only, 2=off
 
 // Theme color drives both the time text and the machine-icon tint.
-// On inversion (Bluetooth disconnect) foreground/background swap.
+// On inversion (Bluetooth disconnect, mode 0) foreground/background swap.
 static GColor s_theme_color;                 // configured accent (default cyan)
 static GColor s_color_fg;                    // current drawing color
 static GColor s_color_bg;                    // current background color
-static bool   s_bt_inverted = false;         // true while phone is disconnected
+static GColor s_color_accent;                // highlight (orange on color)
+static GColor s_color_subdued;               // dimmed theme (HUD frame, track)
+static bool   s_bt_inverted  = false;        // true while face is inverted
+static bool   s_bt_connected = true;         // current phone connection state
+static bool   s_quiet_time   = false;        // last observed Quiet Time state
 
 // ── global state ───────────────────────────────────────────────────────
 static Window      *s_window;
 static TextLayer   *s_time_layer;
 static TextLayer   *s_ampm_top_layer;
 static TextLayer   *s_ampm_bot_layer;
+static TextLayer   *s_date_layer;     // "TUE 06.10" in the divider gap
+static TextLayer   *s_name_layer;     // machine name / step-count readout
 static BitmapLayer *s_icon_layer;
 static GBitmap     *s_icon_bitmap;
 static Layer       *s_arrow_layer;
 static Layer       *s_dots_layer;
 static Layer       *s_divider_layer;
+static Layer       *s_scan_layer;     // scanline wipe over the icon
+static Layer       *s_hud_layer;      // corner brackets + status glyphs
 #if USE_CUSTOM_FONT
 static GFont        s_time_font_12;   // smaller: 12h (digits + AM/PM column)
 static GFont        s_time_font_24;   // larger: 24h (full width)
+static GFont        s_label_font;     // date line + machine-name label
 #endif
 
 static char s_time_buf[6];        // "HH:MM\0"
+static char s_date_buf[12];       // "TUE 06.10\0"
+static char s_steps_buf[16];      // "12,345 STEPS\0"
 static int  s_current_steps = 0;
 static int  s_current_icon  = 0;
 static int  s_minute_tick   = 0;  // counts minutes toward next icon swap
+
+// Scan animation: -1 = idle, else 0..100 sweep position over the icon
+static int        s_scan_progress = -1;
+static Animation *s_scan_anim     = NULL;
+
+// Shake gesture: name label temporarily shows the numeric step count
+static AppTimer *s_steps_timer   = NULL;
+static bool      s_steps_overlay = false;
 
 // ── arrowhead GPath (built once at load) ──────────────────────────────
 static GPath     *s_head_path = NULL;
@@ -169,12 +228,23 @@ static void head_build_path(void) {
 // ── step-arrow layer ───────────────────────────────────────────────────
 // The layer is divided into 20 equal segments.
 // Each segment lights up every (step_goal / 20) steps.
-// Filled: solid shaft + arrowhead at the current level.
-// Empty space above: nothing drawn (clean).
+// A hollow track with 25 % tick marks sits behind the fill so progress
+// reads against a scale even when the arrow is short.
+// Filled: solid shaft + arrowhead at the current level (accent when the
+// goal is met).
 static void arrow_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect b  = layer_get_bounds(layer);
   int   h  = b.size.h;
   int   cx = b.size.w / 2;
+
+  // Track outline + quarter ticks (always drawn, subdued)
+  graphics_context_set_stroke_color(ctx, s_color_subdued);
+  graphics_draw_rect(ctx, GRect(cx - SHAFT_W / 2 - 2, 0, SHAFT_W + 4, h));
+  graphics_context_set_fill_color(ctx, s_color_subdued);
+  for (int q = 1; q <= 3; q++) {
+    int y = h - (h * q) / 4;
+    graphics_fill_rect(ctx, GRect(cx - SHAFT_W / 2 - 5, y, 3, 1), 0, GCornerNone);
+  }
 
   int goal    = s_step_goal > 0 ? s_step_goal : 10000;
   int capped  = s_current_steps < goal ? s_current_steps : goal;
@@ -187,7 +257,9 @@ static void arrow_layer_update_proc(Layer *layer, GContext *ctx) {
   int tip_y  = h - fill_h;
   if (tip_y < 0) tip_y = 0;
 
-  graphics_context_set_fill_color(ctx, s_color_fg);
+  // Goal met → the whole arrow switches to the accent color
+  graphics_context_set_fill_color(ctx,
+    segments >= 20 ? s_color_accent : s_color_fg);
 
   // Solid shaft from below the arrowhead to the bottom of the layer
   int shaft_top = tip_y + HEAD_SIZE;
@@ -206,7 +278,8 @@ static void arrow_layer_update_proc(Layer *layer, GContext *ctx) {
 
 // ── battery-dots layer ─────────────────────────────────────────────────
 // One filled dot per 10 % charge, stacked from the bottom.
-// At 0 % the column is completely blank.
+// At 0 % the column is completely blank; at 20 % or less the remaining
+// dots draw in the accent color as a low-battery warning.
 static void dots_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect b  = layer_get_bounds(layer);
   int   h  = b.size.h;
@@ -216,7 +289,8 @@ static void dots_layer_update_proc(Layer *layer, GContext *ctx) {
   int filled = state.charge_percent / 10;
   if (filled > 10) filled = 10;
 
-  graphics_context_set_fill_color(ctx, s_color_fg);
+  graphics_context_set_fill_color(ctx,
+    state.charge_percent <= 20 ? s_color_accent : s_color_fg);
 
   for (int i = 0; i < filled; i++) {
     // i=0 is the bottom dot, i=9 is the top
@@ -228,14 +302,14 @@ static void dots_layer_update_proc(Layer *layer, GContext *ctx) {
 
 // ── divider line ───────────────────────────────────────────────────────
 // A horizontal rule under the time and above the icon/arrow/dots. It is
-// split into two segments: 10 px of empty margin at each end and a 20 px
-// gap in the middle.
+// split into two segments: 10 px of empty margin at each end and a centre
+// gap (DIVIDER_GAP) that the date line sits inside.
 static void divider_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   int W   = b.size.w;
   int h   = b.size.h;
-  const int margin = 10;   // empty px at each end
-  const int gap    = 20;   // empty px in the centre
+  const int margin = 10;            // empty px at each end
+  const int gap    = DIVIDER_GAP;   // empty px in the centre (date line)
 
   int mid_l = W / 2 - gap / 2;   // left segment ends here
   int mid_r = W / 2 + gap / 2;   // right segment starts here
@@ -243,6 +317,100 @@ static void divider_layer_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_color_fg);
   graphics_fill_rect(ctx, GRect(margin, 0, mid_l - margin,     h), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(mid_r,  0, (W - margin) - mid_r, h), 0, GCornerNone);
+}
+
+// ── Focus HUD layer (topmost, full screen) ─────────────────────────────
+// Draws the four corner brackets of the Focus scan reticle in the subdued
+// theme shade, plus two status glyphs above the right divider segment:
+//   • a crescent moon while Quiet Time is active
+//   • an accent "X" while the phone is disconnected (glyph-only mode)
+static void hud_layer_update_proc(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+  const int t  = 2;            // bracket thickness
+  const int L  = BRACKET_LEN;  // bracket arm length
+  const int in = 2;            // inset from the screen edge (under the bezel)
+  int x0 = in, y0 = in;
+  int x1 = b.size.w - in, y1 = b.size.h - in;
+
+  graphics_context_set_fill_color(ctx, s_color_subdued);
+  // top-left
+  graphics_fill_rect(ctx, GRect(x0,     y0,     L, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(x0,     y0,     t, L), 0, GCornerNone);
+  // top-right
+  graphics_fill_rect(ctx, GRect(x1 - L, y0,     L, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(x1 - t, y0,     t, L), 0, GCornerNone);
+  // bottom-left
+  graphics_fill_rect(ctx, GRect(x0,     y1 - t, L, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(x0,     y1 - L, t, L), 0, GCornerNone);
+  // bottom-right
+  graphics_fill_rect(ctx, GRect(x1 - L, y1 - t, L, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(x1 - t, y1 - L, t, L), 0, GCornerNone);
+
+  // Quiet Time: crescent moon (full disc with a bg-colored bite)
+  if (s_quiet_time) {
+    graphics_context_set_fill_color(ctx, s_color_subdued);
+    graphics_fill_circle(ctx, GPoint(STATUS_QT_X, STATUS_Y), STATUS_R);
+    graphics_context_set_fill_color(ctx, s_color_bg);
+    graphics_fill_circle(ctx,
+      GPoint(STATUS_QT_X + STATUS_R / 2 + 1, STATUS_Y - STATUS_R / 2 - 1),
+      STATUS_R);
+  }
+
+  // Disconnected, glyph-only mode: small accent X
+  if (!s_bt_connected && s_disconnect_mode == 1) {
+    int r = STATUS_R - 1;
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_context_set_stroke_color(ctx, s_color_accent);
+    graphics_draw_line(ctx,
+      GPoint(STATUS_BT_X - r, STATUS_Y - r), GPoint(STATUS_BT_X + r, STATUS_Y + r));
+    graphics_draw_line(ctx,
+      GPoint(STATUS_BT_X - r, STATUS_Y + r), GPoint(STATUS_BT_X + r, STATUS_Y - r));
+  }
+}
+
+// ── scanline wipe over the icon ────────────────────────────────────────
+// While a scan is running the area below the sweep line is masked with the
+// background color and a 2 px accent line marks the sweep position, so the
+// machine silhouette "scans in" top-to-bottom like a Focus highlight.
+static void scan_layer_update_proc(Layer *layer, GContext *ctx) {
+  if (s_scan_progress < 0) return;   // idle: fully transparent
+  GRect b = layer_get_bounds(layer);
+  int y = (b.size.h * s_scan_progress) / 100;
+
+  graphics_context_set_fill_color(ctx, s_color_bg);
+  graphics_fill_rect(ctx, GRect(0, y, b.size.w, b.size.h - y), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, s_color_accent);
+  graphics_fill_rect(ctx, GRect(0, y, b.size.w, 2), 0, GCornerNone);
+}
+
+static void scan_anim_update(Animation *animation, const AnimationProgress progress) {
+  s_scan_progress = (int)((progress * 100) / ANIMATION_NORMALIZED_MAX);
+  if (s_scan_layer) layer_mark_dirty(s_scan_layer);
+}
+
+static void scan_anim_stopped(Animation *animation, bool finished, void *context) {
+  s_scan_anim     = NULL;   // SDK3 auto-destroys finished animations
+  s_scan_progress = -1;
+  if (s_scan_layer) layer_mark_dirty(s_scan_layer);
+}
+
+static const AnimationImplementation s_scan_impl = {
+  .update = scan_anim_update,
+};
+
+static void start_scan_animation(void) {
+  if (!s_scan_layer) return;
+  if (s_scan_anim) {
+    animation_unschedule(s_scan_anim);   // stopped handler clears the pointer
+  }
+  s_scan_anim = animation_create();
+  if (!s_scan_anim) return;
+  animation_set_duration(s_scan_anim, 500);
+  animation_set_curve(s_scan_anim, AnimationCurveLinear);
+  animation_set_implementation(s_scan_anim, &s_scan_impl);
+  animation_set_handlers(s_scan_anim,
+    (AnimationHandlers){ .stopped = scan_anim_stopped }, NULL);
+  animation_schedule(s_scan_anim);
 }
 
 // ── icon management ────────────────────────────────────────────────────
@@ -296,6 +464,13 @@ static void load_icon(int index) {
 
   bitmap_layer_set_bitmap(s_icon_layer, s_icon_bitmap);
   layer_mark_dirty(bitmap_layer_get_layer(s_icon_layer));
+
+  // Scan-readout caption follows the icon (unless the step-count overlay
+  // is showing; its timer restores the name afterwards).
+  if (s_name_layer && !s_steps_overlay) {
+    text_layer_set_text(s_name_layer, s_machine_names[index]);
+  }
+  start_scan_animation();
 }
 
 // Recolor the *existing* icon to the current foreground color without
@@ -321,22 +496,37 @@ static void apply_colors(void) {
   // theme color could map to black and vanish against the black field.
   // Force the accent to white there so indicators stay legible.
 #if defined(PBL_COLOR)
-  GColor accent = s_theme_color;
+  GColor theme = s_theme_color;
+  // Orange highlight straight from the HZD palette; a dimmed shade of the
+  // theme color carries the HUD frame and the step track.
+  GColor accent  = COLOR_ACCENT;
+  GColor subdued = (GColor){ .a = 3,
+                             .r = (uint8_t)((s_theme_color.r * 2 + 1) / 3),
+                             .g = (uint8_t)((s_theme_color.g * 2 + 1) / 3),
+                             .b = (uint8_t)((s_theme_color.b * 2 + 1) / 3) };
 #else
-  GColor accent = GColorWhite;
+  GColor theme   = GColorWhite;
+  GColor accent  = GColorWhite;
+  GColor subdued = GColorWhite;
 #endif
 
   if (s_bt_inverted) {
-    s_color_bg = accent;
-    s_color_fg = GColorBlack;
+    s_color_bg      = theme;
+    s_color_fg      = GColorBlack;
+    s_color_accent  = GColorBlack;
+    s_color_subdued = GColorBlack;
   } else {
-    s_color_bg = GColorBlack;
-    s_color_fg = accent;
+    s_color_bg      = GColorBlack;
+    s_color_fg      = theme;
+    s_color_accent  = accent;
+    s_color_subdued = subdued;
   }
   if (s_window)         window_set_background_color(s_window, s_color_bg);
   if (s_time_layer)     text_layer_set_text_color(s_time_layer,     s_color_fg);
-  if (s_ampm_top_layer) text_layer_set_text_color(s_ampm_top_layer, s_color_fg);
-  if (s_ampm_bot_layer) text_layer_set_text_color(s_ampm_bot_layer, s_color_fg);
+  if (s_ampm_top_layer) text_layer_set_text_color(s_ampm_top_layer, s_color_accent);
+  if (s_ampm_bot_layer) text_layer_set_text_color(s_ampm_bot_layer, s_color_accent);
+  if (s_date_layer)     text_layer_set_text_color(s_date_layer,     s_color_fg);
+  if (s_name_layer)     text_layer_set_text_color(s_name_layer,     s_color_accent);
   if (s_icon_layer) {
     // First call (startup) has no bitmap yet → load it; later calls (theme
     // change / BT invert) just recolor the existing bitmap in place.
@@ -346,6 +536,8 @@ static void apply_colors(void) {
   if (s_arrow_layer)    layer_mark_dirty(s_arrow_layer);
   if (s_dots_layer)     layer_mark_dirty(s_dots_layer);
   if (s_divider_layer)  layer_mark_dirty(s_divider_layer);
+  if (s_scan_layer)     layer_mark_dirty(s_scan_layer);
+  if (s_hud_layer)      layer_mark_dirty(s_hud_layer);
 }
 
 // ── time display ───────────────────────────────────────────────────────
@@ -379,6 +571,14 @@ static void update_time(struct tm *tick_time) {
     layer_set_hidden(text_layer_get_layer(s_ampm_bot_layer), true);
   }
   text_layer_set_text(s_time_layer, s_time_buf);
+
+  // Date line in the divider gap: "TUE 06.10" (uppercased manually since
+  // strftime's %a is locale-cased)
+  strftime(s_date_buf, sizeof(s_date_buf), "%a %m.%d", tick_time);
+  for (char *p = s_date_buf; *p; p++) {
+    if (*p >= 'a' && *p <= 'z') *p -= ('a' - 'A');
+  }
+  if (s_date_layer) text_layer_set_text(s_date_layer, s_date_buf);
 }
 
 // ── step count ─────────────────────────────────────────────────────────
@@ -412,11 +612,46 @@ static void health_handler(HealthEventType event, void *context) {
 }
 #endif
 
+// ── shake gesture: scan sweep + numeric step readout ───────────────────
+// A wrist flick replays the scan animation and swaps the machine-name
+// label for the formatted step count for a few seconds.
+static void steps_overlay_end(void *context) {
+  s_steps_timer   = NULL;
+  s_steps_overlay = false;
+  if (s_name_layer) {
+    text_layer_set_text(s_name_layer, s_machine_names[s_current_icon]);
+  }
+}
+
+static void tap_handler(AccelAxisType axis, int32_t direction) {
+  start_scan_animation();
+
+  if (s_current_steps >= 1000) {
+    snprintf(s_steps_buf, sizeof(s_steps_buf), "%d,%03d STEPS",
+             s_current_steps / 1000, s_current_steps % 1000);
+  } else {
+    snprintf(s_steps_buf, sizeof(s_steps_buf), "%d STEPS", s_current_steps);
+  }
+  if (s_name_layer) text_layer_set_text(s_name_layer, s_steps_buf);
+  s_steps_overlay = true;
+
+  if (s_steps_timer) app_timer_reschedule(s_steps_timer, 3000);
+  else               s_steps_timer = app_timer_register(3000, steps_overlay_end, NULL);
+}
+
 // ── tick handler ───────────────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_time(tick_time);
   update_steps();
   if (s_dots_layer) layer_mark_dirty(s_dots_layer);
+
+  // Quiet Time has no event service, so poll it once a minute and redraw
+  // the HUD glyph row when it flips.
+  bool quiet = quiet_time_is_active();
+  if (quiet != s_quiet_time) {
+    s_quiet_time = quiet;
+    if (s_hud_layer) layer_mark_dirty(s_hud_layer);
+  }
 
   // Rotate icon when not in static mode
   if (s_icon_change_minutes > 0) {
@@ -436,15 +671,26 @@ static void battery_handler(BatteryChargeState state) {
 }
 
 // ── Bluetooth connection callback ──────────────────────────────────────
-// On disconnect the whole face inverts (background ↔ foreground) and the
-// watch buzzes, so a dropped phone connection is obvious at a glance.
+// Disconnect feedback depends on the configured mode:
+//   0 = invert the whole face (background ↔ foreground)
+//   1 = small accent glyph in the HUD status row
+//   2 = no visual change
+// The optional buzz is independent of the visual mode.
+static void apply_bt_state(void) {
+  bool inverted = (!s_bt_connected && s_disconnect_mode == 0);
+  if (inverted != s_bt_inverted) {
+    s_bt_inverted = inverted;
+    apply_colors();
+  }
+  if (s_hud_layer) layer_mark_dirty(s_hud_layer);
+}
+
 static void connection_handler(bool connected) {
-  bool inverted = !connected;
-  if (inverted == s_bt_inverted) return;
-  s_bt_inverted = inverted;
-  apply_colors();
+  if (connected == s_bt_connected) return;
+  s_bt_connected = connected;
+  apply_bt_state();
   // Only buzz on a *drop*, if the user enabled it, and never during Quiet Time.
-  if (inverted && s_vibe_on_disconnect && !quiet_time_is_active()) {
+  if (!connected && s_vibe_on_disconnect && !quiet_time_is_active()) {
     vibes_double_pulse();
   }
 }
@@ -524,6 +770,16 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     s_vibe_on_disconnect = (bool)t->value->int32;
     persist_write_bool(PERSIST_KEY_VIBE_DISC, s_vibe_on_disconnect);
   }
+
+  // Disconnect visual mode: 0=invert, 1=glyph only, 2=off
+  t = dict_find(iterator, MESSAGE_KEY_DisconnectMode);
+  if (t) {
+    int mode = (int)t->value->int32;
+    if (mode < 0 || mode > 2) mode = 0;
+    s_disconnect_mode = mode;
+    persist_write_int(PERSIST_KEY_DISC_MODE, mode);
+    apply_bt_state();   // re-evaluate inversion under the new mode
+  }
 }
 
 // ── AppMessage failure handlers (resilient settings sync) ──────────────
@@ -554,6 +810,10 @@ static void load_settings(void) {
   s_vibe_on_disconnect = persist_exists(PERSIST_KEY_VIBE_DISC)
     ? persist_read_bool(PERSIST_KEY_VIBE_DISC) : true;
 
+  s_disconnect_mode = persist_exists(PERSIST_KEY_DISC_MODE)
+    ? persist_read_int(PERSIST_KEY_DISC_MODE) : 0;
+  if (s_disconnect_mode < 0 || s_disconnect_mode > 2) s_disconnect_mode = 0;
+
   s_current_icon = persist_exists(PERSIST_KEY_ICON_CURRENT)
     ? persist_read_int(PERSIST_KEY_ICON_CURRENT) : 0;
 
@@ -570,6 +830,29 @@ static void load_settings(void) {
   }
   s_color_fg = s_theme_color;
   s_color_bg = GColorBlack;
+}
+
+// ── Timeline Quick View (UnobstructedArea) ─────────────────────────────
+// When the system overlay covers the bottom of the screen, the icon /
+// arrow / dots / name cluster would be half-hidden, so hide it outright;
+// the time and the date line stay visible above the overlay. The HUD layer
+// stays on: its bottom brackets are simply covered by the overlay.
+static void update_obstruction(void) {
+  if (!s_window) return;
+  Layer *root = window_get_root_layer(s_window);
+  GRect full  = layer_get_bounds(root);
+  GRect unob  = layer_get_unobstructed_bounds(root);
+  bool obstructed = unob.size.h < full.size.h;
+
+  if (s_icon_layer) layer_set_hidden(bitmap_layer_get_layer(s_icon_layer), obstructed);
+  if (s_arrow_layer) layer_set_hidden(s_arrow_layer, obstructed);
+  if (s_dots_layer)  layer_set_hidden(s_dots_layer,  obstructed);
+  if (s_name_layer)  layer_set_hidden(text_layer_get_layer(s_name_layer), obstructed);
+  if (s_scan_layer)  layer_set_hidden(s_scan_layer,  obstructed);
+}
+
+static void unobstructed_did_change(void *context) {
+  update_obstruction();
 }
 
 // ── window setup ───────────────────────────────────────────────────────
@@ -615,6 +898,11 @@ static void main_window_load(Window *window) {
   bitmap_layer_set_alignment(s_icon_layer, GAlignCenter);
   layer_add_child(root, bitmap_layer_get_layer(s_icon_layer));
 
+  // ── Scanline wipe (directly over the icon) ────────────────────────────
+  s_scan_layer = layer_create(ICON_RECT);
+  layer_set_update_proc(s_scan_layer, scan_layer_update_proc);
+  layer_add_child(root, s_scan_layer);
+
   // ── Step-arrow (center-right column) ─────────────────────────────────
   s_arrow_layer = layer_create(ARROW_RECT);
   layer_set_update_proc(s_arrow_layer, arrow_layer_update_proc);
@@ -630,28 +918,70 @@ static void main_window_load(Window *window) {
   layer_set_update_proc(s_divider_layer, divider_layer_update_proc);
   layer_add_child(root, s_divider_layer);
 
+#if USE_CUSTOM_FONT
+  s_label_font = fonts_load_custom_font(resource_get_handle(LABEL_FONT_RES));
+#endif
+
+  // ── Date line, centered in the divider gap ────────────────────────────
+  s_date_layer = text_layer_create(DATE_RECT);
+  text_layer_set_background_color(s_date_layer, GColorClear);
+  text_layer_set_text_color(s_date_layer, COLOR_TEXT);
+#if USE_CUSTOM_FONT
+  text_layer_set_font(s_date_layer, s_label_font);
+#else
+  text_layer_set_font(s_date_layer, fonts_get_system_font(LABEL_SYS_FONT));
+#endif
+  text_layer_set_text_alignment(s_date_layer, GTextAlignmentCenter);
+  layer_add_child(root, text_layer_get_layer(s_date_layer));
+
+  // ── Machine-name label (scan readout under the icon block) ───────────
+  s_name_layer = text_layer_create(NAME_RECT);
+  text_layer_set_background_color(s_name_layer, GColorClear);
+  text_layer_set_text_color(s_name_layer, COLOR_ACCENT);
+#if USE_CUSTOM_FONT
+  text_layer_set_font(s_name_layer, s_label_font);
+#else
+  text_layer_set_font(s_name_layer, fonts_get_system_font(LABEL_SYS_FONT));
+#endif
+  text_layer_set_text_alignment(s_name_layer, GTextAlignmentCenter);
+  layer_add_child(root, text_layer_get_layer(s_name_layer));
+
+  // ── Focus HUD (corner brackets + status glyphs, topmost) ──────────────
+  s_hud_layer = layer_create(layer_get_bounds(root));
+  layer_set_update_proc(s_hud_layer, hud_layer_update_proc);
+  layer_add_child(root, s_hud_layer);
+
   head_build_path();
+  s_quiet_time = quiet_time_is_active();
   apply_colors();   // sets bg + fg, tints and loads the current icon
 
   time_t now  = time(NULL);
   struct tm *t = localtime(&now);
   update_time(t);
   update_steps();
+  update_obstruction();
 }
 
 static void main_window_unload(Window *window) {
+  if (s_scan_anim)      { animation_unschedule(s_scan_anim);       s_scan_anim      = NULL; }
+  if (s_steps_timer)    { app_timer_cancel(s_steps_timer);         s_steps_timer    = NULL; }
   if (s_head_path)      { gpath_destroy(s_head_path);              s_head_path      = NULL; }
   if (s_time_layer)     { text_layer_destroy(s_time_layer);        s_time_layer     = NULL; }
   if (s_ampm_top_layer) { text_layer_destroy(s_ampm_top_layer);    s_ampm_top_layer = NULL; }
   if (s_ampm_bot_layer) { text_layer_destroy(s_ampm_bot_layer);    s_ampm_bot_layer = NULL; }
+  if (s_date_layer)     { text_layer_destroy(s_date_layer);        s_date_layer     = NULL; }
+  if (s_name_layer)     { text_layer_destroy(s_name_layer);        s_name_layer     = NULL; }
   if (s_icon_layer)     { bitmap_layer_destroy(s_icon_layer);      s_icon_layer     = NULL; }
   if (s_icon_bitmap)    { gbitmap_destroy(s_icon_bitmap);          s_icon_bitmap    = NULL; }
   if (s_arrow_layer)    { layer_destroy(s_arrow_layer);            s_arrow_layer    = NULL; }
   if (s_dots_layer)     { layer_destroy(s_dots_layer);             s_dots_layer     = NULL; }
   if (s_divider_layer)  { layer_destroy(s_divider_layer);          s_divider_layer  = NULL; }
+  if (s_scan_layer)     { layer_destroy(s_scan_layer);             s_scan_layer     = NULL; }
+  if (s_hud_layer)      { layer_destroy(s_hud_layer);              s_hud_layer      = NULL; }
 #if USE_CUSTOM_FONT
   if (s_time_font_12)   { fonts_unload_custom_font(s_time_font_12); s_time_font_12   = NULL; }
   if (s_time_font_24)   { fonts_unload_custom_font(s_time_font_24); s_time_font_24   = NULL; }
+  if (s_label_font)     { fonts_unload_custom_font(s_label_font);   s_label_font     = NULL; }
 #endif
 }
 
@@ -670,9 +1000,10 @@ static void init(void) {
     .unload = main_window_unload,
   });
 
-  // Seed the inversion state from the current connection before the window
-  // lays out, so a disconnected start renders inverted immediately.
-  s_bt_inverted = !connection_service_peek_pebble_app_connection();
+  // Seed the connection/inversion state before the window lays out, so a
+  // disconnected start renders its alert state immediately.
+  s_bt_connected = connection_service_peek_pebble_app_connection();
+  s_bt_inverted  = (!s_bt_connected && s_disconnect_mode == 0);
 
   window_stack_push(s_window, true);
 
@@ -681,6 +1012,10 @@ static void init(void) {
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler,
   });
+  accel_tap_service_subscribe(tap_handler);
+  unobstructed_area_service_subscribe((UnobstructedAreaHandlers){
+    .did_change = unobstructed_did_change,
+  }, NULL);
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
@@ -690,6 +1025,8 @@ static void deinit(void) {
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
+  accel_tap_service_unsubscribe();
+  unobstructed_area_service_unsubscribe();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
 #endif
