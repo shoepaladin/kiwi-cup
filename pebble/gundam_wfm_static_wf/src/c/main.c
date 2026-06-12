@@ -506,20 +506,17 @@ static void main_window_load(Window *window) {
   window_set_background_color(window, s_settings.bg_color);
 
   load_sprite();
-  GRect sprite_size = s_sprite_bitmap
-                      ? gbitmap_get_bounds(s_sprite_bitmap)
-                      : GRect(0, 0, 138, 138);
 
-  // Layout (top → bottom): rings (low-battery only), sprite (overlapping
-  // rings), time, date, steps. Sprite is centered horizontally with a small
-  // margin. Steps text is LEFT-aligned in the same column as time/date so it
-  // reads as a continuation of the data block.
+  // Layout (top → bottom): sprite band (rings + arc drawn behind it), time,
+  // date, steps. The text stack is anchored to the BOTTOM of the screen and
+  // the sprite band gets whatever is left above it, so positions never depend
+  // on the size of the currently selected suit bitmap (the six suits range
+  // from 85 to 138 px tall).
 
 #if defined(PBL_RECT)
   // Emery (200 x 228)
   const int side_margin   = 8;
-  const int sprite_top    = 25;
-  const int sprite_band_h = 138;
+  const int bottom_inset  = 0;
   s_time_font_custom      = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_BLACKOPS_42));
   GFont time_font         = s_time_font_custom;
   const int time_h        = 46;
@@ -529,22 +526,33 @@ static void main_window_load(Window *window) {
   const int steps_h       = 20;
   const int rings_extent  = 130;
 #else
-  // Chalk / Gabbro (180 x 180, round)
+  // Chalk / Gabbro (180 x 180, round) — extra bottom inset keeps the steps
+  // line inside the visible circle.
   const int side_margin   = 24;
-  const int sprite_top    = 28;
-  const int sprite_band_h = 88;
+  const int bottom_inset  = 6;
   s_time_font_custom      = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_BLACKOPS_30));
-  GFont time_font         = s_time_font_custom;  const int time_h        = 36;
+  GFont time_font         = s_time_font_custom;
+  const int time_h        = 36;
   GFont date_font         = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   const int date_h        = 22;
   GFont steps_font        = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   const int steps_h       = 16;
-  const int rings_extent  = 110;
+  const int rings_extent  = 100;
 #endif
 
   const int inner_left  = side_margin;
   const int inner_right = b.size.w - side_margin;
   const int inner_w     = inner_right - inner_left;
+
+  // Text rows, stacked bottom-up from the screen edge. The -2 overlaps
+  // swallow the fonts' internal top padding.
+  const int steps_y = b.size.h - bottom_inset - steps_h;
+  const int date_y  = steps_y - date_h + 2;
+  const int time_y  = date_y - time_h + 2;
+
+  // Sprite band: everything above the time row.
+  const int sprite_top    = 0;
+  const int sprite_band_h = time_y - sprite_top;
 
   // ---------- Rings (low-battery indicator, drawn BEHIND sprite) ----------
   GRect rings_frame = GRect(
@@ -560,7 +568,7 @@ static void main_window_load(Window *window) {
   // outside the sprite's footprint. On the round display we keep the arc
   // smaller so the top tick doesn't fall outside the visible circle.
 #if defined(PBL_RECT)
-  int arc_extent = rings_extent + 12;
+  int arc_extent = rings_extent + 8;
 #else
   int arc_extent = rings_extent - 4;
 #endif
@@ -573,22 +581,21 @@ static void main_window_load(Window *window) {
   layer_add_child(s_root_layer, s_arc_layer);
 
   // ---------- Sprite (drawn ABOVE rings + arc) ----------
-  GRect sprite_frame = GRect(
-      (b.size.w - sprite_size.size.w) / 2,
-      sprite_top,
-      sprite_size.size.w,
-      sprite_size.size.h);
+  // Fixed full-band frame: swapping in a differently-sized suit bitmap can
+  // never move or clip the layout. GAlignBottom keeps every suit standing on
+  // the same baseline, directly above the time, centered horizontally.
+  GRect sprite_frame = GRect(0, sprite_top, b.size.w, sprite_band_h);
   s_sprite_layer = bitmap_layer_create(sprite_frame);
   bitmap_layer_set_compositing_mode(s_sprite_layer, GCompOpSet);
-  bitmap_layer_set_alignment(s_sprite_layer, GAlignCenter);
+  bitmap_layer_set_alignment(s_sprite_layer, GAlignBottom);
   bitmap_layer_set_bitmap(s_sprite_layer, s_sprite_bitmap);
   layer_add_child(s_root_layer, bitmap_layer_get_layer(s_sprite_layer));
-  
-  // ---------- BT alert bar (between sprite and time) ----------
+
+  // ---------- BT alert bar (overlays the bottom of the sprite band) ----------
   GRect alert_frame = GRect(inner_left,
-                            sprite_top + sprite_size.size.h + ALERT_OFFSET,
+                            time_y - ALERT_H + ALERT_OFFSET,
                             inner_w,
-                            ALERT_H);  
+                            ALERT_H);
   s_bt_alert_layer = text_layer_create(alert_frame);
   text_layer_set_background_color(s_bt_alert_layer, GColorClear);
   text_layer_set_text_color(s_bt_alert_layer, GColorWhite);
@@ -600,9 +607,8 @@ static void main_window_load(Window *window) {
   layer_add_child(s_root_layer, text_layer_get_layer(s_bt_alert_layer));
   
   // ---------- Time (center) ----------
-  GRect time_frame = GRect(inner_left,
-                           sprite_top + sprite_size.size.h + ALERT_OFFSET + ALERT_H,
-                           inner_w, time_h);  s_time_layer = text_layer_create(time_frame);
+  GRect time_frame = GRect(inner_left, time_y, inner_w, time_h);
+  s_time_layer = text_layer_create(time_frame);
   text_layer_set_background_color(s_time_layer, GColorClear);
   text_layer_set_text_color(s_time_layer, GColorWhite);
   text_layer_set_font(s_time_layer, time_font);
@@ -610,10 +616,7 @@ static void main_window_load(Window *window) {
   layer_add_child(s_root_layer, text_layer_get_layer(s_time_layer));
 
   // ---------- Date (center, below time) ----------
-  GRect date_frame = GRect(inner_left,
-                           sprite_top + sprite_size.size.h + ALERT_OFFSET + ALERT_H + time_h - 2,
-                           inner_w,
-                           date_h);
+  GRect date_frame = GRect(inner_left, date_y, inner_w, date_h);
   s_date_layer = text_layer_create(date_frame);
   text_layer_set_background_color(s_date_layer, GColorClear);
   text_layer_set_text_color(s_date_layer, GColorWhite);
@@ -622,10 +625,7 @@ static void main_window_load(Window *window) {
   layer_add_child(s_root_layer, text_layer_get_layer(s_date_layer));
 
   // ---------- Steps (LEFT-aligned, below date) ----------
-  GRect steps_frame = GRect(inner_left,
-                            sprite_top + sprite_size.size.h + ALERT_OFFSET + ALERT_H + time_h + date_h - 2,
-                            inner_w,
-                            steps_h);
+  GRect steps_frame = GRect(inner_left, steps_y, inner_w, steps_h);
   s_steps_layer = text_layer_create(steps_frame);
   text_layer_set_background_color(s_steps_layer, GColorClear);
   text_layer_set_text_color(s_steps_layer, GColorWhite);
