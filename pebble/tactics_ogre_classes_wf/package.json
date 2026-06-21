@@ -1,0 +1,179 @@
+{
+    "author": "Custom",
+    "dependencies": {
+        "pebble-clay": "^1.0.4"
+    },
+    "keywords": [
+        "pebble-app"
+    ],
+    "name": "tactics-ogre-watchface",
+    "pebble": {
+        "capabilities": [
+            "location",
+            "configurable",
+            "health"
+        ],
+        "displayName": "Tactics Ogre",
+        "enableMultiJS": true,
+        "messageKeys": [
+            "Row0Class",
+            "Row0Gender",
+            "Row0Stat",
+            "Row1Class",
+            "Row1Gender",
+            "Row1Stat",
+            "Row2Class",
+            "Row2Gender",
+            "Row2Stat",
+            "TempUnit",
+            "DistUnit",
+            "WeatherTemp"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "images/rune_fencer_female.png",
+                    "name": "SPRITE_RUNE_FENCER_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/rune_fencer_male.png",
+                    "name": "SPRITE_RUNE_FENCER_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/barbarian_female.png",
+                    "name": "SPRITE_BARBARIAN_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/barbarian_male.png",
+                    "name": "SPRITE_BARBARIAN_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/warrior_female.png",
+                    "name": "SPRITE_WARRIOR_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/warrior_male.png",
+                    "name": "SPRITE_WARRIOR_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/knight_female.png",
+                    "name": "SPRITE_KNIGHT_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/knight_male.png",
+                    "name": "SPRITE_KNIGHT_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/archer_female.png",
+                    "name": "SPRITE_ARCHER_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/archer_male.png",
+                    "name": "SPRITE_ARCHER_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/wizard_female.png",
+                    "name": "SPRITE_WIZARD_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/wizard_male.png",
+                    "name": "SPRITE_WIZARD_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/cleric_female.png",
+                    "name": "SPRITE_CLERIC_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/cleric_male.png",
+                    "name": "SPRITE_CLERIC_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/swordmaster_female.png",
+                    "name": "SPRITE_SWORDMASTER_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/swordmaster_male.png",
+                    "name": "SPRITE_SWORDMASTER_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/terror_knight_female.png",
+                    "name": "SPRITE_TERROR_KNIGHT_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/terror_knight_male.png",
+                    "name": "SPRITE_TERROR_KNIGHT_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/warlock_witch_female.png",
+                    "name": "SPRITE_WARLOCK_WITCH_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/warlock_witch_male.png",
+                    "name": "SPRITE_WARLOCK_WITCH_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/necromancer_female.png",
+                    "name": "SPRITE_NECROMANCER_FEMALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/necromancer_male.png",
+                    "name": "SPRITE_NECROMANCER_MALE",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/deneb.png",
+                    "name": "SPRITE_DENEB",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/ravness.png",
+                    "name": "SPRITE_RAVNESS",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/diego.png",
+                    "name": "SPRITE_DIEGO",
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/canopus.png",
+                    "name": "SPRITE_CANOPUS",
+                    "type": "bitmap"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "emery"
+        ],
+        "uuid": "5f89f572-dcb2-4452-b4dd-aa1f0dda75f6",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.3.0"
+}
