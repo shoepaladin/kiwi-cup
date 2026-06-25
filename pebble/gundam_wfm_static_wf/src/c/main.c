@@ -107,15 +107,11 @@ static TextLayer    *s_bt_alert_layer;
 static char          s_time_buf[8];
 static char          s_date_buf[24];
 
-// Low-battery concentric-rings layer: drawn BEHIND the sprite. Visible only
-// when battery % <= s_settings.low_battery_threshold.
-static Layer        *s_rings_layer;
-// Step-progress arc layer: drawn BEHIND the sprite at the same depth as the
-// rings. Hidden when step_goal == 0 or while the low-battery rings show.
+// Step-progress arc layer: drawn BEHIND the sprite. Hidden only when step_goal == 0.
 static Layer        *s_arc_layer;
 static BatteryChargeState s_battery_state;
 
-// Horizontal steps text, left-aligned, below the date line.
+// Steps row: shows step count normally; shows "PARTICLES LOW: XX%" when battery is low.
 static TextLayer    *s_steps_layer;
 static char          s_steps_text[24];
 static int           s_steps_count = 0;
@@ -209,8 +205,10 @@ static void tick_handler(struct tm *tick_time, TimeUnits units) {
 }
 
 // =============================================================================
-// Low-battery indicator: two concentric rings behind the Gundam, accent color
+// Low-battery check (forward declare refresh_steps_display for battery_handler)
 // =============================================================================
+static void refresh_steps_display(void);
+
 static bool battery_is_low(void) {
   int pct = s_battery_state.charge_percent;
   if (pct < 0)   pct = 0;
@@ -219,41 +217,24 @@ static bool battery_is_low(void) {
   return pct <= (int)s_settings.low_battery_threshold;
 }
 
-static void rings_update_proc(Layer *layer, GContext *ctx) {
-  int pct = s_battery_state.charge_percent;
-  bool low = battery_is_low();
-  APP_LOG(APP_LOG_LEVEL_INFO,
-          "[BUG3] rings_update_proc: pct=%d threshold=%d charging=%d -> low=%d",
-          pct, (int)s_settings.low_battery_threshold,
-          (int)s_battery_state.is_charging, (int)low);
-  if (!low) return;
-  GRect b = layer_get_bounds(layer);
-  GPoint center = GPoint(b.size.w / 2, b.size.h / 2);
-
-  int outer_r = (b.size.w < b.size.h ? b.size.w : b.size.h) / 2 - 3;
-  APP_LOG(APP_LOG_LEVEL_INFO,
-          "[BUG3] rings_update_proc: drawing rings at center=(%d,%d) outer_r=%d layer_bounds=(%d,%d,%d,%d)",
-          center.x, center.y, outer_r,
-          b.origin.x, b.origin.y, b.size.w, b.size.h);
-  if (outer_r < 10) {
-    APP_LOG(APP_LOG_LEVEL_WARNING, "[BUG3] rings_update_proc: outer_r=%d too small, skipped", outer_r);
-    return;
-  }
-  int inner_r = (outer_r * 62) / 100;
-
-  graphics_context_set_stroke_color(ctx, s_text_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_circle(ctx, center, outer_r);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_circle(ctx, center, inner_r);
-}
-
 static void battery_handler(BatteryChargeState state) {
   s_battery_state = state;
-  if (s_rings_layer) layer_mark_dirty(s_rings_layer);
-  // Arc hides when low-battery rings are showing, so its visibility depends
-  // on battery state too.
-  if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
+  if (s_arc_layer) layer_mark_dirty(s_arc_layer);
+  refresh_steps_display();
+}
+
+// Decides what to show in the steps row: battery warning when low, step count otherwise.
+static void refresh_steps_display(void) {
+  if (!s_steps_layer) return;
+  if (battery_is_low()) {
+    int pct = s_battery_state.charge_percent;
+    if (pct < 0)   pct = 0;
+    if (pct > 100) pct = 100;
+    snprintf(s_steps_text, sizeof(s_steps_text), "PARTICLES LOW: %d%%", pct);
+  } else {
+    snprintf(s_steps_text, sizeof(s_steps_text), "%d steps", s_steps_count);
+  }
+  text_layer_set_text(s_steps_layer, s_steps_text);
 }
 
 // =============================================================================
@@ -267,7 +248,6 @@ static void battery_handler(BatteryChargeState state) {
 
 static void arc_update_proc(Layer *layer, GContext *ctx) {
   if (s_settings.step_goal == 0) return;
-  if (battery_is_low())          return;
 
   GRect b = layer_get_bounds(layer);
   GPoint center = GPoint(b.size.w / 2, b.size.h / 2);
@@ -312,9 +292,8 @@ static void update_steps(void) {
 #else
   s_steps_count = 0;
 #endif
-  snprintf(s_steps_text, sizeof(s_steps_text), "%d steps", s_steps_count);
-  if (s_steps_layer) text_layer_set_text(s_steps_layer, s_steps_text);
-  if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
+  refresh_steps_display();
+  if (s_arc_layer) layer_mark_dirty(s_arc_layer);
 }
 
 #if defined(PBL_HEALTH)
@@ -341,7 +320,6 @@ static void apply_theme(void) {
   if (s_time_layer)  text_layer_set_text_color(s_time_layer,  s_text_color);
   if (s_date_layer)  text_layer_set_text_color(s_date_layer,  s_text_color);
   if (s_steps_layer) text_layer_set_text_color(s_steps_layer, s_text_color);
-  if (s_rings_layer) layer_mark_dirty(s_rings_layer);
   if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
   if (s_root_layer) {
     layer_mark_dirty(s_root_layer);
@@ -524,7 +502,6 @@ static void main_window_load(Window *window) {
   const int date_h        = 28;
   GFont steps_font        = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   const int steps_h       = 20;
-  const int rings_extent  = 130;
 #else
   // Chalk / Gabbro (180 x 180, round) — extra bottom inset keeps the steps
   // line inside the visible circle.
@@ -537,7 +514,6 @@ static void main_window_load(Window *window) {
   const int date_h        = 22;
   GFont steps_font        = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   const int steps_h       = 16;
-  const int rings_extent  = 100;
 #endif
 
   const int inner_left  = side_margin;
@@ -554,23 +530,13 @@ static void main_window_load(Window *window) {
   const int sprite_top    = 0;
   const int sprite_band_h = time_y - sprite_top;
 
-  // ---------- Rings (low-battery indicator, drawn BEHIND sprite) ----------
-  GRect rings_frame = GRect(
-      (b.size.w - rings_extent) / 2,
-      sprite_top + (sprite_band_h - rings_extent) / 2,
-      rings_extent, rings_extent);
-  s_rings_layer = layer_create(rings_frame);
-  layer_set_update_proc(s_rings_layer, rings_update_proc);
-  layer_add_child(s_root_layer, s_rings_layer);
-
   // ---------- Step progress arc (drawn BEHIND sprite) ----------
-  // Same center as the rings but a touch larger so the arc ticks sit just
-  // outside the sprite's footprint. On the round display we keep the arc
-  // smaller so the top tick doesn't fall outside the visible circle.
+  // Arc sits just outside the sprite's footprint. Round display uses a smaller
+  // extent so the top tick stays inside the visible circle.
 #if defined(PBL_RECT)
-  int arc_extent = rings_extent + 8;
+  int arc_extent = 138;
 #else
-  int arc_extent = rings_extent - 4;
+  int arc_extent = 96;
 #endif
   GRect arc_frame = GRect(
       (b.size.w - arc_extent) / 2,
@@ -641,7 +607,6 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_date_layer);
   text_layer_destroy(s_steps_layer);
   layer_destroy(s_arc_layer);
-  layer_destroy(s_rings_layer);
   bitmap_layer_destroy(s_sprite_layer);
   text_layer_destroy(s_bt_alert_layer);
   destroy_sprite();
