@@ -205,8 +205,10 @@ static void tick_handler(struct tm *tick_time, TimeUnits units) {
 }
 
 // =============================================================================
-// Low-battery check
+// Low-battery check (forward declare refresh_steps_display for battery_handler)
 // =============================================================================
+static void refresh_steps_display(void);
+
 static bool battery_is_low(void) {
   int pct = s_battery_state.charge_percent;
   if (pct < 0)   pct = 0;
