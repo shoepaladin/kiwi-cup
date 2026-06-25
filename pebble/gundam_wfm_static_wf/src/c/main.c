@@ -107,17 +107,12 @@ static TextLayer    *s_bt_alert_layer;
 static char          s_time_buf[8];
 static char          s_date_buf[24];
 
-// Low-battery concentric-rings layer: drawn BEHIND the sprite. Visible only
-// when battery % <= s_settings.low_battery_threshold.
-static Layer        *s_rings_layer;
 // Step-progress arc layer: drawn BEHIND the sprite. Hidden only when step_goal == 0.
 static Layer        *s_arc_layer;
 static BatteryChargeState s_battery_state;
 
-// Horizontal steps text, left-aligned, below the date line.
+// Steps row: shows step count normally; shows "PARTICLES LOW: XX%" when battery is low.
 static TextLayer    *s_steps_layer;
-// Low-battery text label: right-aligned "PARTICLES\nLOW" at bottom-right corner.
-static TextLayer    *s_bat_low_layer;
 static char          s_steps_text[24];
 static int           s_steps_count = 0;
 
@@ -210,7 +205,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units) {
 }
 
 // =============================================================================
-// Low-battery indicator: two concentric rings behind the Gundam, accent color
+// Low-battery check
 // =============================================================================
 static bool battery_is_low(void) {
   int pct = s_battery_state.charge_percent;
@@ -220,45 +215,24 @@ static bool battery_is_low(void) {
   return pct <= (int)s_settings.low_battery_threshold;
 }
 
-static void rings_update_proc(Layer *layer, GContext *ctx) {
-  int pct = s_battery_state.charge_percent;
-  bool low = battery_is_low();
-  APP_LOG(APP_LOG_LEVEL_INFO,
-          "[BUG3] rings_update_proc: pct=%d threshold=%d charging=%d -> low=%d",
-          pct, (int)s_settings.low_battery_threshold,
-          (int)s_battery_state.is_charging, (int)low);
-  if (!low) return;
-  GRect b = layer_get_bounds(layer);
-  GPoint center = GPoint(b.size.w / 2, b.size.h / 2);
-
-  int outer_r = (b.size.w < b.size.h ? b.size.w : b.size.h) / 2 - 3;
-  APP_LOG(APP_LOG_LEVEL_INFO,
-          "[BUG3] rings_update_proc: drawing rings at center=(%d,%d) outer_r=%d layer_bounds=(%d,%d,%d,%d)",
-          center.x, center.y, outer_r,
-          b.origin.x, b.origin.y, b.size.w, b.size.h);
-  if (outer_r < 10) {
-    APP_LOG(APP_LOG_LEVEL_WARNING, "[BUG3] rings_update_proc: outer_r=%d too small, skipped", outer_r);
-    return;
-  }
-  int inner_r = (outer_r * 62) / 100;
-
-  graphics_context_set_stroke_color(ctx, s_text_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_circle(ctx, center, outer_r);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_circle(ctx, center, inner_r);
-}
-
-static void update_bat_low_layer(void) {
-  if (!s_bat_low_layer) return;
-  layer_set_hidden(text_layer_get_layer(s_bat_low_layer), !battery_is_low());
-}
-
 static void battery_handler(BatteryChargeState state) {
   s_battery_state = state;
-  if (s_rings_layer) layer_mark_dirty(s_rings_layer);
-  if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
-  update_bat_low_layer();
+  if (s_arc_layer) layer_mark_dirty(s_arc_layer);
+  refresh_steps_display();
+}
+
+// Decides what to show in the steps row: battery warning when low, step count otherwise.
+static void refresh_steps_display(void) {
+  if (!s_steps_layer) return;
+  if (battery_is_low()) {
+    int pct = s_battery_state.charge_percent;
+    if (pct < 0)   pct = 0;
+    if (pct > 100) pct = 100;
+    snprintf(s_steps_text, sizeof(s_steps_text), "PARTICLES LOW: %d%%", pct);
+  } else {
+    snprintf(s_steps_text, sizeof(s_steps_text), "%d steps", s_steps_count);
+  }
+  text_layer_set_text(s_steps_layer, s_steps_text);
 }
 
 // =============================================================================
@@ -316,9 +290,8 @@ static void update_steps(void) {
 #else
   s_steps_count = 0;
 #endif
-  snprintf(s_steps_text, sizeof(s_steps_text), "%d steps", s_steps_count);
-  if (s_steps_layer) text_layer_set_text(s_steps_layer, s_steps_text);
-  if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
+  refresh_steps_display();
+  if (s_arc_layer) layer_mark_dirty(s_arc_layer);
 }
 
 #if defined(PBL_HEALTH)
@@ -344,9 +317,7 @@ static void apply_theme(void) {
   if (s_window) window_set_background_color(s_window, s_settings.bg_color);
   if (s_time_layer)  text_layer_set_text_color(s_time_layer,  s_text_color);
   if (s_date_layer)  text_layer_set_text_color(s_date_layer,  s_text_color);
-  if (s_steps_layer)   text_layer_set_text_color(s_steps_layer,   s_text_color);
-  if (s_bat_low_layer) text_layer_set_text_color(s_bat_low_layer, s_text_color);
-  if (s_rings_layer) layer_mark_dirty(s_rings_layer);
+  if (s_steps_layer) text_layer_set_text_color(s_steps_layer, s_text_color);
   if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
   if (s_root_layer) {
     layer_mark_dirty(s_root_layer);
@@ -365,7 +336,6 @@ static void apply_settings_to_ui(void) {
   update_time_and_date();
   update_steps();
   apply_theme();
-  update_bat_low_layer();
 
   if (s_steps_layer) {
     bool hide = !s_settings.show_steps;
@@ -530,7 +500,6 @@ static void main_window_load(Window *window) {
   const int date_h        = 28;
   GFont steps_font        = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   const int steps_h       = 20;
-  const int rings_extent  = 130;
 #else
   // Chalk / Gabbro (180 x 180, round) — extra bottom inset keeps the steps
   // line inside the visible circle.
@@ -543,7 +512,6 @@ static void main_window_load(Window *window) {
   const int date_h        = 22;
   GFont steps_font        = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   const int steps_h       = 16;
-  const int rings_extent  = 100;
 #endif
 
   const int inner_left  = side_margin;
@@ -560,23 +528,13 @@ static void main_window_load(Window *window) {
   const int sprite_top    = 0;
   const int sprite_band_h = time_y - sprite_top;
 
-  // ---------- Rings (low-battery indicator, drawn BEHIND sprite) ----------
-  GRect rings_frame = GRect(
-      (b.size.w - rings_extent) / 2,
-      sprite_top + (sprite_band_h - rings_extent) / 2,
-      rings_extent, rings_extent);
-  s_rings_layer = layer_create(rings_frame);
-  layer_set_update_proc(s_rings_layer, rings_update_proc);
-  layer_add_child(s_root_layer, s_rings_layer);
-
   // ---------- Step progress arc (drawn BEHIND sprite) ----------
-  // Same center as the rings but a touch larger so the arc ticks sit just
-  // outside the sprite's footprint. On the round display we keep the arc
-  // smaller so the top tick doesn't fall outside the visible circle.
+  // Arc sits just outside the sprite's footprint. Round display uses a smaller
+  // extent so the top tick stays inside the visible circle.
 #if defined(PBL_RECT)
-  int arc_extent = rings_extent + 8;
+  int arc_extent = 138;
 #else
-  int arc_extent = rings_extent - 4;
+  int arc_extent = 96;
 #endif
   GRect arc_frame = GRect(
       (b.size.w - arc_extent) / 2,
@@ -639,23 +597,6 @@ static void main_window_load(Window *window) {
   text_layer_set_text_alignment(s_steps_layer, GTextAlignmentCenter);
   layer_add_child(s_root_layer, text_layer_get_layer(s_steps_layer));
 
-  // ---------- Particles-low label (bottom-right corner, small, low-battery only) ----------
-  // Two lines of GOTHIC_14 (~16px each) right-aligned so the text hugs the
-  // bottom-right corner. The centered step/date text doesn't reach this far right.
-#if defined(PBL_RECT)
-  GRect bat_frame = GRect(b.size.w - 70, b.size.h - 32, 68, 32);
-#else
-  GRect bat_frame = GRect(b.size.w - 62, b.size.h - bottom_inset - 30, 60, 30);
-#endif
-  s_bat_low_layer = text_layer_create(bat_frame);
-  text_layer_set_background_color(s_bat_low_layer, GColorClear);
-  text_layer_set_text_color(s_bat_low_layer, s_text_color);
-  text_layer_set_font(s_bat_low_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
-  text_layer_set_text_alignment(s_bat_low_layer, GTextAlignmentRight);
-  text_layer_set_text(s_bat_low_layer, "PARTICLES\nLOW");
-  layer_set_hidden(text_layer_get_layer(s_bat_low_layer), true);
-  layer_add_child(s_root_layer, text_layer_get_layer(s_bat_low_layer));
-
   apply_settings_to_ui();
 }
 
@@ -663,9 +604,7 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_time_layer);
   text_layer_destroy(s_date_layer);
   text_layer_destroy(s_steps_layer);
-  text_layer_destroy(s_bat_low_layer);
   layer_destroy(s_arc_layer);
-  layer_destroy(s_rings_layer);
   bitmap_layer_destroy(s_sprite_layer);
   text_layer_destroy(s_bt_alert_layer);
   destroy_sprite();
