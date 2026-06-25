@@ -12,17 +12,18 @@
 //   - Drum: 2 reinforcement rings (not 4), proper rust + dent detail
 //   - Camera idle direction now EAST (not SW)
 //   - Camera tracks Snake via 3 snap directions: DL / S / DR
-//   - VANISHED state: camera sweeps E -> S -> DL -> DR -> repeat
-//   - BT disconnected: entire camera body turns dark red
+//   - EVASION state: camera sweeps E -> S -> DL -> DR -> repeat
+//   - CAUTION state: camera holds EAST, then Snake respawns
+//   - BT disconnected: "FISSION MAILED" dithered overlay; camera body turns dark red
 //   - Settings: bt_vibrate toggle for BT connect/disconnect haptic
 //   - Settings: scene_mode (hallway / outdoor / auto-by-time)
 //   - Settings: disguise selection (button cycle removed - settings only)
 //   - Outdoor scene: night sky, radio tower w/ blinking light, chain-link fence,
 //     diagonal searchlight beam, snowy ground, floodlight replaces camera
-//   - `!` bubble (E_BUBBLE) now shows for 600ms after shake-from-? before
+//   - `!` bubble (E_BUBBLE) now shows for 600ms after BACK press from ? before
 //     the grenade arc starts (was previously never drawn)
 //   - Grenade: 15 frames at 80ms each (was 10 at 120ms), smoke drifts upward
-//   - Label removed; bottom-left is now a pixel battery icon
+//   - LIFE bar (battery) + date repositioned below floor; BACK button triggers alert
 // ============================================================================
 
 // ============================================================================
@@ -87,7 +88,6 @@
   #define COL_CAM_BT_RED     GColorDarkCandyAppleRed
   // Outdoor scene
   #define COL_SKY_DARK       GColorOxfordBlue
-  #define COL_SKY_MID        GColorImperialPurple
   #define COL_SNOW_GROUND    GColorLightGray
   #define COL_SNOW_HI        GColorWhite
   #define COL_SNOW_SHADOW    GColorDarkGray
@@ -151,7 +151,6 @@
   #define COL_CAM_MOUNT      GColorBlack
   #define COL_CAM_BT_RED     GColorBlack
   #define COL_SKY_DARK       GColorBlack
-  #define COL_SKY_MID        GColorBlack
   #define COL_SNOW_GROUND    GColorWhite
   #define COL_SNOW_HI        GColorWhite
   #define COL_SNOW_SHADOW    GColorBlack
@@ -231,7 +230,7 @@ enum {
 static const int ROCK_TILT[4] = { 0, 3, 0, -3 };
 #define ROCK_LIFT 2  // pixels the opposite bottom corner lifts
 
-// Sweep cycle order during VANISHED state
+// Sweep cycle order during EVASION state
 static const CamDir SWEEP_CYCLE[4] = { CAM_E, CAM_S, CAM_DL, CAM_DR };
 
 // ============================================================================
@@ -1232,6 +1231,7 @@ static void cancel_all_timers(void) {
 static void enter_idle(void) {
   cancel_all_timers();
   s_state = STATE_IDLE;
+  s_sweep_phase = 0;
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   schedule_anim();
 }
@@ -1297,6 +1297,8 @@ static void evasion_timeout(void *data) {
 }
 
 static void enter_evasion(void) {
+  if (s_sweep_timer)   { app_timer_cancel(s_sweep_timer);   s_sweep_timer   = NULL; }
+  if (s_evasion_timer) { app_timer_cancel(s_evasion_timer); s_evasion_timer = NULL; }
   s_state = STATE_EVASION;
   s_sweep_phase = 0;
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
