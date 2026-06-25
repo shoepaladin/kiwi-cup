@@ -200,7 +200,9 @@ typedef enum {
   STATE_ALERT,      // ? bubble blinking, sprite frozen
   STATE_BANG,       // ! bubble (~600ms before grenade)
   STATE_GRENADE,    // grenade arc + smoke
-  STATE_VANISHED    // Snake gone, camera sweeping
+  STATE_EVASION,    // Snake gone, camera sweeps (orange overlay)
+  STATE_CAUTION,    // camera returns to EAST (yellow overlay), then respawn
+  STATE_VANISHED    // unused; kept for switch coverage
 } WatchState;
 
 typedef enum { CAM_E, CAM_DL, CAM_DR, CAM_S } CamDir;
@@ -213,7 +215,8 @@ typedef enum { CAM_E, CAM_DL, CAM_DR, CAM_S } CamDir;
 #define GRENADE_FRAME_MS       80
 #define GRENADE_TOTAL_FRAMES   15
 #define GRENADE_ARC_FRAMES     6
-#define RESPAWN_DELAY_MS       5000
+#define EVASION_DURATION_MS    3000
+#define CAUTION_DURATION_MS    2000
 #define Q_BLINK_MS             400
 #define SWEEP_PHASE_MS         800
 
@@ -260,7 +263,8 @@ static AppTimer *s_alert_timeout_timer = NULL;
 static AppTimer *s_q_blink_timer       = NULL;
 static AppTimer *s_bang_timer          = NULL;
 static AppTimer *s_grenade_timer       = NULL;
-static AppTimer *s_respawn_timer       = NULL;
+static AppTimer *s_evasion_timer       = NULL;
+static AppTimer *s_caution_timer       = NULL;
 static AppTimer *s_sweep_timer         = NULL;
 static bool      s_q_visible           = true;
 
@@ -282,7 +286,8 @@ static void enter_idle(void);
 static void enter_alert(void);
 static void enter_bang(void);
 static void enter_grenade(void);
-static void enter_vanished(void);
+static void enter_evasion(void);
+static void enter_caution(void);
 static void canvas_update_proc(Layer *layer, GContext *ctx);
 static uint32_t get_anim_interval(void);
 static bool should_animate(void);
@@ -514,7 +519,9 @@ static CamDir current_cam_dir(int sprite_cx) {
     case STATE_ALERT:
     case STATE_BANG:
     case STATE_GRENADE:  return cam_dir_for_state(sprite_cx);
-    case STATE_VANISHED: return SWEEP_CYCLE[s_sweep_phase % 4];
+    case STATE_EVASION:  return SWEEP_CYCLE[s_sweep_phase % 4];
+    case STATE_CAUTION:
+    case STATE_VANISHED: return CAM_E;
   }
   return CAM_E;
 }
@@ -1039,26 +1046,56 @@ static void draw_grenade(GContext *ctx, int x, int frame) {
 // ============================================================================
 
 static void draw_battery(GContext *ctx) {
-  int bx = scale_x(4);
-  int by = s_floor_y + scale_y(4);
-  int bw = scale_x(14);
-  int bh = scale_y(7);
-
   bool outdoor = is_outdoor_scene();
   GColor frame = outdoor ? COL_SNOW_HI : COL_BATT_FRAME;
-  GColor bg    = outdoor ? COL_FLOODLIGHT : COL_BATT_BG;
+  GColor bg    = COL_BATT_BG;
 
-  strokerect(ctx, bx, by, bw, bh, frame);
-  fillrect(ctx, bx + bw, by + 1, 2, bh - 2, frame);
-  fillrect(ctx, bx + 1, by + 1, bw - 2, bh - 2, bg);
-
-  int fill_w = ((bw - 2) * s_battery_level) / 100;
   GColor fill_color;
   if (s_battery_level <= 20)      fill_color = COL_BATT_LOW;
   else if (s_battery_level <= 50) fill_color = COL_BATT_MID;
   else                            fill_color = outdoor ? COL_SNOW_HI : COL_BATT_OK;
 
-  fillrect(ctx, bx + 1, by + 1, fill_w, bh - 2, fill_color);
+  int margin  = scale_x(4);
+  int label_w = scale_x(22);
+  int bar_x   = margin + label_w;
+  int bar_y   = s_floor_y + scale_y(4);
+  int bar_w   = s_screen_w - bar_x - margin;
+  int bar_h   = scale_y(7);
+
+  // "LIFE" label left of bar
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+  GRect lr = GRect(margin, bar_y - 2, label_w, bar_h + 4);
+  graphics_context_set_text_color(ctx, fill_color);
+  graphics_draw_text(ctx, "LIFE", font, lr,
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+
+  // Bar frame + fill
+  strokerect(ctx, bar_x, bar_y, bar_w, bar_h, frame);
+  fillrect(ctx, bar_x + 1, bar_y + 1, bar_w - 2, bar_h - 2, bg);
+  int fill_w = ((bar_w - 2) * s_battery_level) / 100;
+  fillrect(ctx, bar_x + 1, bar_y + 1, fill_w, bar_h - 2, fill_color);
+}
+
+static void draw_fission_mailed(GContext *ctx) {
+  int bar_y = s_sprite_y;
+  int bar_h = s_sprite_h;
+  fillrect(ctx, 0, bar_y, s_screen_w, bar_h, GColorBlack);
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+  GRect tr = GRect(0, bar_y + (bar_h - 60) / 2, s_screen_w, bar_h);
+  graphics_context_set_text_color(ctx, GColorWhite);
+  graphics_draw_text(ctx, "FISSION MAILED", font, tr,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+}
+
+static void draw_alert_status(GContext *ctx, const char *label, GColor bg, GColor fg) {
+  int bar_y = s_sprite_y + s_sprite_h / 4;
+  int bar_h = scale_y(20);
+  fillrect(ctx, 0, bar_y, s_screen_w, bar_h, bg);
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  GRect tr = GRect(0, bar_y + 1, s_screen_w, bar_h);
+  graphics_context_set_text_color(ctx, fg);
+  graphics_draw_text(ctx, label, font, tr,
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
 // ============================================================================
@@ -1078,8 +1115,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (outdoor) draw_floodlight(ctx, sprite_cx);
   else         draw_camera(ctx, sprite_cx);
 
-  // Sprite is hidden during GRENADE and VANISHED
-  bool hide_sprite = (s_state == STATE_GRENADE || s_state == STATE_VANISHED);
+  // Sprite hidden during grenade, evasion, caution
+  bool hide_sprite = (s_state == STATE_GRENADE
+                   || s_state == STATE_EVASION
+                   || s_state == STATE_CAUTION
+                   || s_state == STATE_VANISHED);
 
   if (!hide_sprite) {
     switch (s_disguise) {
@@ -1094,7 +1134,21 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (s_state == STATE_BANG)                 draw_e_bubble(ctx, x);
   if (s_state == STATE_GRENADE)              draw_grenade(ctx, x, s_grenade_frame);
 
+#ifdef PBL_COLOR
+  if (s_state == STATE_EVASION)
+    draw_alert_status(ctx, "EVASION", GColorOrange, GColorBlack);
+  if (s_state == STATE_CAUTION)
+    draw_alert_status(ctx, "CAUTION", GColorChromeYellow, GColorBlack);
+#else
+  if (s_state == STATE_EVASION)
+    draw_alert_status(ctx, "EVASION", GColorWhite, GColorBlack);
+  if (s_state == STATE_CAUTION)
+    draw_alert_status(ctx, "CAUTION", GColorWhite, GColorBlack);
+#endif
+
   draw_battery(ctx);
+
+  if (!s_bt_connected) draw_fission_mailed(ctx);
 }
 
 // ============================================================================
@@ -1162,7 +1216,8 @@ static void cancel_all_timers(void) {
   if (s_anim_timer)          { app_timer_cancel(s_anim_timer);          s_anim_timer = NULL; }
   cancel_alert_timers();
   if (s_grenade_timer)       { app_timer_cancel(s_grenade_timer);       s_grenade_timer = NULL; }
-  if (s_respawn_timer)       { app_timer_cancel(s_respawn_timer);       s_respawn_timer = NULL; }
+  if (s_evasion_timer)       { app_timer_cancel(s_evasion_timer);       s_evasion_timer = NULL; }
+  if (s_caution_timer)       { app_timer_cancel(s_caution_timer);       s_caution_timer = NULL; }
   if (s_sweep_timer)         { app_timer_cancel(s_sweep_timer);         s_sweep_timer = NULL; }
 }
 
@@ -1207,36 +1262,45 @@ static void enter_bang(void) {
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
 }
 
-static void sweep_advance(void *data);
-
-static void respawn_tick(void *data) {
-  s_respawn_timer = NULL;
-  if (s_sweep_timer) { app_timer_cancel(s_sweep_timer); s_sweep_timer = NULL; }
-  s_sprite_x_fp = 0;
-  enter_idle();
-}
-
 static void sweep_advance(void *data) {
   s_sweep_timer = NULL;
-  if (s_state != STATE_VANISHED) return;
+  if (s_state != STATE_EVASION) return;
   s_sweep_phase = (s_sweep_phase + 1) % 4;
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   s_sweep_timer = app_timer_register(SWEEP_PHASE_MS, sweep_advance, NULL);
 }
 
-static void enter_vanished(void) {
-  s_state = STATE_VANISHED;
+static void caution_timeout(void *data) {
+  s_caution_timer = NULL;
+  s_sprite_x_fp = 0;
+  enter_idle();
+}
+
+static void enter_caution(void) {
+  if (s_sweep_timer) { app_timer_cancel(s_sweep_timer); s_sweep_timer = NULL; }
+  s_state = STATE_CAUTION;
+  if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
+  s_caution_timer = app_timer_register(CAUTION_DURATION_MS, caution_timeout, NULL);
+}
+
+static void evasion_timeout(void *data) {
+  s_evasion_timer = NULL;
+  if (s_state == STATE_EVASION) enter_caution();
+}
+
+static void enter_evasion(void) {
+  s_state = STATE_EVASION;
   s_sweep_phase = 0;
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   s_sweep_timer   = app_timer_register(SWEEP_PHASE_MS, sweep_advance, NULL);
-  s_respawn_timer = app_timer_register(RESPAWN_DELAY_MS, respawn_tick, NULL);
+  s_evasion_timer = app_timer_register(EVASION_DURATION_MS, evasion_timeout, NULL);
 }
 
 static void grenade_frame_tick(void *data) {
   s_grenade_timer = NULL;
   s_grenade_frame++;
   if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
-  if (s_grenade_frame >= GRENADE_TOTAL_FRAMES) enter_vanished();
+  if (s_grenade_frame >= GRENADE_TOTAL_FRAMES) enter_evasion();
   else s_grenade_timer = app_timer_register(GRENADE_FRAME_MS, grenade_frame_tick, NULL);
 }
 
@@ -1250,14 +1314,14 @@ static void enter_grenade(void) {
 }
 
 // ============================================================================
-// SHAKE HANDLER — IDLE -> ALERT -> BANG -> GRENADE -> VANISHED -> IDLE
+// SHAKE HANDLER — IDLE -> ALERT -> BANG -> GRENADE -> EVASION -> CAUTION -> IDLE
 // ============================================================================
 
 static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
   if (!s_fully_initialized) return;
   if      (s_state == STATE_IDLE)  enter_alert();
   else if (s_state == STATE_ALERT) enter_bang();
-  // BANG, GRENADE, VANISHED: ignore further shakes
+  // BANG, GRENADE, EVASION, CAUTION: ignore further shakes
 }
 
 // ============================================================================
