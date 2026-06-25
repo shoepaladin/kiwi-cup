@@ -110,13 +110,14 @@ static char          s_date_buf[24];
 // Low-battery concentric-rings layer: drawn BEHIND the sprite. Visible only
 // when battery % <= s_settings.low_battery_threshold.
 static Layer        *s_rings_layer;
-// Step-progress arc layer: drawn BEHIND the sprite at the same depth as the
-// rings. Hidden when step_goal == 0 or while the low-battery rings show.
+// Step-progress arc layer: drawn BEHIND the sprite. Hidden only when step_goal == 0.
 static Layer        *s_arc_layer;
 static BatteryChargeState s_battery_state;
 
 // Horizontal steps text, left-aligned, below the date line.
 static TextLayer    *s_steps_layer;
+// Low-battery text label: right-aligned "PARTICLES\nLOW" at bottom-right corner.
+static TextLayer    *s_bat_low_layer;
 static char          s_steps_text[24];
 static int           s_steps_count = 0;
 
@@ -248,12 +249,16 @@ static void rings_update_proc(Layer *layer, GContext *ctx) {
   graphics_draw_circle(ctx, center, inner_r);
 }
 
+static void update_bat_low_layer(void) {
+  if (!s_bat_low_layer) return;
+  layer_set_hidden(text_layer_get_layer(s_bat_low_layer), !battery_is_low());
+}
+
 static void battery_handler(BatteryChargeState state) {
   s_battery_state = state;
   if (s_rings_layer) layer_mark_dirty(s_rings_layer);
-  // Arc hides when low-battery rings are showing, so its visibility depends
-  // on battery state too.
   if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
+  update_bat_low_layer();
 }
 
 // =============================================================================
@@ -267,7 +272,6 @@ static void battery_handler(BatteryChargeState state) {
 
 static void arc_update_proc(Layer *layer, GContext *ctx) {
   if (s_settings.step_goal == 0) return;
-  if (battery_is_low())          return;
 
   GRect b = layer_get_bounds(layer);
   GPoint center = GPoint(b.size.w / 2, b.size.h / 2);
@@ -340,7 +344,8 @@ static void apply_theme(void) {
   if (s_window) window_set_background_color(s_window, s_settings.bg_color);
   if (s_time_layer)  text_layer_set_text_color(s_time_layer,  s_text_color);
   if (s_date_layer)  text_layer_set_text_color(s_date_layer,  s_text_color);
-  if (s_steps_layer) text_layer_set_text_color(s_steps_layer, s_text_color);
+  if (s_steps_layer)   text_layer_set_text_color(s_steps_layer,   s_text_color);
+  if (s_bat_low_layer) text_layer_set_text_color(s_bat_low_layer, s_text_color);
   if (s_rings_layer) layer_mark_dirty(s_rings_layer);
   if (s_arc_layer)   layer_mark_dirty(s_arc_layer);
   if (s_root_layer) {
@@ -360,6 +365,7 @@ static void apply_settings_to_ui(void) {
   update_time_and_date();
   update_steps();
   apply_theme();
+  update_bat_low_layer();
 
   if (s_steps_layer) {
     bool hide = !s_settings.show_steps;
@@ -633,6 +639,23 @@ static void main_window_load(Window *window) {
   text_layer_set_text_alignment(s_steps_layer, GTextAlignmentCenter);
   layer_add_child(s_root_layer, text_layer_get_layer(s_steps_layer));
 
+  // ---------- Particles-low label (bottom-right corner, small, low-battery only) ----------
+  // Two lines of GOTHIC_14 (~16px each) right-aligned so the text hugs the
+  // bottom-right corner. The centered step/date text doesn't reach this far right.
+#if defined(PBL_RECT)
+  GRect bat_frame = GRect(b.size.w - 70, b.size.h - 32, 68, 32);
+#else
+  GRect bat_frame = GRect(b.size.w - 62, b.size.h - bottom_inset - 30, 60, 30);
+#endif
+  s_bat_low_layer = text_layer_create(bat_frame);
+  text_layer_set_background_color(s_bat_low_layer, GColorClear);
+  text_layer_set_text_color(s_bat_low_layer, s_text_color);
+  text_layer_set_font(s_bat_low_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_alignment(s_bat_low_layer, GTextAlignmentRight);
+  text_layer_set_text(s_bat_low_layer, "PARTICLES\nLOW");
+  layer_set_hidden(text_layer_get_layer(s_bat_low_layer), true);
+  layer_add_child(s_root_layer, text_layer_get_layer(s_bat_low_layer));
+
   apply_settings_to_ui();
 }
 
@@ -640,6 +663,7 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_time_layer);
   text_layer_destroy(s_date_layer);
   text_layer_destroy(s_steps_layer);
+  text_layer_destroy(s_bat_low_layer);
   layer_destroy(s_arc_layer);
   layer_destroy(s_rings_layer);
   bitmap_layer_destroy(s_sprite_layer);
