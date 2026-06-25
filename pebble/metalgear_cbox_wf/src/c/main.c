@@ -410,10 +410,8 @@ static void draw_outdoor(GContext *ctx) {
   int W  = s_screen_w;
   int FY = s_floor_y;
 
-  // Sky gradient (3 bands)
-  fillrect(ctx, 0, 0, W, (FY * 4) / 10, COL_SKY_DARK);
-  fillrect(ctx, 0, (FY * 4) / 10, W, (FY * 3) / 10, COL_SKY_MID);
-  fillrect(ctx, 0, (FY * 7) / 10, W, FY - (FY * 7) / 10, COL_SKY_DARK);
+  // Solid dark night sky
+  fillrect(ctx, 0, 0, W, FY, COL_SKY_DARK);
 
   // Radio tower — left side
   int tower_x = scale_x(18);
@@ -1324,14 +1322,19 @@ static void enter_grenade(void) {
 }
 
 // ============================================================================
-// SHAKE HANDLER — IDLE -> ALERT -> BANG -> GRENADE -> EVASION -> CAUTION -> IDLE
+// BUTTON HANDLER — left (BACK) button steps through alert sequence
+// IDLE -> ALERT -> BANG -> GRENADE -> EVASION -> CAUTION -> IDLE
 // ============================================================================
 
-static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+static void back_click_handler(ClickRecognizerRef recognizer, void *context) {
   if (!s_fully_initialized) return;
   if      (s_state == STATE_IDLE)  enter_alert();
   else if (s_state == STATE_ALERT) enter_bang();
-  // BANG, GRENADE, EVASION, CAUTION: ignore further shakes
+  // BANG, GRENADE, EVASION, CAUTION: ignore further presses
+}
+
+static void click_config_provider(void *context) {
+  window_single_click_subscribe(BUTTON_ID_BACK, back_click_handler);
 }
 
 // ============================================================================
@@ -1464,12 +1467,13 @@ static void main_window_load(Window *window) {
   text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
   layer_add_child(root, text_layer_get_layer(s_time_layer));
 
-  // Date text below
-  int date_y = time_y + time_h - scale_y(4);
-  s_date_layer = text_layer_create(GRect(0, date_y, s_screen_w, scale_y(20)));
+  // Date text below the LIFE bar
+  int date_y = s_floor_y + scale_y(12);
+  int date_h = s_screen_h - date_y - scale_y(1);
+  s_date_layer = text_layer_create(GRect(0, date_y, s_screen_w, date_h));
   text_layer_set_background_color(s_date_layer, GColorClear);
   text_layer_set_text_color(s_date_layer, COL_DATE_TEXT);
-  text_layer_set_font(s_date_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_font(s_date_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text_alignment(s_date_layer, GTextAlignmentCenter);
   layer_add_child(root, text_layer_get_layer(s_date_layer));
 
@@ -1517,7 +1521,7 @@ static void init(void) {
     .pebblekit_connection_handler  = NULL,
   });
   app_focus_service_subscribe(focus_handler);
-  accel_tap_service_subscribe(accel_tap_handler);
+  window_set_click_config_provider(s_main_window, click_config_provider);
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_open(256, 64);
@@ -1529,7 +1533,6 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   app_focus_service_unsubscribe();
-  accel_tap_service_unsubscribe();
   if (s_main_window) { window_destroy(s_main_window); s_main_window = NULL; }
 }
 
