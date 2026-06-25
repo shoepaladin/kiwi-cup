@@ -1077,14 +1077,24 @@ static void draw_battery(GContext *ctx) {
 }
 
 static void draw_fission_mailed(GContext *ctx) {
-  int bar_y = s_sprite_y;
-  int bar_h = s_sprite_h;
-  fillrect(ctx, 0, bar_y, s_screen_w, bar_h, GColorBlack);
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
-  GRect tr = GRect(0, bar_y + (bar_h - 60) / 2, s_screen_w, bar_h);
-  graphics_context_set_text_color(ctx, GColorWhite);
+  int bar_h = scale_y(24);
+  int bar_y = s_sprite_y + (s_sprite_h - bar_h) / 2;
+
+  // Simulate 50% alpha gray with row dithering (every other row filled)
+#ifdef PBL_COLOR
+  GColor dither = GColorLightGray;
+#else
+  GColor dither = GColorWhite;
+#endif
+  for (int r = bar_y; r < bar_y + bar_h; r++) {
+    if (r % 2 == 0) fillrect(ctx, 0, r, s_screen_w, 1, dither);
+  }
+
+  GFont font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+  GRect tr = GRect(0, bar_y + 1, s_screen_w, bar_h);
+  graphics_context_set_text_color(ctx, GColorBlack);
   graphics_draw_text(ctx, "FISSION MAILED", font, tr,
-                     GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
 static void draw_alert_status(GContext *ctx, const char *label, GColor bg, GColor fg) {
