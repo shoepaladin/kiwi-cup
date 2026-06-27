@@ -10,6 +10,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.slider.Slider
 
 class CropActivity : AppCompatActivity() {
 
@@ -17,6 +18,8 @@ class CropActivity : AppCompatActivity() {
     private lateinit var lockScreenCheck: MaterialCheckBox
     private lateinit var homeScreenCheck: MaterialCheckBox
     private lateinit var saveButton: MaterialButton
+    private lateinit var rotateButton: MaterialButton
+    private lateinit var rotationSlider: Slider
     private lateinit var imageUri: Uri
     private var bitmap: Bitmap? = null
     private var editingConfigId: Long? = null
@@ -29,6 +32,8 @@ class CropActivity : AppCompatActivity() {
         lockScreenCheck = findViewById(R.id.lockScreenCheck)
         homeScreenCheck = findViewById(R.id.homeScreenCheck)
         saveButton = findViewById(R.id.saveButton)
+        rotateButton = findViewById(R.id.rotateButton)
+        rotationSlider = findViewById(R.id.rotationSlider)
 
         val uriString = intent.getStringExtra("image_uri") ?: run {
             finish()
@@ -42,9 +47,11 @@ class CropActivity : AppCompatActivity() {
 
         loadImage()
         setupControls()
-        
+
         if (editingConfigId != null) {
-            loadExistingConfig(editingConfigId!!)
+            // Defer until the CropView has been laid out, otherwise the screen frame
+            // is empty and the transform/crop cannot be reconstructed.
+            cropView.post { loadExistingConfig(editingConfigId!!) }
         }
     }
 
@@ -88,6 +95,28 @@ class CropActivity : AppCompatActivity() {
         saveButton.setOnClickListener {
             saveConfiguration()
         }
+
+        // Fine rotation via slider (-180°..180°).
+        rotationSlider.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                cropView.setImageRotation(value)
+            }
+        }
+
+        // Quick 90° clockwise step; keeps the slider in sync (wrapped to its range).
+        rotateButton.setOnClickListener {
+            val newAngle = wrapDegrees(cropView.getImageRotation() + 90f)
+            cropView.setImageRotation(newAngle)
+            rotationSlider.value = newAngle
+        }
+    }
+
+    /** Wraps an angle into the slider's (-180°, 180°] range. */
+    private fun wrapDegrees(deg: Float): Float {
+        var d = deg % 360f
+        if (d > 180f) d -= 360f
+        if (d <= -180f) d += 360f
+        return d
     }
     
     private fun loadExistingConfig(configId: Long) {
@@ -96,7 +125,13 @@ class CropActivity : AppCompatActivity() {
         if (config != null) {
             lockScreenCheck.isChecked = config.forLockScreen
             homeScreenCheck.isChecked = config.forHomeScreen
-            cropView.setCropRect(config.cropRect)
+            val transform = config.transform
+            if (transform != null) {
+                cropView.setTransform(transform)
+            } else {
+                cropView.setCropRect(config.cropRect)
+            }
+            rotationSlider.value = wrapDegrees(cropView.getImageRotation())
         }
     }
 
@@ -108,11 +143,12 @@ class CropActivity : AppCompatActivity() {
 
         val config = WallpaperConfig(
             imageUri = imageUri.toString(),
-            cropRect = cropView.getCropRect(),
-            rotation = 0f,
+            cropRect = cropView.getCropRect(),   // legacy fallback
+            rotation = cropView.getImageRotation(),
             forLockScreen = lockScreenCheck.isChecked,
             forHomeScreen = homeScreenCheck.isChecked,
-            id = editingConfigId ?: System.currentTimeMillis()
+            id = editingConfigId ?: System.currentTimeMillis(),
+            transform = cropView.getTransform()  // exact zoom + pan + rotation
         )
 
         val configManager = ConfigManager(this)
@@ -136,7 +172,9 @@ class CropActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // CropView owns the bitmap once handed to it; cleanup() recycles it.
+        // Do NOT recycle `bitmap` again here — that double-recycles the same object.
         cropView.cleanup()
-        bitmap?.recycle()
+        bitmap = null
     }
 }

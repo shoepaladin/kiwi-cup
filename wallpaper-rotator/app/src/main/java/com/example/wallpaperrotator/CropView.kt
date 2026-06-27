@@ -6,8 +6,10 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class CropView @JvmOverloads constructor(
     context: Context,
@@ -43,10 +45,11 @@ class CropView @JvmOverloads constructor(
         pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
     }
 
-    // Image transformation (user drags and zooms the image)
+    // Image transformation (user drags, zooms and rotates the image)
     private var scale = 1f
     private var translateX = 0f
     private var translateY = 0f
+    private var rotationDeg = 0f
     
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -54,10 +57,12 @@ class CropView @JvmOverloads constructor(
 
     private val scaleDetector = ScaleGestureDetector(context, ScaleListener())
     
-    // Calculate screen aspect ratio dynamically
+    // Use the TRUE physical screen aspect ratio so the crop frame matches the
+    // actual wallpaper surface (see ScreenUtils). Using window metrics here caused
+    // the wallpaper to appear zoomed/cropped.
     private val screenAspectRatio: Float by lazy {
-        val displayMetrics = context.resources.displayMetrics
-        displayMetrics.widthPixels.toFloat() / displayMetrics.heightPixels.toFloat()
+        val size = ScreenUtils.getRealSize(context)
+        size.x.toFloat() / size.y.toFloat()
     }
 
     fun setBitmap(bmp: Bitmap) {
@@ -76,7 +81,9 @@ class CropView @JvmOverloads constructor(
 
     private fun resetTransform() {
         val bmp = bitmap ?: return
-        
+
+        rotationDeg = 0f
+
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
         val bmpWidth = bmp.width.toFloat()
@@ -118,10 +125,25 @@ class CropView @JvmOverloads constructor(
     }
 
     private fun updateMatrix() {
+        val bmp = bitmap
         matrix.reset()
         matrix.postScale(scale, scale)
+        if (bmp != null) {
+            // Rotate about the image's own (scaled) center, then translate in screen
+            // space so dragging always moves along screen axes regardless of rotation.
+            matrix.postRotate(rotationDeg, bmp.width * scale / 2f, bmp.height * scale / 2f)
+        }
         matrix.postTranslate(translateX, translateY)
     }
+
+    /** Sets the absolute image rotation in degrees (used by the slider). */
+    fun setImageRotation(degrees: Float) {
+        rotationDeg = degrees
+        updateMatrix()
+        invalidate()
+    }
+
+    fun getImageRotation(): Float = rotationDeg
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -284,7 +306,50 @@ class CropView @JvmOverloads constructor(
         
         translateX = screenFrame.centerX() - scaledCropX - scaledCropWidth / 2
         translateY = screenFrame.centerY() - scaledCropY - scaledCropHeight / 2
-        
+
+        updateMatrix()
+        invalidate()
+    }
+
+    /**
+     * Returns a 9-value Matrix mapping bitmap pixel coordinates -> normalized output
+     * coordinates [0,1]x[0,1] over the screen frame. This captures zoom, pan AND
+     * rotation exactly as shown in the preview, and is resolution-independent so the
+     * wallpaper renderer can reproduce the exact framing on the real screen.
+     */
+    fun getTransform(): FloatArray {
+        val normalized = Matrix(matrix) // bitmap -> view
+        normalized.postTranslate(-screenFrame.left, -screenFrame.top)
+        normalized.postScale(1f / screenFrame.width(), 1f / screenFrame.height())
+        val values = FloatArray(9)
+        normalized.getValues(values)
+        return values
+    }
+
+    /** Restores the interactive state from a transform produced by [getTransform]. */
+    fun setTransform(values: FloatArray) {
+        val bmp = bitmap ?: return
+
+        // Rebuild bitmap -> view matrix from the normalized transform.
+        val m = Matrix()
+        m.setValues(values) // bitmap -> normalized
+        m.postScale(screenFrame.width(), screenFrame.height())
+        m.postTranslate(screenFrame.left, screenFrame.top) // now bitmap -> view
+
+        // Decompose m = Translate * Rotate(about scaled image center) * Scale.
+        val v = FloatArray(9)
+        m.getValues(v)
+        val a = v[Matrix.MSCALE_X]
+        val b = v[Matrix.MSKEW_Y]
+        scale = sqrt(a * a + b * b)
+        rotationDeg = Math.toDegrees(atan2(b.toDouble(), a.toDouble())).toFloat()
+
+        // The image center maps to (pivot + translate); recover translate from it.
+        val center = floatArrayOf(bmp.width / 2f, bmp.height / 2f)
+        m.mapPoints(center)
+        translateX = center[0] - bmp.width * scale / 2f
+        translateY = center[1] - bmp.height * scale / 2f
+
         updateMatrix()
         invalidate()
     }
