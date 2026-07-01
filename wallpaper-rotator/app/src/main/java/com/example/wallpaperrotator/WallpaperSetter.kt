@@ -58,9 +58,17 @@ class WallpaperSetter(private val context: Context) {
                 // rotation) pixel-for-pixel onto a screen-sized canvas.
                 finalBitmap = renderWithTransform(rawBitmap, transform, sw, sh)
             } else {
-                // Legacy path for configs saved before rotation support.
-                croppedBitmap = processBitmap(rawBitmap, config)
-                finalBitmap = Bitmap.createScaledBitmap(croppedBitmap, sw, sh, true)
+                // Legacy path for configs saved before rotation support. The crop is
+                // first reduced to the EXACT screen aspect ratio (WallpaperGeometry),
+                // so the final uniform scale to sw x sh cannot stretch the image.
+                val cropped = processBitmap(rawBitmap, config, sw, sh)
+                croppedBitmap = cropped
+                finalBitmap = if (cropped.width == sw && cropped.height == sh) {
+                    croppedBitmap = null // ownership transferred to finalBitmap
+                    cropped
+                } else {
+                    Bitmap.createScaledBitmap(cropped, sw, sh, true)
+                }
             }
 
             // 5. Tell the system we want a screen-sized wallpaper (disables parallax stretching)
@@ -108,16 +116,9 @@ class WallpaperSetter(private val context: Context) {
     }
 
     private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
-        val (height: Int, width: Int) = options.outHeight to options.outWidth
-        var inSampleSize = 1
-        if (height > reqHeight || width > reqWidth) {
-            val halfHeight: Int = height / 2
-            val halfWidth: Int = width / 2
-            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
-                inSampleSize *= 2
-            }
-        }
-        return inSampleSize
+        return WallpaperGeometry.calculateInSampleSize(
+            options.outWidth, options.outHeight, reqWidth, reqHeight
+        )
     }
 
     /**
@@ -144,23 +145,36 @@ class WallpaperSetter(private val context: Context) {
         return output
     }
 
-    private fun processBitmap(bitmap: Bitmap, config: WallpaperConfig): Bitmap {
-        val cropX = (config.cropRect.left * bitmap.width).toInt().coerceIn(0, bitmap.width)
-        val cropY = (config.cropRect.top * bitmap.height).toInt().coerceIn(0, bitmap.height)
-        val cropWidth = ((config.cropRect.right - config.cropRect.left) * bitmap.width).toInt()
-            .coerceIn(1, bitmap.width - cropX)
-        val cropHeight = ((config.cropRect.bottom - config.cropRect.top) * bitmap.height).toInt()
-            .coerceIn(1, bitmap.height - cropY)
-
-        val cropped = Bitmap.createBitmap(bitmap, cropX, cropY, cropWidth, cropHeight)
-        
-        return if (config.rotation != 0f) {
+    /**
+     * Legacy (transform == null) crop pipeline. Returns a bitmap whose aspect ratio
+     * matches [targetW] x [targetH] so the caller's uniform scale cannot stretch it.
+     */
+    private fun processBitmap(bitmap: Bitmap, config: WallpaperConfig, targetW: Int, targetH: Int): Bitmap {
+        // Apply rotation first (legacy configs are almost always 0°, but stay correct).
+        var working = bitmap
+        var rotatedCopy = false
+        if (config.rotation != 0f) {
             val matrix = Matrix().apply { postRotate(config.rotation) }
-            val rotated = Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
-            if (rotated != cropped) cropped.recycle()
-            rotated
-        } else {
-            cropped
+            working = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            rotatedCopy = working != bitmap
         }
+
+        // The stored normalized crop only maps to the un-rotated image; once rotated,
+        // fall back to the whole (rotated) image before aspect-correcting.
+        val crop = if (config.rotation == 0f) {
+            WallpaperGeometry.aspectCorrectedCrop(
+                config.cropRect.left, config.cropRect.top,
+                config.cropRect.right, config.cropRect.bottom,
+                working.width, working.height, targetW, targetH
+            )
+        } else {
+            WallpaperGeometry.aspectCorrectedCrop(
+                0f, 0f, 1f, 1f, working.width, working.height, targetW, targetH
+            )
+        }
+
+        val result = Bitmap.createBitmap(working, crop.left, crop.top, crop.width, crop.height)
+        if (rotatedCopy) working.recycle()
+        return result
     }
 }
