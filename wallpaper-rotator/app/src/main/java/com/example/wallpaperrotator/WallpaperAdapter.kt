@@ -23,6 +23,7 @@ class WallpaperAdapter(
 
     private var configs = listOf<WallpaperConfig>()
     private var selectionMode = false
+    private var selectionColor = Color.parseColor("#FF6200EE")
 
     fun submitList(newConfigs: List<WallpaperConfig>) {
         val diffCallback = WallpaperDiffCallback(configs, newConfigs)
@@ -33,6 +34,11 @@ class WallpaperAdapter(
 
     fun setSelectionMode(enabled: Boolean) {
         selectionMode = enabled
+        notifyDataSetChanged()
+    }
+
+    fun setSelectionColor(color: Int) {
+        selectionColor = color
         notifyDataSetChanged()
     }
 
@@ -57,7 +63,6 @@ class WallpaperAdapter(
         private val rotationBadge: TextView = itemView.findViewById(R.id.rotationBadge)
 
         fun bind(config: WallpaperConfig) {
-            // Load image with Coil
             try {
                 val uri = Uri.parse(config.imageUri)
                 thumbnail.load(uri) {
@@ -70,16 +75,12 @@ class WallpaperAdapter(
                 thumbnail.setImageResource(R.drawable.ic_broken_image)
             }
 
-            // Selection state
             val selected = isSelected(config.id)
             selectionCheck.isChecked = selected
             selectionOverlay.visibility = if (selectionMode) View.VISIBLE else View.GONE
             card.strokeWidth = if (selected) 8 else 0
-            card.strokeColor = if (selected) 
-                itemView.context.getColor(R.color.selection_stroke) 
-            else Color.TRANSPARENT
+            card.strokeColor = if (selected) selectionColor else Color.TRANSPARENT
 
-            // Screen type indicator
             when {
                 config.forHomeScreen && config.forLockScreen -> {
                     screenTypeIcon.setImageResource(R.drawable.ic_both_screens)
@@ -96,7 +97,6 @@ class WallpaperAdapter(
                 else -> screenTypeIcon.visibility = View.GONE
             }
 
-            // Rotation badge
             if (config.rotation != 0f) {
                 rotationBadge.text = "${config.rotation.toInt()}°"
                 rotationBadge.visibility = View.VISIBLE
@@ -104,7 +104,6 @@ class WallpaperAdapter(
                 rotationBadge.visibility = View.GONE
             }
 
-            // Click listeners
             itemView.setOnClickListener {
                 if (selectionMode) {
                     onItemLongClick(config)

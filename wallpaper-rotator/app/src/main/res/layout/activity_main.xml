@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/coordinator_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
@@ -35,6 +36,7 @@
 
             <!-- Settings Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/settings_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -49,6 +51,7 @@
                     android:padding="16dp">
 
                     <TextView
+                        android:id="@+id/settingsTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Rotation Settings"
@@ -58,6 +61,7 @@
                         android:textColor="@android:color/white" />
 
                     <TextView
+                        android:id="@+id/intervalLabel"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Interval (minutes)"
@@ -66,6 +70,7 @@
                         android:textColor="@android:color/white" />
 
                     <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/intervalLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="16dp"
@@ -86,6 +91,7 @@
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <TextView
+                        android:id="@+id/modeLabel"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Mode"
@@ -199,6 +205,7 @@
                     android:layout_marginBottom="16dp" />
 
                 <TextView
+                    android:id="@+id/emptyStateText1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="No wallpapers yet"
@@ -207,6 +214,7 @@
                     android:layout_marginBottom="8dp" />
 
                 <TextView
+                    android:id="@+id/emptyStateText2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Add images or folders to get started"
@@ -234,11 +242,12 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:layout_marginTop="?attr/actionBarSize"
-        android:background="?attr/colorPrimaryVariant"
+        android:background="@color/purple_500"
         android:elevation="8dp"
         android:visibility="gone"
-        app:titleTextColor="?attr/colorOnPrimary"
-        app:navigationIcon="@drawable/ic_close" />
+        app:titleTextColor="@android:color/white"
+        app:navigationIcon="@drawable/ic_close"
+        app:navigationIconTint="@android:color/white" />
 
     <!-- FAB Menu -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton

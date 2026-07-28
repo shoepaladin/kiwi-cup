@@ -45,18 +45,21 @@ class WallpaperSetter(private val context: Context) {
             }
 
             // 2. Sampled Decode
-            rawBitmap = decodeSampledBitmapFromUri(uri, sw, sh)
-            if (rawBitmap == null) {
+            val decoded = decodeSampledBitmapFromUri(uri, sw, sh)
+            if (decoded == null) {
                 Log.e(TAG, "Failed to decode $uri")
                 return
             }
+            rawBitmap = decoded.bitmap
 
             // 3 & 4. Produce the exact screen-sized bitmap.
             val transform = config.transform
             if (transform != null) {
                 // Preferred path: reproduce the crop preview's transform (zoom + pan +
                 // rotation) pixel-for-pixel onto a screen-sized canvas.
-                finalBitmap = renderWithTransform(rawBitmap, transform, sw, sh)
+                finalBitmap = renderWithTransform(
+                    rawBitmap, transform, sw, sh, decoded.srcWidth, decoded.srcHeight
+                )
             } else {
                 // Legacy path for configs saved before rotation support. The crop is
                 // first reduced to the EXACT screen aspect ratio (WallpaperGeometry),
@@ -96,19 +99,28 @@ class WallpaperSetter(private val context: Context) {
         }
     }
 
-    private fun decodeSampledBitmapFromUri(uri: Uri, reqWidth: Int, reqHeight: Int): Bitmap? {
+    /**
+     * A decoded (possibly subsampled) bitmap plus the ORIGINAL image dimensions.
+     * The stored transform is defined in original-pixel coordinates, so the
+     * renderer needs both to compensate for the subsampling ratio.
+     */
+    private class DecodeResult(val bitmap: Bitmap, val srcWidth: Int, val srcHeight: Int)
+
+    private fun decodeSampledBitmapFromUri(uri: Uri, reqWidth: Int, reqHeight: Int): DecodeResult? {
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeStream(input, null, options)
-                
+                val srcWidth = options.outWidth
+                val srcHeight = options.outHeight
+
                 options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
                 options.inJustDecodeBounds = false
                 options.inPreferredConfig = Bitmap.Config.ARGB_8888
-                
+
                 context.contentResolver.openInputStream(uri)?.use { innerInput ->
                     BitmapFactory.decodeStream(innerInput, null, options)
-                }
+                }?.let { DecodeResult(it, srcWidth, srcHeight) }
             }
         } catch (e: Exception) {
             null
@@ -123,21 +135,37 @@ class WallpaperSetter(private val context: Context) {
 
     /**
      * Renders [bitmap] onto a [sw]x[sh] canvas using [transformValues], a Matrix that
-     * maps bitmap pixels -> normalized output [0,1]. Reproduces exactly what was framed
-     * in the crop preview, including rotation. Any area outside the image is black.
+     * maps ORIGINAL image pixels -> normalized output [0,1]. Reproduces exactly what
+     * was framed in the crop preview, including rotation. Any area outside the image
+     * is black.
+     *
+     * [bitmap] may be a subsampled decode of the original ([srcWidth] x [srcHeight]);
+     * the matrix is prescaled by the subsampling ratio so the framing is identical
+     * regardless of decode resolution.
      */
     private fun renderWithTransform(
         bitmap: Bitmap,
         transformValues: FloatArray,
         sw: Int,
-        sh: Int
+        sh: Int,
+        srcWidth: Int,
+        srcHeight: Int
     ): Bitmap {
         val output = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         canvas.drawColor(Color.BLACK)
 
         val matrix = Matrix()
-        matrix.setValues(transformValues)      // bitmap -> normalized [0,1]
+        matrix.setValues(transformValues)      // original px -> normalized [0,1]
+        if (srcWidth > 0 && srcHeight > 0 &&
+            (bitmap.width != srcWidth || bitmap.height != srcHeight)
+        ) {
+            // Map decoded px -> original px first, so the stored transform applies.
+            matrix.preScale(
+                srcWidth.toFloat() / bitmap.width,
+                srcHeight.toFloat() / bitmap.height
+            )
+        }
         matrix.postScale(sw.toFloat(), sh.toFloat()) // normalized -> output pixels
 
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -174,7 +202,9 @@ class WallpaperSetter(private val context: Context) {
         }
 
         val result = Bitmap.createBitmap(working, crop.left, crop.top, crop.width, crop.height)
-        if (rotatedCopy) working.recycle()
+        // createBitmap returns the SOURCE bitmap when the crop covers it entirely;
+        // recycling `working` unconditionally would recycle the returned bitmap.
+        if (rotatedCopy && result !== working) working.recycle()
         return result
     }
 }

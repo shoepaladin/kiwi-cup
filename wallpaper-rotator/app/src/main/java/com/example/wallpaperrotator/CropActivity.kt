@@ -3,6 +3,7 @@ package com.example.wallpaperrotator
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Bundle
@@ -23,6 +24,12 @@ class CropActivity : AppCompatActivity() {
     private lateinit var imageUri: Uri
     private var bitmap: Bitmap? = null
     private var editingConfigId: Long? = null
+
+    // Original (undecoded) image dimensions. The preview bitmap may be a subsampled
+    // decode; saved transforms are always converted to original-pixel space so they
+    // are independent of whatever resolution happened to be decoded.
+    private var srcWidth = 0
+    private var srcHeight = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,16 +73,32 @@ class CropActivity : AppCompatActivity() {
                 // Permission might already be granted
             }
 
-            val inputStream = contentResolver.openInputStream(imageUri)
-            if (inputStream == null) {
+            // Bounds-only decode for the original dimensions.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(imageUri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+            }
+            srcWidth = bounds.outWidth
+            srcHeight = bounds.outHeight
+            if (srcWidth <= 0 || srcHeight <= 0) {
                 Toast.makeText(this, "Cannot access image file", Toast.LENGTH_SHORT).show()
                 finish()
                 return
             }
-            
-            bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            
+
+            // Subsampled decode for the preview: enough resolution for the screen,
+            // without loading a potentially huge photo at full size (OOM risk).
+            val screen = ScreenUtils.getRealSize(this)
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = WallpaperGeometry.calculateInSampleSize(
+                    srcWidth, srcHeight, screen.x, screen.y
+                )
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            bitmap = contentResolver.openInputStream(imageUri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, options)
+            }
+
             if (bitmap == null) {
                 Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
                 finish()
@@ -127,12 +150,40 @@ class CropActivity : AppCompatActivity() {
             homeScreenCheck.isChecked = config.forHomeScreen
             val transform = config.transform
             if (transform != null) {
-                cropView.setTransform(transform)
+                cropView.setTransform(sourceToPreviewTransform(transform))
             } else {
                 cropView.setCropRect(config.cropRect)
             }
             rotationSlider.value = wrapDegrees(cropView.getImageRotation())
         }
+    }
+
+    /**
+     * Converts a stored transform (ORIGINAL image px -> normalized [0,1]) into the
+     * preview bitmap's pixel space so CropView can restore the framing. The preview
+     * may be a subsampled decode with smaller pixel dimensions than the original.
+     */
+    private fun sourceToPreviewTransform(values: FloatArray): FloatArray {
+        val bmp = bitmap ?: return values
+        if (srcWidth <= 0 || srcHeight <= 0) return values
+        if (bmp.width == srcWidth && bmp.height == srcHeight) return values
+        val m = Matrix()
+        m.setValues(values) // original px -> normalized
+        // Map preview px -> original px first.
+        m.preScale(srcWidth.toFloat() / bmp.width, srcHeight.toFloat() / bmp.height)
+        return FloatArray(9).also { m.getValues(it) }
+    }
+
+    /** Inverse of [sourceToPreviewTransform]: preview px space -> original px space. */
+    private fun previewToSourceTransform(values: FloatArray): FloatArray {
+        val bmp = bitmap ?: return values
+        if (srcWidth <= 0 || srcHeight <= 0) return values
+        if (bmp.width == srcWidth && bmp.height == srcHeight) return values
+        val m = Matrix()
+        m.setValues(values) // preview px -> normalized
+        // Map original px -> preview px first.
+        m.preScale(bmp.width.toFloat() / srcWidth, bmp.height.toFloat() / srcHeight)
+        return FloatArray(9).also { m.getValues(it) }
     }
 
     private fun saveConfiguration() {
@@ -148,7 +199,9 @@ class CropActivity : AppCompatActivity() {
             forLockScreen = lockScreenCheck.isChecked,
             forHomeScreen = homeScreenCheck.isChecked,
             id = editingConfigId ?: System.currentTimeMillis(),
-            transform = cropView.getTransform()  // exact zoom + pan + rotation
+            // Exact zoom + pan + rotation, stored in ORIGINAL-pixel space so it is
+            // valid at any decode resolution (WallpaperSetter subsamples too).
+            transform = previewToSourceTransform(cropView.getTransform())
         )
 
         val configManager = ConfigManager(this)

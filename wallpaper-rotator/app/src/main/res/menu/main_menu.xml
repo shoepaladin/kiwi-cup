@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        android:icon="@drawable/ic_menu_sandwich"
+        app:showAsAction="always">
+        <menu>
+            <item
+                android:id="@+id/action_font_color"
+                android:title="Font Color">
+                <menu>
+                    <item android:id="@+id/font_white" android:title="White" />
+                    <item android:id="@+id/font_black" android:title="Black" />
+                    <item android:id="@+id/font_red" android:title="Red" />
+                    <item android:id="@+id/font_blue" android:title="Blue" />
+                    <item android:id="@+id/font_green" android:title="Green" />
+                </menu>
+            </item>
+            <item
+                android:id="@+id/action_tab_background"
+                android:title="Tab Background">
+                <menu>
+                    <item android:id="@+id/tab_purple" android:title="Deep Purple" />
+                    <item android:id="@+id/tab_blue" android:title="Blue" />
+                    <item android:id="@+id/tab_grey" android:title="Grey" />
+                    <item android:id="@+id/tab_black" android:title="Black" />
+                    <item android:id="@+id/tab_orange" android:title="Orange" />
+                </menu>
+            </item>
+            <item
+                android:id="@+id/action_background"
+                android:title="Background">
+                <menu>
+                    <item android:id="@+id/bg_black" android:title="Black" />
+                    <item android:id="@+id/bg_white" android:title="White" />
+                    <item android:id="@+id/bg_dark_grey" android:title="Dark Grey" />
+                    <item android:id="@+id/bg_light_grey" android:title="Light Grey" />
+                    <item android:id="@+id/bg_blue" android:title="Dark Blue" />
+                </menu>
+            </item>
+            <item
+                android:id="@+id/action_about"
+                android:title="About" />
+        </menu>
+    </item>
+</menu>

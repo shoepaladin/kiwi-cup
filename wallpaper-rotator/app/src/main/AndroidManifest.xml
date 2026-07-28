@@ -31,9 +31,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Locked to portrait: the crop frame and saved transform are defined
+             against the portrait wallpaper surface, so cropping in landscape
+             would save a mismatched framing. -->
         <activity
             android:name=".CropActivity"
             android:label="Position Wallpaper"
+            android:screenOrientation="portrait"
             android:parentActivityName=".MainActivity" />
 
         <receiver
