@@ -23,6 +23,37 @@
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
 
-        <!-- Customize your theme here. -->
+        <!-- Bottom Sheet Theme -->
+        <item name="bottomSheetDialogTheme">@style/CustomBottomSheetDialog</item>
+    </style>
+
+    <!-- Base style for popups -->
+    <style name="BasePopupMenu" parent="ThemeOverlay.MaterialComponents.Dark">
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
+    <style name="PopupMenu.Purple" parent="BasePopupMenu">
+        <item name="colorSurface">@color/purple_500</item>
+    </style>
+    <style name="PopupMenu.Blue" parent="BasePopupMenu">
+        <item name="colorSurface">#2196F3</item>
+    </style>
+    <style name="PopupMenu.Grey" parent="BasePopupMenu">
+        <item name="colorSurface">#9E9E9E</item>
+    </style>
+    <style name="PopupMenu.Black" parent="BasePopupMenu">
+        <item name="colorSurface">#000000</item>
+    </style>
+    <style name="PopupMenu.Orange" parent="BasePopupMenu">
+        <item name="colorSurface">#FF9800</item>
+    </style>
+
+    <!-- Style to ensure the bottom sheet has rounded corners if desired -->
+    <style name="CustomBottomSheetDialog" parent="Theme.Design.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/CustomBottomSheetStyle</item>
+    </style>
+
+    <style name="CustomBottomSheetStyle" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
     </style>
 </resources>

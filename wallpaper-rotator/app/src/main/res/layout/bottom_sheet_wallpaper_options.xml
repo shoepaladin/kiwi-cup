@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="@color/purple_light">
 
     <TextView
         android:layout_width="match_parent"
@@ -11,6 +12,7 @@
         android:text="Wallpaper Options"
         android:textSize="18sp"
         android:textStyle="bold"
+        android:textColor="@color/purple_500"
         android:layout_marginBottom="16dp" />
 
     <LinearLayout
@@ -27,12 +29,14 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_edit"
-            android:layout_marginEnd="16dp" />
+            android:layout_marginEnd="16dp"
+            android:tint="@color/purple_500" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Edit position"
+            android:textColor="@color/purple_500"
             android:textSize="16sp" />
 
     </LinearLayout>
@@ -51,12 +55,14 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_delete"
-            android:layout_marginEnd="16dp" />
+            android:layout_marginEnd="16dp"
+            android:tint="@color/purple_500" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Delete"
+            android:textColor="@color/purple_500"
             android:textSize="16sp" />
 
     </LinearLayout>
