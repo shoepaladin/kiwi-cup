@@ -99,6 +99,10 @@ static Layer        *s_root_layer;
 // Single static bitmap per suit — no animation frames needed.
 static BitmapLayer  *s_sprite_layer;
 static GBitmap      *s_sprite_bitmap = NULL;
+// Height of the sprite band (screen height above the time row, minus the
+// reserved top bezel). Cached so load_sprite() can check a newly swapped suit
+// against it — see the [BEZEL] guard below.
+static int          s_sprite_band_h = 0;
 
 static TextLayer    *s_time_layer;
 static TextLayer    *s_date_layer;
@@ -133,6 +137,20 @@ static void load_sprite(void) {
   s_sprite_bitmap = gbitmap_create_with_resource(res);
   APP_LOG(APP_LOG_LEVEL_INFO, "[BUG1] load_sprite: suit=%d bitmap=%s",
           (int)s_settings.sprite_set, s_sprite_bitmap ? "OK" : "NULL");
+
+  // BitmapLayer silently clips an oversized bitmap, so a suit taller than the
+  // band would lose its head into the reserved bezel with no visible error.
+  // Fires on suit swaps from the config, not just at startup. The fix is
+  // always to shrink the PNG (tools/resize_sprite.py), never to shrink the
+  // bezel — the empty top margin is the fixed part of this layout.
+  if (s_sprite_bitmap && s_sprite_band_h > 0) {
+    int bh = gbitmap_get_bounds(s_sprite_bitmap).size.h;
+    if (bh > s_sprite_band_h) {
+      APP_LOG(APP_LOG_LEVEL_WARNING,
+              "[BEZEL] suit=%d bitmap h=%d exceeds band h=%d — top %dpx clips into the bezel",
+              (int)s_settings.sprite_set, bh, s_sprite_band_h, bh - s_sprite_band_h);
+    }
+  }
   if (s_sprite_layer && s_sprite_bitmap) {
     bitmap_layer_set_bitmap(s_sprite_layer, s_sprite_bitmap);
     layer_mark_dirty(bitmap_layer_get_layer(s_sprite_layer));
@@ -483,17 +501,22 @@ static void main_window_load(Window *window) {
   GRect b = layer_get_bounds(s_root_layer);
   window_set_background_color(window, s_settings.bg_color);
 
-  load_sprite();
-
-  // Layout (top → bottom): sprite band (rings + arc drawn behind it), time,
-  // date, steps. The text stack is anchored to the BOTTOM of the screen and
-  // the sprite band gets whatever is left above it, so positions never depend
-  // on the size of the currently selected suit bitmap (the six suits range
-  // from 85 to 138 px tall).
+  // Layout (top → bottom): reserved top bezel, sprite band (arc drawn behind
+  // the sprite), time, date, steps. The text stack is anchored to the BOTTOM
+  // of the screen and the sprite band gets whatever is left above it, so
+  // positions never depend on the size of the currently selected suit bitmap
+  // (the six suits range from 85 to 130 px tall).
+  //
+  // The bezel is the fixed part of this design: no sprite or arc pixel may
+  // enter it. Anything that would encroach gets made SMALLER — the bezel is
+  // never shrunk and the text stack is never pushed around to make room.
+  // load_sprite() is deliberately called further down, once the band height
+  // is known, so its [BEZEL] guard has something to check against.
 
 #if defined(PBL_RECT)
   // Emery (200 x 228)
   const int side_margin   = 8;
+  const int top_bezel     = 8;   // reserved empty space along the top edge
   const int bottom_inset  = 0;
   s_time_font_custom      = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_BLACKOPS_42));
   GFont time_font         = s_time_font_custom;
@@ -506,6 +529,10 @@ static void main_window_load(Window *window) {
   // Chalk / Gabbro (180 x 180, round) — extra bottom inset keeps the steps
   // line inside the visible circle.
   const int side_margin   = 24;
+  // Round display: held at the value the layout already used, so this change
+  // is a no-op on chalk. A circular screen really wants a radial safe area
+  // rather than a flat top margin — that is a separate change.
+  const int top_bezel     = 4;
   const int bottom_inset  = 6;
   s_time_font_custom      = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_BLACKOPS_30));
   GFont time_font         = s_time_font_custom;
@@ -526,18 +553,21 @@ static void main_window_load(Window *window) {
   const int date_y  = steps_y - date_h + 2;
   const int time_y  = date_y - time_h + 2;
 
-  // Sprite band: everything above the time row.
-  const int sprite_top    = 0;
+  // Sprite band: everything above the time row, minus the reserved top bezel.
+  const int sprite_top    = top_bezel;
   const int sprite_band_h = time_y - sprite_top;
+  s_sprite_band_h = sprite_band_h;
+
+  // Safe to load now that the band height is published for the [BEZEL] guard.
+  load_sprite();
 
   // ---------- Step progress arc (drawn BEHIND sprite) ----------
-  // Arc sits just outside the sprite's footprint. Round display uses a smaller
-  // extent so the top tick stays inside the visible circle.
-#if defined(PBL_RECT)
-  int arc_extent = 138;
-#else
-  int arc_extent = 96;
-#endif
+  // Inscribed in the sprite band, so the topmost tick can never cross into the
+  // bezel, and capped by the side margins so it can never reach the side
+  // edges. Derived rather than hardcoded: it stays correct if the bezel, the
+  // fonts or the row heights ever change.
+  int arc_extent = sprite_band_h;
+  if (arc_extent > inner_w) arc_extent = inner_w;
   GRect arc_frame = GRect(
       (b.size.w - arc_extent) / 2,
       sprite_top + (sprite_band_h - arc_extent) / 2,
