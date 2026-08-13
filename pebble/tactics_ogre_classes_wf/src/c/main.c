@@ -3,6 +3,14 @@
 #define NUM_CLASSES 15
 #define NUM_ROWS 3
 #define STORAGE_KEY_CONFIG 1
+#define STORAGE_KEY_WEATHER 2
+
+// Watchfaces are unloaded and relaunched constantly, so the last reading is
+// persisted and restored on launch rather than showing "--" until the phone
+// happens to push a fresh one. A reading older than this is treated as stale.
+#define WEATHER_MAX_AGE_SECS (3 * 60 * 60)
+// How often the watch asks the phone for a new reading.
+#define WEATHER_REFRESH_SECS (30 * 60)
 
 #define SPRITE_W 51
 #define SPRITE_H 96
@@ -35,11 +43,20 @@ static WatchfaceConfig s_config = {
   .dist_unit = 0
 };
 
+// Last weather reading from the phone, persisted across relaunches.
+typedef struct {
+  int32_t temp_c;      // integer Celsius
+  int32_t fetched_at;  // unix time of the reading (0 = never)
+} WeatherState;
+
+static WeatherState s_weather = {0, 0};
+static time_t s_last_weather_request = 0;
+
 static int s_step_count = 0;
+static int s_distance_m = 0;         // walked distance today, meters
+static int s_calories = 0;           // total kcal today (active + resting)
 static int s_battery_percent = 0;
 static bool s_bt_connected = false;
-static int s_weather_temp_c = 0;     // last temperature from phone, in Celsius
-static bool s_weather_valid = false; // false until the phone reports weather
 static int s_heart_rate = 0;         // last heart-rate sample in BPM (0 = none)
 static char s_stat_text[NUM_ROWS][32];
 
@@ -246,6 +263,28 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 }
 
+// ─── Weather ───────────────────────────────────────────────────────
+static bool weather_is_fresh(void) {
+  if (s_weather.fetched_at == 0) return false;
+  int32_t age = (int32_t)time(NULL) - s_weather.fetched_at;
+  return age >= 0 && age < WEATHER_MAX_AGE_SECS;
+}
+
+// Ask the phone for a new reading. The watch drives this rather than relying
+// on the JS side to push on its own schedule: PebbleKit JS is suspended and
+// restarted at the phone's discretion, so a JS-side interval alone will
+// silently stop delivering.
+static void request_weather(void) {
+  if (!connection_service_peek_pebble_app_connection()) return;
+
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) != APP_MSG_OK) return;
+  dict_write_uint8(out, MESSAGE_KEY_WeatherRequest, 1);
+  if (app_message_outbox_send() == APP_MSG_OK) {
+    s_last_weather_request = time(NULL);
+  }
+}
+
 // ─── Stat text formatting ──────────────────────────────────────────
 static void update_stat_text(int row_idx) {
   RowConfig *row = &s_config.rows[row_idx];
@@ -279,25 +318,26 @@ static void update_stat_text(int row_idx) {
       snprintf(s_stat_text[row_idx], 32, "%d%%", s_battery_percent);
       break;
     case 6: {
-      int km_x10 = s_step_count * 7 / 1000;  // steps * 0.0007 km, fixed-point
+      // Real distance walked from the Health service, in meters.
       if (s_config.dist_unit == 0) {
+        int km_x10 = s_distance_m / 100;
         snprintf(s_stat_text[row_idx], 32, "%d.%d KM", km_x10/10, km_x10%10);
       } else {
-        int mi_x10 = km_x10 * 621 / 1000;
+        int mi_x10 = s_distance_m * 10 / 1609;
         snprintf(s_stat_text[row_idx], 32, "%d.%d MI", mi_x10/10, mi_x10%10);
       }
       break;
     }
     case 7:
-      snprintf(s_stat_text[row_idx], 32, "%d CAL", s_step_count / 20);
+      snprintf(s_stat_text[row_idx], 32, "%d CAL", s_calories);
       break;
     case 8:
-      if (!s_weather_valid) {
+      if (!weather_is_fresh()) {
         snprintf(s_stat_text[row_idx], 32, s_config.temp_unit == 0 ? "--C" : "--F");
       } else if (s_config.temp_unit == 0) {
-        snprintf(s_stat_text[row_idx], 32, "%dC", s_weather_temp_c);
+        snprintf(s_stat_text[row_idx], 32, "%dC", (int)s_weather.temp_c);
       } else {
-        int f = s_weather_temp_c * 9 / 5 + 32;
+        int f = (int)s_weather.temp_c * 9 / 5 + 32;
         snprintf(s_stat_text[row_idx], 32, "%dF", f);
       }
       break;
@@ -328,17 +368,47 @@ static void load_sprite(int row_idx) {
 }
 
 // ─── Updates ───────────────────────────────────────────────────────
+#if defined(PBL_HEALTH)
+// Today's total for a metric, or 0 if the metric isn't available on this
+// device / the user hasn't enabled Health.
+static int health_sum_today(HealthMetric metric) {
+  time_t start = time_start_of_today();
+  time_t end = time(NULL);
+  if (!(health_service_metric_accessible(metric, start, end)
+          & HealthServiceAccessibilityMaskAvailable)) {
+    return 0;
+  }
+  return (int)health_service_sum_today(metric);
+}
+#endif
+
+static void update_health_stats(void) {
+#if defined(PBL_HEALTH)
+  s_step_count  = health_sum_today(HealthMetricStepCount);
+  s_distance_m  = health_sum_today(HealthMetricWalkedDistanceMeters);
+  s_calories    = health_sum_today(HealthMetricActiveKCalories)
+                + health_sum_today(HealthMetricRestingKCalories);
+
+  time_t now = time(NULL);
+  if (health_service_metric_accessible(HealthMetricHeartRateBPM, now, now)
+        & HealthServiceAccessibilityMaskAvailable) {
+    s_heart_rate = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+  } else {
+    s_heart_rate = 0;
+  }
+#else
+  s_step_count = 0;
+  s_distance_m = 0;
+  s_calories   = 0;
+  s_heart_rate = 0;
+#endif
+}
+
 static void update_all_stats() {
-  s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
+  update_health_stats();
   BatteryChargeState charge = battery_state_service_peek();
   s_battery_percent = charge.charge_percent;
   s_bt_connected = connection_service_peek_pebble_app_connection();
-#if defined(PBL_HEALTH)
-  if (health_service_metric_accessible(HealthMetricHeartRateBPM, time(NULL), time(NULL))
-        == HealthServiceAccessibilityMaskAvailable) {
-    s_heart_rate = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
-  }
-#endif
   for (int i = 0; i < NUM_ROWS; i++) {
     update_stat_text(i);
   }
@@ -359,6 +429,16 @@ static void save_config() {
 static void load_config() {
   if (persist_exists(STORAGE_KEY_CONFIG)) {
     persist_read_data(STORAGE_KEY_CONFIG, &s_config, sizeof(s_config));
+  }
+}
+
+static void save_weather() {
+  persist_write_data(STORAGE_KEY_WEATHER, &s_weather, sizeof(s_weather));
+}
+
+static void load_weather() {
+  if (persist_exists(STORAGE_KEY_WEATHER)) {
+    persist_read_data(STORAGE_KEY_WEATHER, &s_weather, sizeof(s_weather));
   }
 }
 
@@ -389,9 +469,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   // Weather pushed from the phone (integer Celsius).
   Tuple *wt = dict_find(iter, MESSAGE_KEY_WeatherTemp);
   if (wt) {
-    s_weather_temp_c = (wt->type == TUPLE_CSTRING)
-        ? atoi(wt->value->cstring) : (int)wt->value->int32;
-    s_weather_valid = true;
+    s_weather.temp_c = (wt->type == TUPLE_CSTRING)
+        ? atoi(wt->value->cstring) : (int32_t)wt->value->int32;
+    s_weather.fetched_at = (int32_t)time(NULL);
+    save_weather();
   }
 
   save_config();
@@ -402,6 +483,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 // ─── Service callbacks ─────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_all_stats();
+
+  // Re-ask the phone once the current reading is due for a refresh. Retried
+  // every minute while the reading is stale, so a dropped request or a
+  // suspended JS runtime recovers on its own.
+  time_t now = time(NULL);
+  bool due = (now - s_last_weather_request) >= WEATHER_REFRESH_SECS;
+  if (!weather_is_fresh() && (now - s_last_weather_request) >= 60) due = true;
+  if (due) request_weather();
 }
 
 static void battery_callback(BatteryChargeState state) {
@@ -410,12 +499,18 @@ static void battery_callback(BatteryChargeState state) {
 }
 
 static void bt_callback(bool connected) {
+  bool was_connected = s_bt_connected;
   s_bt_connected = connected;
   update_all_stats();
+  // The phone just came back — grab a reading rather than waiting for the
+  // next scheduled refresh.
+  if (connected && !was_connected) request_weather();
 }
 
 static void health_handler(HealthEventType event, void *context) {
-  if (event == HealthEventSignificantUpdate || event == HealthEventMovementUpdate) {
+  if (event == HealthEventSignificantUpdate ||
+      event == HealthEventMovementUpdate ||
+      event == HealthEventHeartRateUpdate) {
     update_all_stats();
   }
 }
@@ -446,6 +541,7 @@ static void main_window_unload(Window *window) {
 // ─── Init / deinit ─────────────────────────────────────────────────
 static void init() {
   load_config();
+  load_weather();
 
   s_main_window = window_create();
   window_set_window_handlers(s_main_window, (WindowHandlers) {
@@ -466,10 +562,15 @@ static void init() {
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_open(256, 256);
+
+  // Ask for weather straight away; the tick handler retries if this one is
+  // lost or the phone isn't listening yet.
+  request_weather();
 }
 
 static void deinit() {
   save_config();
+  save_weather();
   window_destroy(s_main_window);
 }
 
