@@ -139,8 +139,6 @@ static int measure_mixed_width(const char *text, GFont num_font, GFont letter_fo
 // font and narrow ones (basalt) shrink just enough to avoid clipping.
 typedef struct { const char *num_key; int num_h; const char *letter_key; int letter_h; } FontLevel;
 
-#define ARRAY_LENGTH(a) ((int)(sizeof(a) / sizeof((a)[0])))
-
 static const FontLevel CLOCK_LADDER[] = {
   {FONT_KEY_BITHAM_42_BOLD,            42, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_BITHAM_34_MEDIUM_NUMBERS,  34, FONT_KEY_GOTHIC_28_BOLD, 28},
@@ -151,7 +149,7 @@ static const FontLevel CLOCK_LADDER[] = {
 static const FontLevel STAT_LADDER[] = {
   {FONT_KEY_LECO_38_BOLD_NUMBERS, 38, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_32_BOLD_NUMBERS, 32, FONT_KEY_GOTHIC_28_BOLD, 28},
-  {FONT_KEY_LECO_26_BOLD_NUMBERS, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
+  {FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
   {FONT_KEY_LECO_20_BOLD_NUMBERS, 20, FONT_KEY_GOTHIC_18_BOLD, 18},
 };
 
@@ -162,7 +160,7 @@ static const FontLevel STAT_LADDER_EMERY[] = {
   {FONT_KEY_LECO_42_NUMBERS,      42, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_38_BOLD_NUMBERS, 38, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_32_BOLD_NUMBERS, 32, FONT_KEY_GOTHIC_28_BOLD, 28},
-  {FONT_KEY_LECO_26_BOLD_NUMBERS, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
+  {FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
   {FONT_KEY_LECO_20_BOLD_NUMBERS, 20, FONT_KEY_GOTHIC_18_BOLD, 18},
 };
 
