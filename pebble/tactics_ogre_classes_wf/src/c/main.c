@@ -4,6 +4,11 @@
 #define NUM_ROWS 3
 #define STORAGE_KEY_CONFIG 1
 
+#define SPRITE_W 51
+#define SPRITE_H 96
+#define EDGE_MARGIN 4
+#define SPRITE_TEXT_GAP 6
+
 static Window *s_main_window;
 static Layer *s_canvas_layer;
 static GBitmap *s_sprite_bitmaps[NUM_ROWS] = {NULL, NULL, NULL};
@@ -134,6 +139,8 @@ static int measure_mixed_width(const char *text, GFont num_font, GFont letter_fo
 // font and narrow ones (basalt) shrink just enough to avoid clipping.
 typedef struct { const char *num_key; int num_h; const char *letter_key; int letter_h; } FontLevel;
 
+#define ARRAY_LENGTH(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
 static const FontLevel CLOCK_LADDER[] = {
   {FONT_KEY_BITHAM_42_BOLD,            42, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_BITHAM_34_MEDIUM_NUMBERS,  34, FONT_KEY_GOTHIC_28_BOLD, 28},
@@ -142,6 +149,17 @@ static const FontLevel CLOCK_LADDER[] = {
 };
 
 static const FontLevel STAT_LADDER[] = {
+  {FONT_KEY_LECO_38_BOLD_NUMBERS, 38, FONT_KEY_GOTHIC_28_BOLD, 28},
+  {FONT_KEY_LECO_32_BOLD_NUMBERS, 32, FONT_KEY_GOTHIC_28_BOLD, 28},
+  {FONT_KEY_LECO_26_BOLD_NUMBERS, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
+  {FONT_KEY_LECO_20_BOLD_NUMBERS, 20, FONT_KEY_GOTHIC_18_BOLD, 18},
+};
+
+// Emery (200x228) has a wider column and higher PPI, so its numeric stats can
+// start one rung larger. Same fall-through behavior — if 42px doesn't fit the
+// column, the ladder walks down to the standard sizes, so nothing clips.
+static const FontLevel STAT_LADDER_EMERY[] = {
+  {FONT_KEY_LECO_42_NUMBERS,      42, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_38_BOLD_NUMBERS, 38, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_32_BOLD_NUMBERS, 32, FONT_KEY_GOTHIC_28_BOLD, 28},
   {FONT_KEY_LECO_26_BOLD_NUMBERS, 26, FONT_KEY_GOTHIC_24_BOLD, 24},
@@ -163,29 +181,40 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // without overlapping on any supported screen. Distribute them across the
   // full usable height [0 .. screen_h-96] so every unit is fully on-screen
   // (overlapping each other) rather than clipped off the top or bottom edge.
-  int sprite_span = screen_h - 96;
+  int sprite_span = screen_h - SPRITE_H;
   if (sprite_span < 0) sprite_span = 0;
+
+  bool is_emery = (screen_h >= 228);
 
   for (int i = 0; i < NUM_ROWS; i++) {
     int y = i * row_h;
-    // Same x for every row so the vertical overlap between figures is even.
-    int sprite_x = 4;
+    // The middle row is mirrored: sprite on the right, text on the left.
+    bool icon_on_right = (i == 1);
+    int sprite_x = icon_on_right ? (screen_w - SPRITE_W - EDGE_MARGIN) : EDGE_MARGIN;
 
     if (s_sprite_bitmaps[i]) {
       int sprite_y = sprite_span * i / (NUM_ROWS - 1);
       graphics_draw_bitmap_in_rect(ctx, s_sprite_bitmaps[i],
-                                   GRect(sprite_x, sprite_y, 51, 96));
+                                   GRect(sprite_x, sprite_y, SPRITE_W, SPRITE_H));
     }
 
-    int text_x = sprite_x + 51 + 6;
-    graphics_context_set_text_color(ctx, GColorFromRGB(240, 232, 144));
+    // Text occupies the side opposite the sprite. max_w is identical for both
+    // orientations (screen_w - 65), so every stat option fits the same as before.
+    int text_x = icon_on_right ? EDGE_MARGIN
+                               : (sprite_x + SPRITE_W + SPRITE_TEXT_GAP);
+    int max_w  = icon_on_right ? (sprite_x - SPRITE_TEXT_GAP - EDGE_MARGIN)
+                               : (screen_w - text_x - EDGE_MARGIN);
+
+    graphics_context_set_text_color(ctx, GColorFromRGB(255, 255, 170)); // #FFFFAA
 
     RowConfig *row = &s_config.rows[i];
     bool is_clock = (row->stat_type == 0 || row->stat_type == 1);
 
-    int max_w = screen_w - text_x - 4;
-    const FontLevel *ladder = is_clock ? CLOCK_LADDER : STAT_LADDER;
-    int levels = 4;
+    const FontLevel *ladder = is_clock ? CLOCK_LADDER
+                                       : (is_emery ? STAT_LADDER_EMERY : STAT_LADDER);
+    int levels = is_clock ? ARRAY_LENGTH(CLOCK_LADDER)
+                          : (is_emery ? ARRAY_LENGTH(STAT_LADDER_EMERY)
+                                      : ARRAY_LENGTH(STAT_LADDER));
 
     // Walk down the ladder until the string fits (or we hit the smallest).
     GFont num_font = NULL, letter_font = NULL;
@@ -205,7 +234,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     int max_h = num_h > letter_h ? num_h : letter_h;
     int baseline_y = y + (row_h + max_h) / 2 - 2;
 
-    draw_mixed_text(ctx, s_stat_text[i], text_x, baseline_y,
+    // Right-align the mirrored row so its text hugs the icon, mirroring the
+    // left rows where the text sits immediately right of the sprite.
+    int draw_x = text_x;
+    if (icon_on_right) {
+      int tw = measure_mixed_width(s_stat_text[i], num_font, letter_font);
+      draw_x = text_x + max_w - tw;
+      if (draw_x < text_x) draw_x = text_x;
+    }
+
+    draw_mixed_text(ctx, s_stat_text[i], draw_x, baseline_y,
                     max_w, num_font, num_h, letter_font, letter_h);
   }
 }
@@ -402,6 +440,7 @@ static void main_window_unload(Window *window) {
   for (int i = 0; i < NUM_ROWS; i++) {
     if (s_sprite_bitmaps[i]) {
       gbitmap_destroy(s_sprite_bitmaps[i]);
+      s_sprite_bitmaps[i] = NULL;
     }
   }
 }
