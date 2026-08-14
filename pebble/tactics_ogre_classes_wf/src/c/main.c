@@ -480,6 +480,22 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   update_all_stats();
 }
 
+// Without these, a message that never arrives looks identical to a message
+// that was silently dropped for being too big. Logged so `pebble logs` shows
+// which half of the handshake broke.
+static void inbox_dropped_handler(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage inbox dropped: %d", (int)reason);
+}
+
+static void outbox_failed_handler(DictionaryIterator *iter,
+                                  AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage outbox failed: %d", (int)reason);
+}
+
+static void outbox_sent_handler(DictionaryIterator *iter, void *context) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Weather request delivered to phone");
+}
+
 // ─── Service callbacks ─────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_all_stats();
@@ -561,7 +577,14 @@ static void init() {
   bt_callback(connection_service_peek_pebble_app_connection());
 
   app_message_register_inbox_received(inbox_received_handler);
-  app_message_open(256, 256);
+  app_message_register_inbox_dropped(inbox_dropped_handler);
+  app_message_register_outbox_failed(outbox_failed_handler);
+  app_message_register_outbox_sent(outbox_sent_handler);
+  // Clay pushes all 11 config keys in a single dictionary, which is close
+  // enough to a fixed 256-byte inbox to risk being dropped outright. Ask for
+  // the largest buffers the firmware will give us.
+  app_message_open(app_message_inbox_size_maximum(),
+                   app_message_outbox_size_maximum());
 
   // Ask for weather straight away; the tick handler retries if this one is
   // lost or the phone isn't listening yet.
