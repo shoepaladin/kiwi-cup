@@ -14,6 +14,7 @@ Usage
   python fit_sprite.py SOURCE.png NAME --outdir /tmp/preview
   python fit_sprite.py SOURCE.png NAME --no-trim          # keep source padding
   python fit_sprite.py SOURCE.png NAME --no-round-safe    # allow round clipping
+  python fit_sprite.py SOURCE.png NAME --no-quantize      # keep full colour
 
 What it does, in order
 ----------------------
@@ -26,6 +27,9 @@ What it does, in order
    automatically by filename suffix. The chalk variant is shrunk further if
    needed to stay inside the round display's visible circle -- the band is a
    rectangle but the glass is not.
+4. Quantize to the watch's ARGB2222 colour space with dithering. The watch
+   does this anyway; doing it here picks the dithering deliberately and keeps
+   the resource bundle well under the 256 KB platform limit.
 
 Band sizes come from src/c/main.c: the text stack is anchored to the bottom
 of the screen and the sprite band is whatever is left above it, minus the
@@ -90,6 +94,60 @@ def fit(w, h, max_w, max_h):
     """Largest size within (max_w, max_h) preserving aspect. Never upscales."""
     scale = min(float(max_w) / w, float(max_h) / h, 1.0)
     return max(1, int(round(w * scale))), max(1, int(round(h * scale)))
+
+
+# Pebble's GColor8 is ARGB2222: two bits per channel, so each of R, G, B and
+# A can only be one of these four levels. The watch quantizes to this whether
+# we do or not -- doing it here means we choose the dithering instead of
+# leaving it to the SDK, and the PNGs shrink enormously as a side effect
+# (165 KB down to ~49 KB across the three suits), which is what keeps the
+# resource bundle under the 256 KB platform limit.
+LEVELS = (0, 85, 170, 255)
+
+
+def _snap(v):
+    if v < 43:
+        return 0
+    if v < 128:
+        return 85
+    if v < 213:
+        return 170
+    return 255
+
+
+def quantize_pebble(w, h, px):
+    """Snap to ARGB2222 with Floyd-Steinberg dithering on the colour channels.
+
+    Without dithering the 64-colour palette shifts whole regions off-hue --
+    Sazabi's crimson turns magenta, for one -- because a flat area all rounds
+    the same way. Diffusing the error keeps the average colour right.
+
+    Alpha is snapped without dithering: dithered alpha turns a clean sprite
+    edge into a dashed one.
+    """
+    buf = [float(v) for v in px]
+    out = bytearray(len(px))
+
+    def diffuse(o, c, err, x, y):
+        for dx, dy, frac in ((1, 0, 7.0 / 16), (-1, 1, 3.0 / 16),
+                             (0, 1, 5.0 / 16), (1, 1, 1.0 / 16)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and ny < h:
+                buf[(ny * w + nx) * 4 + c] += err * frac
+
+    for y in range(h):
+        for x in range(w):
+            o = (y * w + x) * 4
+            alpha = _snap(px[o + 3])
+            out[o + 3] = alpha
+            if alpha == 0:
+                continue          # colour under a transparent pixel is unused
+            for c in range(3):
+                old = buf[o + c]
+                new = _snap(old)
+                out[o + c] = new
+                diffuse(o, c, old - new, x, y)
+    return out
 
 
 def opaque_profile(w, h, px):
@@ -199,6 +257,15 @@ def main(argv):
                 if note:
                     print(" %s" % note.strip())
             assert dw <= mw and dh <= mh
+
+            # Quantize after scaling, never before: resampling a quantized
+            # image reintroduces colours that are not on the watch.
+            if '--no-quantize' not in argv:
+                qw, qh, qpx = read_rgba(dst)
+                before = os.path.getsize(dst)
+                write_rgba(dst, qw, qh, quantize_pebble(qw, qh, qpx))
+                print("        ARGB2222 + dither: %.1f KB -> %.1f KB"
+                      % (before / 1024.0, os.path.getsize(dst) / 1024.0))
     finally:
         if os.path.exists(trimmed):
             os.remove(trimmed)
