@@ -17,13 +17,18 @@ module.exports = [
         "messageKey": "SpriteSet",
         "label": "Gundam",
         "defaultValue": "0",
+        // Values must match the SpriteSet enum in src/c/main.c and are
+        // append-only -- they are persisted on the watch.
         "options": [
-          { "label": "Aerial",    "value": "0" },
-          { "label": "Calibarn",  "value": "1" },
-          { "label": "GP02A",     "value": "2" },
-         //{ "label": "Gundam Xi", "value": "3" },
-          { "label": "Qubeley",   "value": "4" },
-          { "label": "Byarlant",  "value": "5" }
+          { "label": "Aerial",              "value": "0" },
+          { "label": "Calibarn",            "value": "1" },
+          { "label": "GP02A",               "value": "2" },
+         //{ "label": "Gundam Xi",           "value": "3" },
+          { "label": "Qubeley",             "value": "4" },
+          { "label": "Byarlant",            "value": "5" },
+          { "label": "Sazabi",              "value": "6" },
+          { "label": "Zeta Gundam",         "value": "7" },
+          { "label": "Crossbone Full Cloth", "value": "8" }
         ]
       }
     ]
