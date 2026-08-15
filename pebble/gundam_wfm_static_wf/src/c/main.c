@@ -21,13 +21,21 @@ typedef enum {
 
 // Sprite sets — declared here so ClaySettings can reference SPRITE_SET_AERIAL
 // in its default initializer.
+// Values are persisted in ClaySettings and mirrored in src/pkjs/config.js, so
+// they are append-only: renumbering one would silently swap the suit under
+// anyone who had already picked it.
 typedef enum {
-  SPRITE_SET_AERIAL   = 0,
-  SPRITE_SET_CALIBARN = 1,
-  SPRITE_SET_GPO2A    = 2,
-  SPRITE_SET_XI       = 3,
-  SPRITE_SET_QUBELEY  = 4,
-  SPRITE_SET_BYARLANT = 5,
+  SPRITE_SET_AERIAL    = 0,
+  SPRITE_SET_CALIBARN  = 1,
+  SPRITE_SET_GPO2A     = 2,
+  SPRITE_SET_XI        = 3,
+  SPRITE_SET_QUBELEY   = 4,
+  SPRITE_SET_BYARLANT  = 5,
+  SPRITE_SET_SAZABI    = 6,
+  SPRITE_SET_ZETA      = 7,
+  SPRITE_SET_CROSSBONE = 8,
+
+  SPRITE_SET_LAST      = SPRITE_SET_CROSSBONE,  // clamp bound; bump with the list
 } SpriteSet;
 
 typedef struct {
@@ -39,7 +47,7 @@ typedef struct {
   uint8_t        low_battery_threshold;
   GColor         bg_color;         // user-configurable background
   uint32_t       step_goal;        // daily step target; 0 hides the progress arc
-  uint8_t        sprite_set;       // 0 = Aerial (default), 1 = Calibarn
+  uint8_t        sprite_set;       // SpriteSet value; 0 = Aerial (default)
 } ClaySettings;
 
 static ClaySettings s_settings;
@@ -126,13 +134,16 @@ static int           s_steps_count = 0;
 static void load_sprite(void) {
   uint32_t res;
   switch (s_settings.sprite_set) {
-    case SPRITE_SET_CALIBARN: res = RESOURCE_ID_CB_IDLE;       break;
-    case SPRITE_SET_GPO2A:    res = RESOURCE_ID_GPO2A_IDLE;    break;
-    case SPRITE_SET_XI:       res = RESOURCE_ID_XI_IDLE;       break;
-    case SPRITE_SET_QUBELEY:  res = RESOURCE_ID_QUBELEY_IDLE;  break;
-    case SPRITE_SET_BYARLANT: res = RESOURCE_ID_BYARLANT_IDLE; break;
+    case SPRITE_SET_CALIBARN:  res = RESOURCE_ID_CB_IDLE;        break;
+    case SPRITE_SET_GPO2A:     res = RESOURCE_ID_GPO2A_IDLE;     break;
+    case SPRITE_SET_XI:        res = RESOURCE_ID_XI_IDLE;        break;
+    case SPRITE_SET_QUBELEY:   res = RESOURCE_ID_QUBELEY_IDLE;   break;
+    case SPRITE_SET_BYARLANT:  res = RESOURCE_ID_BYARLANT_IDLE;  break;
+    case SPRITE_SET_SAZABI:    res = RESOURCE_ID_SAZABI_IDLE;    break;
+    case SPRITE_SET_ZETA:      res = RESOURCE_ID_ZETA_IDLE;      break;
+    case SPRITE_SET_CROSSBONE: res = RESOURCE_ID_CROSSBONE_IDLE; break;
     case SPRITE_SET_AERIAL:
-    default:                  res = RESOURCE_ID_AE_IDLE;       break;
+    default:                   res = RESOURCE_ID_AE_IDLE;        break;
   }
   s_sprite_bitmap = gbitmap_create_with_resource(res);
   APP_LOG(APP_LOG_LEVEL_INFO, "[BUG1] load_sprite: suit=%d bitmap=%s",
@@ -466,7 +477,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             "[BUG1] SpriteSet arrived: value=%d sprite_layer=%s",
             v, s_sprite_layer ? "OK" : "NULL");
     if (v < 0) v = 0;
-    if (v > SPRITE_SET_BYARLANT) v = SPRITE_SET_BYARLANT;
+    if (v > SPRITE_SET_LAST) v = SPRITE_SET_LAST;
     s_settings.sprite_set = (uint8_t)v;
     destroy_sprite();
     load_sprite();
@@ -505,7 +516,7 @@ static void main_window_load(Window *window) {
   // the sprite), time, date, steps. The text stack is anchored to the BOTTOM
   // of the screen and the sprite band gets whatever is left above it, so
   // positions never depend on the size of the currently selected suit bitmap
-  // (the six suits range from 85 to 130 px tall).
+  // (the suits range from 85 to 130 px tall).
   //
   // The bezel is the fixed part of this design: no sprite or arc pixel may
   // enter it. Anything that would encroach gets made SMALLER — the bezel is

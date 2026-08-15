@@ -65,6 +65,24 @@
                     "type": "bitmap"
                 },
                 {
+                    "file": "images/sazabi_idle.png",
+                    "name": "SAZABI_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/zeta_idle.png",
+                    "name": "ZETA_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/crossbone_idle.png",
+                    "name": "CROSSBONE_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
                     "file": "fonts/BlackOpsOne-Regular-emery.ttf",
                     "name": "FONT_BLACKOPS_42",
                     "targetPlatforms": null,
@@ -88,5 +106,5 @@
             "watchface": true
         }
     },
-    "version": "1.2.0"
+    "version": "1.3.0"
 }
