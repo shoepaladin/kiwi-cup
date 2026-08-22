@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Editorial palette: flat warm neutrals, one burnt-orange accent.
+  The accent is reserved for the K's dot — the unofficial marker.
+-->
+<resources>
+    <color name="ink">#23201C</color>
+    <color name="cream">#F4F0EA</color>
+    <color name="offwhite">#FFFBF5</color>
+    <color name="warm_brown">#4F483E</color>
+    <color name="muted">#8A7D6B</color>
+    <color name="accent_orange">#F54001</color>
+    <color name="divider_soft">#26F4F0EA</color>
+</resources>

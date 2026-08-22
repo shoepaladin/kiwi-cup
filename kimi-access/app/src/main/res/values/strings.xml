@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kimi Access</string>
+    <string name="widget_label">Talk to Kimi</string>
+    <string name="widget_projects_label">Projects 2×1</string>
+    <string name="widget_mic_label">Mic 1×1</string>
+    <string name="widget_mic_description">Single K button — one tap for Kimi</string>
+    <string name="widget_projects_description">Kimi plus your project shortcuts</string>
+    <string name="widget_empty_projects">Tap ⋮ to add projects</string>
+    <string name="settings_open">Widget settings</string>
+    <string name="msg_no_target">Couldn\'t find the Kimi app or a web browser.</string>
+    <string name="msg_saved">Saved — widget updated.</string>
+    <string name="settings_subtitle">What should a tap on the K do?</string>
+    <string name="mode_auto">Auto — Kimi app if installed, otherwise the web</string>
+    <string name="mode_app">Always open the Kimi app</string>
+    <string name="mode_web">Always open kimi.com in the browser</string>
+    <string name="mode_ask">Ask me every time</string>
+    <string name="settings_projects_header">Project shortcuts</string>
+    <string name="hint_project1_name">Project 1 name</string>
+    <string name="hint_project2_name">Project 2 name</string>
+    <string name="hint_project_url">Link (optional, e.g. kimi.com or any URL)</string>
+    <string name="btn_save_projects">Save projects</string>
+    <string name="btn_about">About</string>
+    <string name="about_title">About Kimi Access</string>
+    <string name="about_open_repo">Open repo</string>
+    <string name="about_close">Close</string>
+    <string name="settings_footnote">The widget K follows the mode above; project pills open their own links.\n\nUnofficial widget — not affiliated with Moonshot AI.</string>
+    <string name="dialog_title">Talk to Kimi via…</string>
+    <string name="dialog_choice_app">Kimi app</string>
+    <string name="dialog_choice_web">kimi.com (browser)</string>
+    <string name="dialog_once">Just once</string>
+    <string name="dialog_always">Always</string>
+</resources>

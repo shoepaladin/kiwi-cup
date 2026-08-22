@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Off-white project pill on the ink widget — surfaces separated by a
+     flat color shift, not borders. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/offwhite" />
+    <corners android:radius="12dp" />
+</shape>
