@@ -21,6 +21,12 @@ No stopwatch / timer tabs! Simply tap the clock to move between stopwatch / time
 Brighten up your wallpapers by creating a deck of pictures to rotate through! 
 No stopwatch / timer tabs! Simply tap the clock to move between stopwatch / timer!
 
+
+**kimi-access**
+ [[Readme]](https://github.com/shoepaladin/kiwi-cup/tree/main/kimi-access) package release incoming
+
+One tap to talk to Kimi from your home screen! A 2x1 widget with the K button on the left and pill shortcuts to your own projects on the right!
+
 # Pebble Watchfaces!
 
 <img src="https://apps.repebble.com/og/59e198bbfd404eb58da8994f.png?v=2026-05-14T03%3A51%3A11.98-d9b790d3aa8c4152b0427c1b-1778988093102" width="400">  [Pebble Store link for Tactics Ogre Watchface](https://apps.repebble.com/59e198bbfd404eb58da8994f)
@@ -36,21 +42,3 @@ No stopwatch / timer tabs! Simply tap the clock to move between stopwatch / time
 
 
 <img src="https://apps.repebble.com/og/db3f6e4f0a904e2894a4b1fa.png?v=2026-05-31T01%3A16%3A51.131-ae076f6a51304b6f816b9aea-1780961722821" width="400"> [Pebble Store link for Chibi Gundam SD Watchface](https://apps.repebble.com/db3f6e4f0a904e2894a4b1fa)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

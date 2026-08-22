@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flat warm-ink pill. No gradient — the editorial surface relies on
+     color shifts between flat surfaces, not decorative shading. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/ink" />
+    <corners android:radius="24dp" />
+</shape>
