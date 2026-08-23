@@ -3,7 +3,7 @@
 Everything needed to pick this project up cold. Read `README.md` first for
 the product/architecture overview; this file is the operational memory.
 
-## Current state (v0.2.0, 2026-08-23)
+## Current state (v0.2.3, 2026-08-23)
 
 - Lives at `kiwi-cup/kimi-access`. Two widgets ship: **Projects 2×1** (K
   left, up to two project pills right, ⋮ opens settings) and **Mic 1×1**
