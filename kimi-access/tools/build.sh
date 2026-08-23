@@ -24,8 +24,10 @@ for f in "$ANDROID_JAR" "$BT/aapt2" "$BT/d8" "$BT/zipalign" "$BT/apksigner"; do
 done
 
 echo "==> [0/6] Icons"
-# Artwork is generated, not committed: rebuild it whenever it's absent.
-if [ ! -f "$ROOT/app/src/main/res/drawable/ic_k.png" ]; then
+# Launcher PNG fallbacks are generated, not committed; the widget drawables
+# (ic_k, ic_more, previews) are committed vectors and must stay that way —
+# gen_icons.py only writes mipmap-*/ic_launcher.png and removes stale PNGs.
+if [ ! -f "$ROOT/app/src/main/res/mipmap-mdpi/ic_launcher.png" ]; then
     python3 "$ROOT/tools/gen_icons.py"
 fi
 
