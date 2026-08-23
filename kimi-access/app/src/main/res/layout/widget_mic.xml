@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  1x1 mic widget, themed + dynamic sizing. The disc is an ImageView so the
+  background color can be tinted remotely; the K glyph is match_parent with
+  a proportional inset and fitCenter, so it always occupies ~62% of the
+  disc at any rendered cell size.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_button"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_round" />
+
+    <ImageView
+        android:id="@+id/widget_mic"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="19dp"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_k"
+        android:contentDescription="@string/widget_label" />
+</FrameLayout>

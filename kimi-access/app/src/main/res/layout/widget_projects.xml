@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2x1 projects widget, themed + dynamic-sizing revision.
+
+  Structure (all tinted surfaces are ImageViews — RemoteViews can recolor
+  those via setColorFilter on any API level; TextView backgrounds cannot be
+  tinted remotely):
+
+    FrameLayout root
+    ├── widget_bg_image      surface, tinted with the background color
+    └── content row, weightSum 100
+        ├── K cell (38)      glyph scales with the cell (fitCenter)
+        ├── divider (1dp)    ImageView track, tinted to ~22% fg-over-bg
+        └── right cell (62)
+            ├── pills column (weight 1)   weighted, share remaining height
+            └── settings column (28dp)    full-height tap strip, ⋮ centered
+
+  The settings affordance keeps its top-right home but no longer claims a
+  row of its own — it is a narrow full-height strip on the far right, so
+  the pills keep nearly the whole cell at any widget height.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:weightSum="100"
+        android:paddingLeft="4dp">
+
+        <!-- Left: open Kimi. Glyph fills ~60% of the cell at any size. -->
+        <FrameLayout
+            android:id="@+id/widget_btn_kimi"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="38">
+
+            <ImageView
+                android:id="@+id/widget_k_glyph"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="14dp"
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_k"
+                android:contentDescription="@string/widget_label" />
+        </FrameLayout>
+
+        <!-- Divider: full-height tinted track. -->
+        <ImageView
+            android:id="@+id/widget_divider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_vertical"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="14dp"
+            android:src="@drawable/divider_px" />
+
+        <!-- Right: pills + narrow settings strip -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="62"
+            android:orientation="horizontal">
+
+            <!-- Pills share the full height by weight; 0/1/2 pills all
+                 look deliberate because weights redistribute. -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:paddingLeft="6dp">
+
+                <FrameLayout
+                    android:id="@+id/pill_1_frame"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginBottom="4dp">
+
+                    <ImageView
+                        android:id="@+id/pill_1_bg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitXY"
+                        android:src="@drawable/pill_bg" />
+
+                    <TextView
+                        android:id="@+id/pill_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:singleLine="true"
+                        android:textSize="12sp" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/pill_2_frame"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1">
+
+                    <ImageView
+                        android:id="@+id/pill_2_bg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitXY"
+                        android:src="@drawable/pill_bg" />
+
+                    <TextView
+                        android:id="@+id/pill_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:singleLine="true"
+                        android:textSize="12sp" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <!-- Narrow full-height settings strip on the far right. -->
+            <FrameLayout
+                android:id="@+id/widget_btn_settings"
+                android:layout_width="28dp"
+                android:layout_height="match_parent">
+
+                <ImageView
+                    android:id="@+id/widget_settings_glyph"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="center"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_more"
+                    android:contentDescription="@string/settings_open" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
