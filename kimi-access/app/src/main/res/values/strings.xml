@@ -20,6 +20,15 @@
     <string name="hint_project2_name">Project 2 name</string>
     <string name="hint_project_url">Link (optional, e.g. kimi.com or any URL)</string>
     <string name="btn_save_projects">Save projects</string>
+    <string name="settings_colors_header">Widget colors</string>
+    <string name="color_fg_label">Foreground — K glyph and pill background</string>
+    <string name="color_bg_label">Background — widget surface</string>
+    <string name="color_hl_label">Highlight — pill text</string>
+    <string name="color_hex_label">Or paste a hex color:</string>
+    <string name="color_auto">Auto</string>
+    <string name="color_picker_fg_title">Foreground color</string>
+    <string name="color_picker_bg_title">Background color</string>
+    <string name="color_picker_hl_title">Highlight color</string>
     <string name="btn_about">About</string>
     <string name="about_title">About Kimi Access</string>
     <string name="about_open_repo">Open repo</string>
