@@ -24,10 +24,12 @@ for f in "$ANDROID_JAR" "$BT/aapt2" "$BT/d8" "$BT/zipalign" "$BT/apksigner"; do
 done
 
 echo "==> [0/6] Icons"
-# Artwork is generated, not committed: rebuild it whenever it's absent.
-if [ ! -f "$ROOT/app/src/main/res/drawable/ic_k.png" ]; then
-    python3 "$ROOT/tools/gen_icons.py"
-fi
+# Only the launcher fallback PNGs are generated (never committed); the K
+# mark, overflow glyph and picker previews are committed vector drawables.
+# Run the generator unconditionally — it is sub-second, keeps the fallbacks
+# reproducible, and prunes any stale drawable/*.png left by older versions
+# that would otherwise collide with the vectors at aapt2 link time.
+python3 "$ROOT/tools/gen_icons.py"
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD/gen" "$BUILD/classes" "$BUILD/dex"
