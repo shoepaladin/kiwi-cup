@@ -37,7 +37,7 @@ the product/architecture overview; this file is the operational memory.
   next APK won't install as an in-place update — users must uninstall first.
   If you still have the old keystore, keep it safe; otherwise accept the
   one-time reinstall. Current cert SHA-256:
-  `52:b2:94:55:22:63:be:4f:08:a1:81:84:16:2e:c1:34:c4:0a:e5:9b:d0:42:27:9c:79:79:4e:a2:95:35:e5:ad:59`.
+  `52:b2:94:55:22:63:be:4f:08:a1:81:84:16:2e:c1:34:c4:0a:e5:9b:d0:42:27:9c:79:4e:a2:95:35:e5:ad:59`.
 
 ## Known behavior notes (verified on-device)
 
