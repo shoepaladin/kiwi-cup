@@ -143,7 +143,8 @@ public class LayoutContractTest {
             assertTrue(info + " must declare a previewImage", preview.startsWith("@drawable/"));
             String name = preview.substring("@drawable/".length());
             assertTrue(info + " references missing drawable " + name,
-                    new File(RES + "/drawable/" + name + ".png").isFile());
+                    new File(RES + "/drawable/" + name + ".png").isFile()
+                            || new File(RES + "/drawable/" + name + ".xml").isFile());
             previews.add(name);
         }
         assertEquals("widgets must show distinct previews", WIDGET_INFOS.length, previews.size());
