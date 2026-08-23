@@ -3,12 +3,16 @@
 Everything needed to pick this project up cold. Read `README.md` first for
 the product/architecture overview; this file is the operational memory.
 
-## Current state (v0.2.0, 2026-08-23)
+## Current state (v0.2.3, 2026-08-23)
 
 - Lives at `kiwi-cup/kimi-access`. Two widgets ship: **Projects 2×1** (K
   left, up to two project pills right, ⋮ opens settings) and **Mic 1×1**
   (single K button, pinned to exactly one grid cell).
 - 43/43 JVM unit tests pass; debug-signed APK builds cleanly.
+- The K mark, overflow glyph and picker previews are **committed vectors**
+  (`drawable/*.xml`); `tools/gen_icons.py` only builds the launcher
+  fallback PNGs and prunes stale drawable PNGs from older runs — never
+  re-add same-named PNGs, they collide with the vectors in aapt2.
 - Package id stays `app.kimitalk.widget` (pre-rename) so existing installs
   update in place. Display name is "Kimi Access".
 
@@ -33,7 +37,7 @@ the product/architecture overview; this file is the operational memory.
   next APK won't install as an in-place update — users must uninstall first.
   If you still have the old keystore, keep it safe; otherwise accept the
   one-time reinstall. Current cert SHA-256:
-  `52:b2:94:55:22:63:be:4f:08:a1:81:84:16:2e:c1:34:c4:0a:e5:9b:d0:42:27:9c:79:4e:a2:95:35:e5:ad:59`.
+  `52:b2:94:55:22:63:be:4f:08:a1:81:84:16:2e:c1:34:c4:0a:e5:9b:d0:42:27:9c:79:79:4e:a2:95:35:e5:ad:59`.
 
 ## Known behavior notes (verified on-device)
 
