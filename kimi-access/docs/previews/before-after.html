@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kimi Access Widget — Before / After (themed-widget-colors)</title>
+<style>
+  :root{--ink:#23201C;--cream:#F4F0EA;--offwhite:#FFFBF5;--brown:#4F483E;--muted:#8A7D6B;--lime:#D4E932;--page:#ECE4D9}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--page);color:var(--brown);font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;letter-spacing:.015em;padding:48px 24px 96px}
+  header{max-width:980px;margin:0 auto 56px}
+  header .kicker{font-size:.875em;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
+  header h1{font-size:2rem;color:var(--ink);margin:.3em 0 .4em}
+  header p{max-width:660px;line-height:1.65;font-size:.95em}
+  section{max-width:980px;margin:0 auto 64px}
+  h2{font-size:1.2rem;color:var(--ink);margin-bottom:6px}
+  .sub{font-size:.875em;color:var(--muted);margin-bottom:24px;line-height:1.6;max-width:680px}
+  .grid{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end}
+  .cell label{display:block;font-size:.78em;color:var(--muted);margin-bottom:8px}
+  .cell label b{color:var(--ink)}
+  .widget{background:var(--wbg,var(--ink));border-radius:24px;display:flex;overflow:hidden;padding:4px}
+  .w-left{flex:38;display:flex;align-items:center;justify-content:center}
+  .w-left svg{width:60%;height:60%}
+  .w-divider{width:1px;align-self:stretch;margin:14px 0;background:var(--wdiv,#6d7a22)}
+  .w-right{flex:62;display:flex}
+  .w-pills{flex:1;display:flex;flex-direction:column;padding:8px 0 8px 6px;gap:4px}
+  .pill{flex:1;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--wfg,var(--lime));color:var(--whl,#141412);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px;font-weight:600}
+  .w-settings{width:28px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--wdot,var(--cream));font-weight:700;letter-spacing:1px}
+  .old .w-left{flex:1}
+  .old .w-left svg{width:26px;height:26px}
+  .old .w-left svg path{stroke:var(--cream)}
+  .old .w-right{flex:1;position:relative}
+  .old .w-pills{justify-content:center;padding:0 22px 0 6px}
+  .old .pill{flex:none;padding:3px 10px;font-size:11px;background:var(--offwhite);color:var(--brown)}
+  .old .w-settings{position:absolute;top:0;right:0;width:28px;height:28px;font-size:10px;color:var(--cream)}
+  .old .w-divider{align-self:center;height:24px;margin:0;background:#4a443c}
+  .mic{border-radius:50%;background:var(--wbg,var(--ink));display:flex;align-items:center;justify-content:center}
+  .mic svg{width:62%;height:62%}
+  .mic.old svg{width:26px;height:26px}
+  .mic.old svg path{stroke:var(--cream)}
+  .t-acid{--wbg:#23201C;--wfg:#D4E932;--whl:#141412;--wdiv:#6d7a22;--wdot:#F4F0EA}
+  .t-ember{--wbg:#23201C;--wfg:#F54001;--whl:#FFFFFF;--wdiv:#7a3d22;--wdot:#F4F0EA}
+  .t-paper{--wbg:#F4F0EA;--wfg:#23201C;--whl:#F4F0EA;--wdiv:#b9b0a2;--wdot:#23201C}
+  .t-mono{--wbg:#0E0E0D;--wfg:#EAFE32;--whl:#0E0E0D;--wdiv:#55601c;--wdot:#EAFE32}
+  .launcher{display:flex;gap:28px;align-items:flex-end;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">Kimi Access · Before / After — themed-widget-colors</div>
+  <h1>The themed, fluid widget vs. the fixed original</h1>
+  <p>Old: fixed 26dp glyph, 28dp corner button, 50/50 split, cream-on-ink only.
+     New: user-selectable foreground (K + pill fill), background (surface) and
+     highlight (pill text); acid-wire default; 38/62 split; weighted pills;
+     narrow full-height settings strip; size-adaptive text; adaptive launcher icon.</p>
+</header>
+
+<section><h2>1 · Sizes</h2><p class="sub">Two projects at three launcher grids.</p><div class="grid" id="sizes"></div></section>
+<section><h2>2 · Pill states</h2><p class="sub">0, 1 and 2 configured projects.</p><div class="grid" id="states"></div></section>
+<section><h2>3 · Color modes</h2><p class="sub">Custom foreground/background/highlight themes.</p><div class="grid" id="themes"></div></section>
+<section><h2>4 · Mic 1×1</h2><p class="sub">Fixed vs. proportional glyph.</p><div class="grid" id="mics"></div></section>
+<section><h2>5 · Launcher icon</h2><p class="sub">Adaptive icon: ink background, lime Acid Wire K.</p>
+  <div class="launcher" id="icons"></div></section>
+
+<script>
+const K = `<svg viewBox="0 0 100 100" fill="none"><path d="M30 14V86M76 16L34 48M38 54L78 86" stroke="#D4E932" stroke-width="12" stroke-linecap="round" style="stroke:var(--kstroke,#D4E932)"/></svg>`;
+function W(o){
+  const pills=o.pills.map(t=>`<div class="pill" style="font-size:${o.font||12}px">${t}</div>`).join("");
+  return `<div class="cell"><label><b>${o.old?"OLD":"NEW"}</b> — ${o.label}</label>
+    <div class="widget ${o.old?"old":""} ${o.theme||"t-acid"}" style="width:${o.w}px;height:${o.h}px">
+      <div class="w-left">${K}</div><div class="w-divider"></div>
+      <div class="w-right"><div class="w-pills">${pills}</div><div class="w-settings">⋮</div></div>
+    </div></div>`;
+}
+const sizes=[
+  {label:"small · 180×88",w:180,h:88,font:11,pills:["Morning brief","kiwi-cup repo"]},
+  {label:"standard · 250×110",w:250,h:110,font:12,pills:["Morning brief","kiwi-cup repo"]},
+  {label:"wide · 340×140",w:340,h:140,font:14,pills:["Morning brief","kiwi-cup repo"]}];
+document.getElementById("sizes").innerHTML=sizes.map(s=>W({...s,old:true})+W({...s,old:false})).join("");
+const states=[
+  {label:"0 projects — hint pill",w:250,h:110,pills:["Tap ⋮ to add projects"]},
+  {label:"1 project — stretches",w:250,h:110,pills:["Morning brief"]},
+  {label:"2 projects — even split",w:250,h:110,pills:["Morning brief","kiwi-cup repo"]}];
+document.getElementById("states").innerHTML=states.map(s=>
+  W({...s,old:true,pills:s.pills.concat(s.pills.length<2?[" "]:[])})+W({...s,old:false})).join("");
+const themes=[
+  {label:"Acid Wire (default)",theme:"t-acid"},
+  {label:"Ember — orange fg",theme:"t-ember"},
+  {label:"Paper — light surface",theme:"t-paper"},
+  {label:"Acid Mono — black surface",theme:"t-mono"}];
+document.getElementById("themes").innerHTML=themes.map(t=>
+  W({old:true,w:250,h:110,label:"was always cream-on-ink",pills:["Morning brief","kiwi-cup repo"]})
+  +W({old:false,w:250,h:110,label:t.label,theme:t.theme,pills:["Morning brief","kiwi-cup repo"]})).join("");
+document.getElementById("mics").innerHTML=[72,104,144].map(s=>
+  `<div class="cell"><label><b>OLD</b> — ${s}px</label><div class="mic old" style="width:${s}px;height:${s}px">${K}</div></div>
+   <div class="cell"><label><b>NEW</b> — ${s}px</label><div class="mic t-acid" style="width:${s}px;height:${s}px">${K}</div></div>`).join("");
+document.getElementById("icons").innerHTML=[192,96,48].map(s=>
+  `<div class="cell"><label>${s}px</label><div style="width:${s}px;height:${s}px;border-radius:22%;background:#23201C;display:flex;align-items:center;justify-content:center"><div style="width:70%;height:70%">${K}</div></div></div>`).join("");
+</script>
+</body>
+</html>
