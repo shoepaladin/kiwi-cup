@@ -3,12 +3,16 @@
 Everything needed to pick this project up cold. Read `README.md` first for
 the product/architecture overview; this file is the operational memory.
 
-## Current state (v0.2.0, 2026-08-23)
+## Current state (v0.2.3, 2026-08-23)
 
 - Lives at `kiwi-cup/kimi-access`. Two widgets ship: **Projects 2×1** (K
   left, up to two project pills right, ⋮ opens settings) and **Mic 1×1**
   (single K button, pinned to exactly one grid cell).
 - 43/43 JVM unit tests pass; debug-signed APK builds cleanly.
+- The K mark, overflow glyph and picker previews are **committed vectors**
+  (`drawable/*.xml`); `tools/gen_icons.py` only builds the launcher
+  fallback PNGs and prunes stale drawable PNGs from older runs — never
+  re-add same-named PNGs, they collide with the vectors in aapt2.
 - Package id stays `app.kimitalk.widget` (pre-rename) so existing installs
   update in place. Display name is "Kimi Access".
 

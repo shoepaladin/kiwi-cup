@@ -7,7 +7,7 @@ package app.kimitalk.widget;
 public final class VersionInfo {
 
     /** Must match android:versionName in AndroidManifest.xml — pinned by test. */
-    public static final String VERSION_NAME = "0.2.0";
+    public static final String VERSION_NAME = "0.2.3";
 
     /** Release date, ISO-8601. */
     public static final String VERSION_DATE = "2026-08-23";
