@@ -1,0 +1,21 @@
+# build output
+build/
+dist/
+*.apk
+
+# generated artwork (rebuilt by tools/gen_icons.py)
+app/src/main/res/drawable/ic_k.png
+app/src/main/res/drawable/ic_more.png
+app/src/main/res/drawable/preview_mic.png
+app/src/main/res/drawable/preview_projects.png
+app/src/main/res/mipmap-*/ic_launcher.png
+
+# local secrets / signing
+keystore/
+*.keystore
+*.jks
+
+# local environment
+local.properties
+.idea/
+*.iml

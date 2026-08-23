@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.kimitalk.widget"
+    android:versionCode="6"
+    android:versionName="0.2.0">
+
+    <uses-sdk
+        android:minSdkVersion="23"
+        android:targetSdkVersion="35" />
+
+    <!--
+      Android 11+ package visibility: without this block the system hides the
+      Kimi app and browsers from PackageManager queries, and the widget could
+      not detect them.
+    -->
+    <queries>
+        <package android:name="com.moonshot.kimichat" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true">
+
+        <!-- Home-screen widget: K on the left, project pills on the right. -->
+        <receiver
+            android:name=".KimiProjectsWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_projects_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/kimi_projects_widget_info" />
+        </receiver>
+
+        <!-- 1x1 icon-only variant. -->
+        <receiver
+            android:name=".KimiMicWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_mic_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/kimi_mic_widget_info" />
+        </receiver>
+
+        <!--
+          Trampoline: invisible, never stays in recents. It resolves the best
+          way to reach Kimi, fires the intent, and finishes immediately.
+          Non-exported: widget PendingIntents are dispatched with this app's
+          own identity, so outside apps have no business reaching it.
+        -->
+        <activity
+            android:name=".LaunchActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask" />
+
+        <!-- Translucent host for the "ask every time" dialog. -->
+        <activity
+            android:name=".ChooseTargetActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+
+        <!-- The only visible screen; the app-drawer icon lands here. -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
