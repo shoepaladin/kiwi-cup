@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget-picker preview for the 2x1 projects widget: ink pill, lime K on
+     the left, two lime project pills, settings dots strip on the right. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="220dp"
+    android:height="110dp"
+    android:viewportWidth="220"
+    android:viewportHeight="110">
+    <path
+        android:fillColor="#23201C"
+        android:pathData="M26,2h168a24,24 0 0 1 24,24v58a24,24 0 0 1 -24,24h-168a24,24 0 0 1 -24,-24v-58a24,24 0 0 1 24,-24z" />
+    <path
+        android:strokeColor="#D4E932"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M36,28 L36,82" />
+    <path
+        android:strokeColor="#D4E932"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M66,29 L39,53" />
+    <path
+        android:strokeColor="#D4E932"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M42,58 L67,82" />
+    <path
+        android:strokeColor="#D4E932"
+        android:strokeWidth="2"
+        android:pathData="M84,26 L84,84" />
+    <path
+        android:fillColor="#D4E932"
+        android:pathData="M94,26h92a13,13 0 0 1 13,13v8a13,13 0 0 1 -13,13h-92a13,13 0 0 1 -13,-13v-8a13,13 0 0 1 13,-13z" />
+    <path
+        android:fillColor="#D4E932"
+        android:pathData="M94,62h92a13,13 0 0 1 13,13v8a13,13 0 0 1 -13,13h-92a13,13 0 0 1 -13,-13v-8a13,13 0 0 1 13,-13z" />
+    <path
+        android:fillColor="#F4F0EA"
+        android:pathData="M208,47m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0M208,55m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0M208,63m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0" />
+</vector>
