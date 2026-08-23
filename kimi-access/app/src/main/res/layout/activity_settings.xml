@@ -113,6 +113,88 @@
             android:inputType="textUri"
             android:singleLine="true" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/settings_colors_header"
+            android:textColor="@color/ink"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/row_color_fg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <View
+                android:id="@+id/swatch_fg"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginRight="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/color_fg_label"
+                android:textColor="@color/warm_brown"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_color_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <View
+                android:id="@+id/swatch_bg"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginRight="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/color_bg_label"
+                android:textColor="@color/warm_brown"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_color_hl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <View
+                android:id="@+id/swatch_hl"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginRight="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/color_hl_label"
+                android:textColor="@color/warm_brown"
+                android:textSize="14sp" />
+        </LinearLayout>
+
         <Button
             android:id="@+id/btn_save_projects"
             android:layout_width="match_parent"
