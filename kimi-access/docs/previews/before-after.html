@@ -3,99 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kimi Access Widget — Before / After (themed-widget-colors)</title>
+<title>Kimi Access — Before / After (gen-icons vector conflict fix, v0.2.3)</title>
 <style>
-  :root{--ink:#23201C;--cream:#F4F0EA;--offwhite:#FFFBF5;--brown:#4F483E;--muted:#8A7D6B;--lime:#D4E932;--page:#ECE4D9}
+  :root{--ink:#23201C;--cream:#F4F0EA;--offwhite:#FFFBF5;--brown:#4F483E;--muted:#8A7D6B;--lime:#D4E932;--orange:#F54001;--page:#ECE4D9;--ok:#3D7A4E;--bad:#B3362B}
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--page);color:var(--brown);font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;letter-spacing:.015em;padding:48px 24px 96px}
   header{max-width:980px;margin:0 auto 56px}
   header .kicker{font-size:.875em;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
   header h1{font-size:2rem;color:var(--ink);margin:.3em 0 .4em}
-  header p{max-width:660px;line-height:1.65;font-size:.95em}
+  header p{max-width:700px;line-height:1.65;font-size:.95em}
   section{max-width:980px;margin:0 auto 64px}
   h2{font-size:1.2rem;color:var(--ink);margin-bottom:6px}
-  .sub{font-size:.875em;color:var(--muted);margin-bottom:24px;line-height:1.6;max-width:680px}
-  .grid{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end}
+  .sub{font-size:.875em;color:var(--muted);margin-bottom:24px;line-height:1.6;max-width:720px}
+  .grid{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
   .cell label{display:block;font-size:.78em;color:var(--muted);margin-bottom:8px}
   .cell label b{color:var(--ink)}
-  .widget{background:var(--wbg,var(--ink));border-radius:24px;display:flex;overflow:hidden;padding:4px}
-  .w-left{flex:38;display:flex;align-items:center;justify-content:center}
-  .w-left svg{width:60%;height:60%}
-  .w-divider{width:1px;align-self:stretch;margin:14px 0;background:var(--wdiv,#6d7a22)}
-  .w-right{flex:62;display:flex}
-  .w-pills{flex:1;display:flex;flex-direction:column;padding:8px 0 8px 6px;gap:4px}
-  .pill{flex:1;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--wfg,var(--lime));color:var(--whl,#141412);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px;font-weight:600}
-  .w-settings{width:28px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--wdot,var(--cream));font-weight:700;letter-spacing:1px}
-  .old .w-left{flex:1}
-  .old .w-left svg{width:26px;height:26px}
-  .old .w-left svg path{stroke:var(--cream)}
-  .old .w-right{flex:1;position:relative}
-  .old .w-pills{justify-content:center;padding:0 22px 0 6px}
-  .old .pill{flex:none;padding:3px 10px;font-size:11px;background:var(--offwhite);color:var(--brown)}
-  .old .w-settings{position:absolute;top:0;right:0;width:28px;height:28px;font-size:10px;color:var(--cream)}
-  .old .w-divider{align-self:center;height:24px;margin:0;background:#4a443c}
-  .mic{border-radius:50%;background:var(--wbg,var(--ink));display:flex;align-items:center;justify-content:center}
-  .mic svg{width:62%;height:62%}
-  .mic.old svg{width:26px;height:26px}
-  .mic.old svg path{stroke:var(--cream)}
-  .t-acid{--wbg:#23201C;--wfg:#D4E932;--whl:#141412;--wdiv:#6d7a22;--wdot:#F4F0EA}
-  .t-ember{--wbg:#23201C;--wfg:#F54001;--whl:#FFFFFF;--wdiv:#7a3d22;--wdot:#F4F0EA}
-  .t-paper{--wbg:#F4F0EA;--wfg:#23201C;--whl:#F4F0EA;--wdiv:#b9b0a2;--wdot:#23201C}
-  .t-mono{--wbg:#0E0E0D;--wfg:#EAFE32;--whl:#0E0E0D;--wdiv:#55601c;--wdot:#EAFE32}
-  .launcher{display:flex;gap:28px;align-items:flex-end;flex-wrap:wrap}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:rgba(35,32,28,.07);border-radius:4px;padding:0 4px}
+
+  .card{flex:1;min-width:300px;background:var(--offwhite);border:1px solid rgba(35,32,28,.12);border-radius:14px;overflow:hidden}
+  .card h3{font-size:.86rem;padding:10px 16px;letter-spacing:.06em;text-transform:uppercase}
+  .card.before h3{background:rgba(179,54,43,.12);color:var(--bad)}
+  .card.after h3{background:rgba(61,122,78,.14);color:var(--ok)}
+  .term{background:var(--ink);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.75;padding:14px 16px;white-space:pre-wrap}
+  .term .dim{color:#9b9083}.term .bad{color:#ff8a7a}.term .ok{color:#b8e6a0}.term .lime{color:var(--lime)}
+  .note{padding:12px 16px;font-size:.82em;line-height:1.6;border-top:1px solid rgba(35,32,28,.08)}
+
+  .chip{display:flex;align-items:center;justify-content:center;background:var(--ink);border-radius:14px}
+  .chip.trans{background:repeating-conic-gradient(#d9d0c3 0 25%,#c9bfAF 0 50%) 0 0/16px 16px}
+  .chip svg{display:block}
+  .verrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .ver{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;border-radius:8px;padding:6px 10px;background:var(--offwhite);border:1px solid rgba(35,32,28,.14);color:var(--ink)}
+  .ver b{color:var(--orange)}
 </style>
 </head>
 <body>
 <header>
-  <div class="kicker">Kimi Access · Before / After — themed-widget-colors</div>
-  <h1>The themed, fluid widget vs. the fixed original</h1>
-  <p>Old: fixed 26dp glyph, 28dp corner button, 50/50 split, cream-on-ink only.
-     New: user-selectable foreground (K + pill fill), background (surface) and
-     highlight (pill text); acid-wire default; 38/62 split; weighted pills;
-     narrow full-height settings strip; size-adaptive text; adaptive launcher icon.</p>
+  <div class="kicker">Kimi Access · Before / After — gen-icons vector-conflict fix · v0.2.3</div>
+  <h1>The build no longer fights the vector drawables</h1>
+  <p>The Acid Wire rework committed <code>ic_k.xml</code>, <code>ic_more.xml</code>,
+     <code>preview_mic.xml</code> and <code>preview_projects.xml</code> as vector drawables,
+     but <code>tools/gen_icons.py</code> still regenerated the same names as PNGs at build
+     time — and <code>build.sh</code> step 0 only checked for <code>ic_k.png</code>, so every
+     fresh build recreated the collision and aapt2 failed on duplicate resources.
+     Now the generator emits only the launcher fallback PNGs, prunes stale raster
+     leftovers on every run, and step 0 runs unconditionally. Artwork is unchanged —
+     same vectors, same launcher icon; this PR changes tooling, not pixels.
+     Version bumped 0.2.0 → 0.2.3.</p>
 </header>
 
-<section><h2>1 · Sizes</h2><p class="sub">Two projects at three launcher grids.</p><div class="grid" id="sizes"></div></section>
-<section><h2>2 · Pill states</h2><p class="sub">0, 1 and 2 configured projects.</p><div class="grid" id="states"></div></section>
-<section><h2>3 · Color modes</h2><p class="sub">Custom foreground/background/highlight themes.</p><div class="grid" id="themes"></div></section>
-<section><h2>4 · Mic 1×1</h2><p class="sub">Fixed vs. proportional glyph.</p><div class="grid" id="mics"></div></section>
-<section><h2>5 · Launcher icon</h2><p class="sub">Adaptive icon: ink background, lime Acid Wire K.</p>
-  <div class="launcher" id="icons"></div></section>
+<section><h2>1 · The build collision</h2>
+<p class="sub">What <code>build.sh</code> step 0 leaves in <code>app/src/main/res</code> before aapt2 runs.</p>
+<div class="grid">
+  <div class="card before">
+    <h3>Before — v0.2.0 tooling</h3>
+    <div class="term">$ ./tools/build.sh
+<span class="dim">==> [0/6] Icons  (runs only if ic_k.png is absent)</span>
+$ python3 tools/gen_icons.py
+res/drawable/
+  ic_k.xml               <span class="dim"># committed vector</span>
+  <span class="bad">ic_k.png</span>               <span class="bad"># regenerated — same name!</span>
+  ic_more.xml
+  <span class="bad">ic_more.png</span>            <span class="bad"># collision</span>
+  preview_mic.xml
+  <span class="bad">preview_mic.png</span>        <span class="bad"># collision</span>
+  preview_projects.xml
+  <span class="bad">preview_projects.png</span>   <span class="bad"># collision</span>
+<span class="dim">==> [1/6] aapt2 compile resources</span>
+<span class="bad">error: duplicate resources:
+  drawable/ic_k (ic_k.xml vs ic_k.png) … build fails</span></div>
+    <div class="note">Gitignored PNGs also linger in old working trees, so even a
+      skipped step 0 didn't protect long-lived checkouts.</div>
+  </div>
+  <div class="card after">
+    <h3>After — v0.2.3 tooling</h3>
+    <div class="term">$ ./tools/build.sh
+<span class="dim">==> [0/6] Icons  (always runs — sub-second)</span>
+$ python3 tools/gen_icons.py
+  <span class="ok">writes</span>  mipmap-*/ic_launcher.png   <span class="dim"># API&lt;26 fallback</span>
+  <span class="ok">prunes</span>  drawable/ic_k.png …      <span class="dim"># stale leftovers</span>
+res/drawable/
+  ic_k.xml               <span class="dim"># vectors are the only</span>
+  ic_more.xml            <span class="dim"># source of these names</span>
+  preview_mic.xml
+  preview_projects.xml
+<span class="dim">==> [1/6] aapt2 compile resources</span>
+<span class="ok">==> [2/6] aapt2 link … no duplicates — build proceeds</span></div>
+    <div class="note">Deterministic and self-healing: every build starts from the
+      committed vectors plus freshly generated launcher fallbacks.</div>
+  </div>
+</div>
+</section>
+
+<section><h2>2 · The four drawables — generated raster vs committed vector</h2>
+<p class="sub">What the old generator emitted (old cream-and-orange identity) vs what
+ships now. Nothing changes visually in this PR — the vectors were already on
+<code>main</code>; the build simply stops re-adding their raster predecessors.</p>
+<div class="grid" id="drawables"></div>
+</section>
+
+<section><h2>3 · Unchanged — launcher fallback &amp; version</h2>
+<p class="sub">Pre-API-26 launchers still get code-drawn PNG mipmaps (ink tile, cream K,
+orange dot) — regenerated every build, never committed. Adaptive icon (API 26+)
+and all in-app glyphs are vectors.</p>
+<div class="grid"><div class="cell" id="launchers"></div></div>
+<div class="verrow">
+  <span class="ver">versionName <b>0.2.0</b> → <b>0.2.3</b></span>
+  <span class="ver">versionCode <b>6</b> → <b>7</b></span>
+  <span class="ver">VersionInfo.java kept in sync (pinned by ManifestTest)</span>
+</div>
+</section>
 
 <script>
-const K = `<svg viewBox="0 0 100 100" fill="none"><path d="M30 14V86M76 16L34 48M38 54L78 86" stroke="#D4E932" stroke-width="12" stroke-linecap="round" style="stroke:var(--kstroke,#D4E932)"/></svg>`;
-function W(o){
-  const pills=o.pills.map(t=>`<div class="pill" style="font-size:${o.font||12}px">${t}</div>`).join("");
-  return `<div class="cell"><label><b>${o.old?"OLD":"NEW"}</b> — ${o.label}</label>
-    <div class="widget ${o.old?"old":""} ${o.theme||"t-acid"}" style="width:${o.w}px;height:${o.h}px">
-      <div class="w-left">${K}</div><div class="w-divider"></div>
-      <div class="w-right"><div class="w-pills">${pills}</div><div class="w-settings">⋮</div></div>
-    </div></div>`;
-}
-const sizes=[
-  {label:"small · 180×88",w:180,h:88,font:11,pills:["Morning brief","kiwi-cup repo"]},
-  {label:"standard · 250×110",w:250,h:110,font:12,pills:["Morning brief","kiwi-cup repo"]},
-  {label:"wide · 340×140",w:340,h:140,font:14,pills:["Morning brief","kiwi-cup repo"]}];
-document.getElementById("sizes").innerHTML=sizes.map(s=>W({...s,old:true})+W({...s,old:false})).join("");
-const states=[
-  {label:"0 projects — hint pill",w:250,h:110,pills:["Tap ⋮ to add projects"]},
-  {label:"1 project — stretches",w:250,h:110,pills:["Morning brief"]},
-  {label:"2 projects — even split",w:250,h:110,pills:["Morning brief","kiwi-cup repo"]}];
-document.getElementById("states").innerHTML=states.map(s=>
-  W({...s,old:true,pills:s.pills.concat(s.pills.length<2?[" "]:[])})+W({...s,old:false})).join("");
-const themes=[
-  {label:"Acid Wire (default)",theme:"t-acid"},
-  {label:"Ember — orange fg",theme:"t-ember"},
-  {label:"Paper — light surface",theme:"t-paper"},
-  {label:"Acid Mono — black surface",theme:"t-mono"}];
-document.getElementById("themes").innerHTML=themes.map(t=>
-  W({old:true,w:250,h:110,label:"was always cream-on-ink",pills:["Morning brief","kiwi-cup repo"]})
-  +W({old:false,w:250,h:110,label:t.label,theme:t.theme,pills:["Morning brief","kiwi-cup repo"]})).join("");
-document.getElementById("mics").innerHTML=[72,104,144].map(s=>
-  `<div class="cell"><label><b>OLD</b> — ${s}px</label><div class="mic old" style="width:${s}px;height:${s}px">${K}</div></div>
-   <div class="cell"><label><b>NEW</b> — ${s}px</label><div class="mic t-acid" style="width:${s}px;height:${s}px">${K}</div></div>`).join("");
-document.getElementById("icons").innerHTML=[192,96,48].map(s=>
-  `<div class="cell"><label>${s}px</label><div style="width:${s}px;height:${s}px;border-radius:22%;background:#23201C;display:flex;align-items:center;justify-content:center"><div style="width:70%;height:70%">${K}</div></div></div>`).join("");
+const INK="#23201C", CREAM="#F4F0EA", OFFWHITE="#FFFBF5", LIME="#D4E932", ORANGE="#F54001";
+
+/* Old code-drawn K (24-unit grid, exact geometry from the retired generator):
+   stem + two 45° arms, cream; one orange dot on the baseline. */
+const K_OLD = `<g stroke="${CREAM}" stroke-linecap="round" fill="none">
+  <line x1="22.4" y1="18.4" x2="22.4" y2="77.6" stroke-width="12.8"/>
+  <line x1="22.4" y1="48" x2="52.1" y2="18.3" stroke-width="12"/>
+  <line x1="22.4" y1="48" x2="52.1" y2="77.7" stroke-width="12"/></g>
+  <circle cx="73.6" cy="78.8" r="7" fill="${ORANGE}"/>`;
+
+/* Committed vector: white monoline K (drawable/ic_k.xml), tinted at render time. */
+const K_VEC = c => `<g stroke="${c}" stroke-width="12" stroke-linecap="round" fill="none">
+  <path d="M30,14 L30,86"/><path d="M76,16 L34,48"/><path d="M38,54 L78,86"/></g>`;
+
+const MORE_OLD = [19,48,77].map(y=>`<circle cx="48" cy="${y}" r="9" fill="${CREAM}"/>`).join("");
+const MORE_VEC = c => `<g fill="${c}"><circle cx="12" cy="3.75" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="12" cy="20.25" r="1.75"/></g>`;
+
+/* preview_mic: old = ink disc + old-style K; new = ink disc + lime monoline K (vector paths) */
+const MIC_OLD = `<svg viewBox="0 0 192 192" width="S" height="S"><circle cx="96" cy="96" r="96" fill="${INK}"/>
+  <g transform="translate(40.5,40.5) scale(1.156)"><g transform="scale(1)">${K_OLD.replaceAll('22.4','22.4')}</g></g></svg>`;
+const MIC_VEC = `<svg viewBox="0 0 110 110" width="S" height="S"><path fill="${INK}" d="M55,4a51,51 0 1,0 0,102 51,51 0 1,0 0,-102z"/>
+  <g stroke="${LIME}" stroke-width="7" stroke-linecap="round" fill="none">
+  <path d="M42,30 L42,80"/><path d="M74,31 L45,53"/><path d="M48,58 L75,80"/></g></svg>`;
+
+/* preview_projects: old = ink pill, old K, offwhite pills; new = lime K + lime pills */
+const PROJ_OLD = `<svg viewBox="0 0 440 192" width="W" height="H"><rect x="0" y="0" width="439" height="191" rx="64" fill="${INK}"/>
+  <g transform="translate(62,48)">${K_OLD}</g>
+  <rect x="220" y="52" width="2" height="88" fill="${CREAM}" opacity="0.24"/>
+  <rect x="246" y="34" width="142" height="44" rx="22" fill="${OFFWHITE}"/>
+  <rect x="246" y="100" width="142" height="44" rx="22" fill="${OFFWHITE}"/>
+  <g fill="${CREAM}"><circle cx="414" cy="20" r="4"/><circle cx="414" cy="34" r="4"/><circle cx="414" cy="48" r="4"/></g></svg>`;
+const PROJ_VEC = `<svg viewBox="0 0 220 110" width="W" height="H">
+  <path fill="${INK}" d="M26,2h168a24,24 0 0 1 24,24v58a24,24 0 0 1 -24,24h-168a24,24 0 0 1 -24,-24v-58a24,24 0 0 1 24,-24z"/>
+  <g stroke="${LIME}" stroke-width="7" stroke-linecap="round" fill="none">
+  <path d="M36,28 L36,82"/><path d="M66,29 L39,53"/><path d="M42,58 L67,82"/></g>
+  <path stroke="${LIME}" stroke-width="2" d="M84,26 L84,84"/>
+  <path fill="${LIME}" d="M94,26h92a13,13 0 0 1 13,13v8a13,13 0 0 1 -13,13h-92a13,13 0 0 1 -13,-13v-8a13,13 0 0 1 13,-13z"/>
+  <path fill="${LIME}" d="M94,62h92a13,13 0 0 1 13,13v8a13,13 0 0 1 -13,13h-92a13,13 0 0 1 -13,-13v-8a13,13 0 0 1 13,-13z"/>
+  <g fill="${CREAM}"><circle cx="208" cy="47" r="2.5"/><circle cx="208" cy="55" r="2.5"/><circle cx="208" cy="63" r="2.5"/></g></svg>`;
+
+function cell(label, svg, chipCls){return `<div class="cell"><label>${label}</label><div class="chip ${chipCls||""}" style="padding:10px">${svg}</div></div>`;}
+
+const rows = [
+  ["ic_k", cell("<b>OLD</b> — generated ic_k.png (transparent, shown on ink)",`<svg viewBox="0 0 96 96" width="76" height="76">${K_OLD}</svg>`),
+          cell("<b>NEW</b> — committed ic_k.xml (white, tinted at render)",`<svg viewBox="0 0 100 100" width="76" height="76">${K_VEC("#FFFFFF")}</svg>`),
+          cell("…tinted Acid Wire on the widget",`<svg viewBox="0 0 100 100" width="76" height="76">${K_VEC(LIME)}</svg>`)],
+  ["ic_more", cell("<b>OLD</b> — generated ic_more.png (transparent, shown on ink)",`<svg viewBox="0 0 96 96" width="76" height="76">${MORE_OLD}</svg>`),
+          cell("<b>NEW</b> — committed ic_more.xml",`<svg viewBox="0 0 24 24" width="76" height="76">${MORE_VEC("#FFFFFF")}</svg>`)],
+  ["preview_mic", cell("<b>OLD</b> — generated preview_mic.png", MIC_OLD.replaceAll("S","96")),
+          cell("<b>NEW</b> — committed preview_mic.xml", MIC_VEC.replaceAll("S","96"))],
+  ["preview_projects", cell("<b>OLD</b> — generated preview_projects.png", PROJ_OLD.replaceAll("W","220").replaceAll("H","96")),
+          cell("<b>NEW</b> — committed preview_projects.xml", PROJ_VEC.replaceAll("W","220").replaceAll("H","110"))],
+];
+document.getElementById("drawables").innerHTML = rows.map(r=>
+  `<div style="flex:1 1 100%"><div style="font-size:.85em;color:var(--ink);font-weight:600;margin-bottom:10px"><code>${r[0]}</code></div>
+   <div class="grid" style="margin-bottom:26px">${r.slice(1).join("")}</div></div>`).join("");
+
+const LAUNCH = s => `<svg viewBox="0 0 512 512" width="${s}" height="${s}"><rect width="511" height="511" rx="113" fill="${INK}"/>
+  <g transform="translate(87,87) scale(3.521)">${K_OLD}</g></svg>`;
+document.getElementById("launchers").innerHTML = `<div class="grid">${[144,96,48].map(s=>
+  `<div class="cell"><label>mipmap fallback · ${s}px — same before &amp; after</label>${LAUNCH(s)}</div>`).join("")}</div>`;
 </script>
 </body>
 </html>
