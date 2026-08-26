@@ -6,6 +6,8 @@ Personal github of fun projects
 # Android Projects
 
 **screen-my-texts**
+ [[Readme]](https://github.com/shoepaladin/kiwi-cup/tree/main/screen-my-texts) [[package]](https://github.com/shoepaladin/kiwi-cup/tree/main/releases/screenmytexts.apk)
+
 Create a simple filter for your text messages. Supports direct filter and regex based filters.
 
 
