@@ -7,29 +7,40 @@ import com.klinker.android.send_message.MmsReceivedReceiver
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-/** Called by the MMS library once an incoming MMS has been downloaded into the phone's store. */
-@AndroidEntryPoint
+/**
+ * Called by the MMS library once an incoming MMS has been downloaded into the phone's store.
+ *
+ * The library's base class makes `onReceive` final, so Hilt cannot subclass it; dependencies
+ * are looked up through an entry point instead of field injection.
+ */
 class MmsReceivedReceiverImpl : MmsReceivedReceiver() {
 
-    @Inject lateinit var importer: SmsInboxImporter
-    @Inject lateinit var smsMessageDao: SmsMessageDao
-    @Inject lateinit var notifier: IncomingMessageNotifier
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Dependencies {
+        fun importer(): SmsInboxImporter
+        fun smsMessageDao(): SmsMessageDao
+        fun notifier(): IncomingMessageNotifier
+    }
 
     override fun onMessageReceived(context: Context, messageUri: Uri?) {
+        val deps = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java)
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val mmsId = messageUri?.lastPathSegment?.toLongOrNull()
-                importer.importNew()
-                val row = mmsId?.let { id -> smsMessageDao.findByMmsSystemId(id) }
-                if (row != null) notifier.notifyNewMessage(row)
+                deps.importer().importNew()
+                val row = mmsId?.let { id -> deps.smsMessageDao().findByMmsSystemId(id) }
+                if (row != null) deps.notifier().notifyNewMessage(row)
             } finally {
                 pending.finish()
             }
