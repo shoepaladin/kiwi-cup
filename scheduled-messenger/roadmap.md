@@ -13,22 +13,24 @@
 | Potential Issue / Edge Case | Risk Level | Mitigation Strategy | Status |
 | :--- | :--- | :--- | :--- |
 | WorkManager delay under Doze Mode | High | `OneTimeWorkRequest` with `setInitialDelay` for the common case; for targets < 15 min away or when the user opts in, delegate to `AlarmManager.setExactAndAllowWhileIdle` (needs `SCHEDULE_EXACT_ALARM` on API 31+, `USE_EXACT_ALARM` not allowed for this app category). Worker marks `setExpedited(RUN_AS_NON_EXPEDITED_WORK_REQUEST)` so it runs promptly once due. **Phase 2 decision**: v1 uses plain `OneTimeWorkRequest` + `setInitialDelay` only. `setExpedited` is not allowed together with a delay, and exact alarms need a user-granted special permission on Android 12+. Expected worst case in deep Doze: delivery a few minutes late, never lost. Exact-alarm delegation stays a Phase 4 option if testing on a real device shows unacceptable lag. | Decided (v1: WorkManager delay) |
-| System Reboot (`BOOT_COMPLETED`) | High | WorkManager already persists its own queue across reboot, but its delays are wall-clock relative and can be lost if the app is force-stopped. `BootCompletedReceiver` reads every `PENDING` row and re-enqueues with `ExistingWorkPolicy.REPLACE` keyed by `WorkNames.scheduledSms(id)`, so duplicates are impossible. `SchedulingPolicy.recoveryAction` decides: future -> re-delay; overdue <= 6 h -> send now; overdue > 6 h -> `FAILED("missed while device was off")`. | Re-arm path (`reenqueueAllPending`, `reenqueueAllActive`) done & tested; receiver in Phase 4 |
+| System Reboot (`BOOT_COMPLETED`) | High | WorkManager already persists its own queue across reboot, but its delays are wall-clock relative and can be lost if the app is force-stopped. `BootCompletedReceiver` reads every `PENDING` row and re-enqueues with `ExistingWorkPolicy.REPLACE` keyed by `WorkNames.scheduledSms(id)`, so duplicates are impossible. `SchedulingPolicy.recoveryAction` decides: future -> re-delay; overdue <= 6 h -> send now; overdue > 6 h -> `FAILED("missed while device was off")`. | Done & tested end to end (`BootCompletedReceiverTest`): receiver -> `RearmWorker` -> repositories -> WorkManager. `Application.onCreate` also enqueues the same unique work (covers app updates and force-stops). |
 | Device powered off at target timestamp | High | Same path as reboot: the 6 h lateness window (`SchedulingPolicy.maxLatenessMillis`) bounds how stale a message can be and still go out. Window is a constructor parameter for tuning. | Core logic done & tested |
-| Missing `SEND_SMS` / `POST_NOTIFICATIONS` | Medium | Worker checks `checkSelfPermission` before dispatch and marks `FAILED("SEND_SMS permission revoked")` rather than crashing; UI gates the compose box and shows a rationale + settings deep link. Notification permission missing -> reminder still marked complete but a persistent in-app banner is shown. | Planned (Phase 4) |
+| Missing `SEND_SMS` / `POST_NOTIFICATIONS` | Medium | `PermissionGate` blocks the UI until READ/RECEIVE/SEND_SMS are granted, asks once automatically, explains each permission, and deep-links to app settings after a permanent denial. POST_NOTIFICATIONS is requested but optional. Workers independently re-check permissions at run time (`ScheduledSmsWorker` -> FAILED with reason; `ReminderWorker` -> leaves reminder active). | Done & tested (`PermissionsScreenTest`, worker tests) |
 | Race condition (Database delete vs. Worker execution) | Medium | No optimistic-locking column needed: every status change is a guarded `UPDATE ... WHERE id = ? AND status = ?` that returns the affected row count. Worker must get `claimForSending == 1` before touching the radio; user cancel must get `cancel == 1`. SQLite executes each statement atomically so exactly one side wins. Rows are never hard-deleted while `PENDING`/`SENDING`; cancel is a status. | Done & tested (`ScheduledMessageDaoTest.claimIsGrantedExactlyOnce`, `cancelBeatsLateWorker`) |
 | Status consistency under signal loss | Medium | `SmsManager.sendTextMessage` is fire-and-forget; success/failure arrives via the `sentIntent` broadcast. Worker will register a `PendingIntent` per part and suspend until all parts report (with timeout). Transient radio errors (`RESULT_ERROR_NO_SERVICE`, `RESULT_ERROR_RADIO_OFF`) -> `releaseClaim` back to `PENDING` + `Result.retry()` with exponential backoff (max 3 attempts); permanent errors -> `FAILED(reason)`. Multipart: `sendMultipartTextMessage` so all parts share one status. Implemented in `AndroidSmsSender` (60 s receipt timeout -> transient). Worker retries at most 3 times with exponential backoff (30 s base) before `FAILED`. | Done; worker paths tested with a fake sender. `AndroidSmsSender` itself needs a device test (Robolectric cannot emulate the radio). |
 | Duplicate notifications for one reminder | Low | `ReminderDao.markCompleted` is guarded (`isCompleted = 0`) and the worker posts the notification only when it returns 1. | Done & tested (`ReminderWorkerTest.secondRunDoesNotNotifyAgain`) |
 | Reminder due while notifications are blocked | Low | Worker leaves the reminder active (not completed) and returns failure so nothing is silently lost; the queue screen will show it as overdue. | Done & tested |
 | Scheduled row deleted while its job is queued | Low | Worker treats a missing row as a no-op success; repository `delete` cancels the unique work first. | Done & tested |
 | Build environment cannot reach `dl.google.com` (Android SDK + AndroidX) | High (blocks local verification) | Decision (user, 2026-09-18): run Android unit tests on GitHub Actions via `.github/workflows/scheduled-messenger-tests.yml`. Pure-Kotlin `core` tests additionally run locally. | Mitigated |
+| No inbox: app cannot show existing conversations | High (product) | `SmsInboxImporter` reads the phone's SMS store (`Telephony.Sms`) incrementally by system row id on every app open; `SmsReceiver` stores new texts as they arrive. The app is not the default SMS app, so our own sent copies stay in Room and join the conversation by phone number. | Done & tested (`SmsInboxImporterTest`, `IncomingSmsHandlerTest`) |
+| Not the default SMS app | Medium (product) | Reading and receiving SMS works for any app holding the permissions; only writing into the system store is reserved for the default app. Consequence: texts sent from this app are visible here but not in the phone's stock Messages app. Becoming default is a possible v2 (requires implementing MMS/WAP receivers and a full messaging UI). | Accepted for v1 |
 | Wrong library versions (cannot be checked locally) | Medium | Version catalog pinned to widely-used mid-2025 releases; CI is the oracle. | Mitigated: all artifacts resolved, KSP + Hilt + Room + Robolectric compile and run on CI |
 
 ## Core Modules & Status
 - [x] Phase 1: Core Database & Persistence Setup (CI green, run #3, 2026-09-18)
 - [x] Phase 2: WorkManager Background Dispatcher (SMS & Reminders Engine) (CI green, run #5, 2026-09-18)
 - [x] Phase 3: Jetpack Compose UI & Queue Management (CI green, run #9, 2026-09-18)
-- [ ] Phase 4: Permissions, Boot Receivers & Resilience
+- [x] Phase 4: Permissions, Boot Receivers & Resilience (CI green, run #12, 2026-09-18)
 
 ## Test Matrix & Execution Log
 | Module | Test Type | Target File / Case | Status | Evidence / Terminal Command |
@@ -60,9 +62,36 @@
 - [x] Task 2 review presented; user confirmed.
 - [x] Task 3 code: `ConversationsScreen`, `ThreadScreen` (bubbles, long-press context menu, reminder banner), `MessageInputBar` + `DateTimePickerDialog` (calendar then clock), `ComposeScreen`, `QueueScreen` (upcoming/history, edit, cancel, reschedule, done, delete, clear), `AppNavHost`, deep-link handling in `MainActivity`; one Hilt ViewModel per screen.
 - [x] Task 3 tests: 10 Compose UI tests green on CI run #9. Runs #7-#8 failed on test-side issues only (rows below the fold on Robolectric's small display; duplicate text match in the edit dialog); the app code compiled and behaved correctly from run #7.
-- [ ] STOP: Task 3 presented for review. Task 4 (boot receiver, runtime permissions, resilience) starts on user confirmation.
+- [x] Task 3 review presented; user confirmed and asked for an inbox path.
+- [x] Task 4 code: `SmsInboxImporter`, `IncomingSmsHandler`, `SmsReceiver`, `BootCompletedReceiver`, `RearmWorker`, `PermissionGate` / `PermissionsScreen` / `AppPermissions`, `SchedulerApi` seam, DB schema v2 (`systemId`).
+- [x] Task 4 tests: 9 new tests green on CI run #12 (84 total). Run #11 failed on one test-side compile error (Robolectric's `setCursor` wants its own cursor type); replaced with a fake content provider.
+- [ ] STOP: Task 4 presented for review. All four phases complete; next step is a device install by the user.
+
+## Remaining Work Before Daily Use (not in the four phases)
+- **Device smoke test** (user): install debug APK, grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives.
+- **Exact alarms** if WorkManager's delay proves too loose under Doze on the user's phone (`SCHEDULE_EXACT_ALARM`, contained change in `WorkScheduler`).
+- **Schema export + migrations** before the first shared release (`exportSchema = true`, drop `fallbackToDestructiveMigration`).
+- **Contact names** instead of raw numbers (needs `READ_CONTACTS`).
+- **Release build**: signing config, `isMinifyEnabled = true` with keep rules for Room/Hilt/WorkManager.
 
 ## CI Evidence Log
+### Run #12, commit 1a8cb6e, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35402186017)
+```
+./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 20s
+./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+DAO tests (22), worker tests (12), scheduling integration (8), Compose UI (10) ... PASSED
+IncomingSmsHandlerTest > joinsExistingThreadByAddress PASSED
+IncomingSmsHandlerTest > createsNewThreadForUnknownAddressAndDedupes PASSED
+SmsInboxImporterTest > importsInboxAndSentRowsWithSystemThreadIds PASSED
+SmsInboxImporterTest > secondImportIsIncrementalAndSkipsKnownRows PASSED
+SmsInboxImporterTest > withoutPermissionNothingIsRead PASSED
+BootCompletedReceiverTest > bootReenqueuesPendingMessagesAndActiveReminders PASSED
+BootCompletedReceiverTest > unrelatedBroadcastIsIgnored PASSED
+PermissionsScreenTest > listsMissingPermissionsAndRequestsOnTap PASSED
+PermissionsScreenTest > permanentDenialOffersSettings PASSED
+BUILD SUCCESSFUL in 2m 5s   (61 app tests PASSED, 0 FAILED; 84 total with core)
+```
+
 ### Run #9, commit c9e1bb1, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35391197931)
 ```
 ./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 20s

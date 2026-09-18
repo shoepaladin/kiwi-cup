@@ -10,7 +10,16 @@ Primarily made with Claude! Engineering progress is tracked in [`roadmap.md`](ro
 
 ## Status
 
-Under construction. Phase 1 (data layer) is in place; background sending, UI and reboot handling follow.
+Feature complete for a first personal build: inbox import, scheduled sending, reminders with deep-linked notifications, queue management, reboot recovery and runtime permissions. 84 automated tests run on every push. Not yet exercised on a physical phone.
+
+## How it works
+
+1. On first launch the app asks for SMS and notification permissions, then copies your existing conversations from the phone's SMS store.
+2. Write a text and either send it now or tap the calendar to pick a date and time. Scheduled texts wait in a background job and go out even if the app is closed.
+3. Long-press any message and choose **Remind me about this later**. At the chosen time you get a notification that opens the conversation.
+4. The queue screen lists everything upcoming, with edit and cancel, and keeps a history of sent, failed and cancelled items.
+
+The app is not your default SMS app, so texts you send from here appear in this app but not in the stock Messages app.
 
 ## Architecture
 
