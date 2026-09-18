@@ -44,14 +44,16 @@ interface SmsMessageDao {
 
     @Query(
         """
-        SELECT threadId, address, body, timestamp, COUNT(*) AS messageCount
-        FROM sms_messages
-        WHERE id IN (
-            SELECT id FROM sms_messages m
-            WHERE timestamp = (SELECT MAX(timestamp) FROM sms_messages WHERE threadId = m.threadId)
+        SELECT m.threadId AS threadId, m.address AS address, m.body AS body, m.timestamp AS timestamp,
+               (SELECT COUNT(*) FROM sms_messages c WHERE c.threadId = m.threadId) AS messageCount
+        FROM sms_messages m
+        WHERE m.id = (
+            SELECT x.id FROM sms_messages x
+            WHERE x.threadId = m.threadId
+            ORDER BY x.timestamp DESC, x.id DESC
+            LIMIT 1
         )
-        GROUP BY threadId
-        ORDER BY timestamp DESC
+        ORDER BY m.timestamp DESC, m.id DESC
         """
     )
     fun observeThreadSummaries(): Flow<List<ThreadSummary>>
