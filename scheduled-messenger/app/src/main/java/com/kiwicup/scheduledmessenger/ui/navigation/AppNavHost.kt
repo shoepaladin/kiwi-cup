@@ -4,6 +4,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,12 +61,19 @@ fun AppNavHost(
         composable(Routes.CONVERSATIONS) {
             val vm: ConversationsViewModel = hiltViewModel()
             val threads by vm.threads.collectAsState()
+            val context = LocalContext.current
+            var isDefault by remember { mutableStateOf(DefaultSmsApp.isDefault(context)) }
+            val requestDefault = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+                isDefault = DefaultSmsApp.isDefault(context)
+            }
             ConversationsScreen(
                 threads = threads,
                 onOpenThread = { navController.navigate(Routes.thread(it)) },
                 onNewMessage = { navController.navigate(Routes.COMPOSE) },
                 onOpenQueue = { navController.navigate(Routes.QUEUE) },
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                isDefaultSmsApp = isDefault,
+                onRequestDefault = { DefaultSmsApp.requestIntent(context)?.let(requestDefault::launch) }
             )
         }
         composable(
@@ -72,6 +84,9 @@ fun AppNavHost(
             val state by vm.state.collectAsState()
             val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                 if (uri != null) vm.setWallpaper(uri)
+            }
+            val pickAttachment = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) vm.attach(uri)
             }
             ThreadScreen(
                 state = state,
@@ -91,7 +106,9 @@ fun AppNavHost(
                     onClearWallpaper = vm::clearWallpaper,
                     onDim = vm::setWallpaperDim,
                     onReset = vm::resetStyle
-                )
+                ),
+                onAttach = { pickAttachment.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                onRemoveAttachment = vm::removeAttachment
             )
         }
         composable(Routes.SETTINGS) {
@@ -110,6 +127,9 @@ fun AppNavHost(
         composable(Routes.COMPOSE) {
             val vm: ComposeViewModel = hiltViewModel()
             val state by vm.state.collectAsState()
+            val pickAttachment = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) vm.attach(uri)
+            }
             ComposeScreen(
                 state = state,
                 nowMillis = vm::now,
@@ -123,7 +143,9 @@ fun AppNavHost(
                         popUpTo(Routes.CONVERSATIONS)
                     }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onAttach = { pickAttachment.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                onRemoveAttachment = vm::removeAttachment
             )
         }
         composable(Routes.QUEUE) {

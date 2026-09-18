@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.ui.conversations
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,7 +12,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,7 +41,9 @@ fun ConversationsScreen(
     onOpenThread: (Long) -> Unit,
     onNewMessage: () -> Unit,
     onOpenQueue: () -> Unit,
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    isDefaultSmsApp: Boolean = true,
+    onRequestDefault: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -59,11 +65,31 @@ fun ConversationsScreen(
             }
         }
     ) { padding ->
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)) {
+        if (!isDefaultSmsApp) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                    .testTag("default_banner"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Make this your default messaging app", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Needed for pictures, group texts and to keep your inbox in one place.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    TextButton(onClick = onRequestDefault, modifier = Modifier.testTag("request_default")) { Text("Set as default") }
+                }
+            }
+        }
         if (threads.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
@@ -78,12 +104,11 @@ fun ConversationsScreen(
         } else {
             LazyColumn(modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .testTag("thread_list")) {
                 items(threads, key = { it.threadId }) { thread ->
                     ListItem(
-                        headlineContent = { Text(thread.address) },
-                        supportingContent = { Text(thread.body, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        headlineContent = { Text(thread.title) },
+                        supportingContent = { Text(thread.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         trailingContent = { Text(TimeFormat.date(thread.timestamp), style = MaterialTheme.typography.labelSmall) },
                         modifier = Modifier
                             .clickable { onOpenThread(thread.threadId) }
@@ -92,6 +117,7 @@ fun ConversationsScreen(
                     HorizontalDivider()
                 }
             }
+        }
         }
     }
 }

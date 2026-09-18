@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.kiwicup.scheduledmessenger.core.AttachmentCodec
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.core.ThemeColors
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
@@ -59,7 +60,21 @@ fun MessageBubble(
         contentAlignment = if (outgoing) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         Column(horizontalAlignment = if (outgoing) Alignment.End else Alignment.Start) {
-            Surface(
+            if (message.isIncoming && message.recipients != null) {
+                Text(
+                    text = message.address,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp).testTag("sender_${message.id}")
+                )
+            }
+            val media = AttachmentCodec.decode(message.attachments)
+            media.forEachIndexed { index, attachment ->
+                Box(modifier = Modifier.padding(vertical = 2.dp)) {
+                    AttachmentThumb(attachment, size = 220.dp, tag = "attachment_${message.id}_$index")
+                }
+            }
+            if (message.body.isNotBlank() || media.isEmpty()) Surface(
                 color = container,
                 contentColor = content,
                 shape = RoundedCornerShape(

@@ -14,7 +14,9 @@ import com.kiwicup.scheduledmessenger.data.local.DatabaseTestRule
 import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
 import com.kiwicup.scheduledmessenger.data.sms.SendResult
 import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
+import com.kiwicup.scheduledmessenger.testing.FakeMmsSender
 import com.kiwicup.scheduledmessenger.testing.FakeSmsSender
+import com.kiwicup.scheduledmessenger.testing.FakeSystemMessageStore
 import com.kiwicup.scheduledmessenger.testing.FixedTimeSource
 import com.kiwicup.scheduledmessenger.testing.TestWorkerFactory
 import kotlinx.coroutines.runBlocking
@@ -36,6 +38,8 @@ class ScheduledSmsWorkerTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val sender = FakeSmsSender()
+    private val mmsSender = FakeMmsSender()
+    private val systemStore = FakeSystemMessageStore()
     private val clock = FixedTimeSource(1_700_000_000_000L)
     private lateinit var factory: TestWorkerFactory
 
@@ -43,18 +47,67 @@ class ScheduledSmsWorkerTest {
     fun setUp() {
         Shadows.shadowOf(ApplicationProvider.getApplicationContext<Application>())
             .grantPermissions(Manifest.permission.SEND_SMS)
-        factory = TestWorkerFactory(dbRule.db, sender, clock, ReminderNotifier(context))
+        factory = TestWorkerFactory(dbRule.db, sender, clock, ReminderNotifier(context), mmsSender = mmsSender, systemStore = systemStore)
     }
 
-    private suspend fun insertPending(threadId: Long? = null): Long = dbRule.db.scheduledMessageDao().insert(
+    private suspend fun insertPending(
+        threadId: Long? = null,
+        recipient: String = "+15550001111",
+        attachments: String? = null
+    ): Long = dbRule.db.scheduledMessageDao().insert(
         ScheduledMessage(
-            recipientAddress = "+15550001111",
+            recipientAddress = recipient,
             messageBody = "see you at 6",
+            attachments = attachments,
             targetTimestamp = clock.now(),
             threadId = threadId,
             createdAt = clock.now()
         )
     )
+
+    @Test
+    fun groupMessageGoesOutAsMms() = runBlocking {
+        val id = insertPending(recipient = "+15550001111,+15550002222")
+        val result = buildWorker(id).doWork()
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertTrue(sender.calls.isEmpty())
+        assertEquals(1, mmsSender.calls.size)
+        assertEquals(listOf("+15550001111", "+15550002222"), mmsSender.calls[0].recipients)
+        assertEquals(MessageStatus.SENT, dbRule.db.scheduledMessageDao().getById(id)!!.status)
+        // The library writes the MMS into the phone's store; no local SMS copy is fabricated.
+        assertEquals(0, dbRule.db.smsMessageDao().countInThread(1L))
+    }
+
+    @Test
+    fun pictureGoesOutAsMmsEvenToOnePerson() = runBlocking {
+        val id = insertPending(attachments = "file:///data/x.jpg|image/jpeg")
+        buildWorker(id).doWork()
+        assertEquals(1, mmsSender.calls.size)
+        assertEquals("image/jpeg", mmsSender.calls[0].attachments.single().mimeType)
+        assertTrue(sender.calls.isEmpty())
+    }
+
+    @Test
+    fun mmsFailureWhenNotDefaultIsRecorded() = runBlocking {
+        mmsSender.nextResult = SendResult.PermanentFailure("needs default")
+        val id = insertPending(recipient = "+15550001111,+15550002222")
+        val result = buildWorker(id).doWork()
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertEquals("needs default", dbRule.db.scheduledMessageDao().getById(id)!!.failureReason)
+    }
+
+    @Test
+    fun asDefaultAppSentSmsIsWrittenToSystemStore() = runBlocking {
+        systemStore.isDefault = true
+        val id = insertPending()
+        buildWorker(id).doWork()
+        assertEquals(1, systemStore.rows.size)
+        assertTrue(systemStore.rows[0].sent)
+        val copy = dbRule.db.smsMessageDao().getThread(500L).single()
+        assertEquals(1000L, copy.systemId)
+        assertEquals(MessageStatus.SENT, dbRule.db.scheduledMessageDao().getById(id)!!.status)
+    }
 
     private fun buildWorker(id: Long, attempt: Int = 0): ScheduledSmsWorker =
         TestListenableWorkerBuilder<ScheduledSmsWorker>(context)

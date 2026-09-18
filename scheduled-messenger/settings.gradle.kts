@@ -22,6 +22,10 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // Fossify's maintained fork of the klinker SMS/MMS library.
+        maven("https://www.jitpack.io") {
+            content { includeGroup("org.fossify") }
+        }
     }
 }
 

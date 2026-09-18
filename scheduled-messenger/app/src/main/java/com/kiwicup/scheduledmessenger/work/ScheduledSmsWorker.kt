@@ -7,22 +7,29 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.kiwicup.scheduledmessenger.core.AttachmentCodec
+import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
+import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
+import com.kiwicup.scheduledmessenger.data.sms.MmsSender
+import com.kiwicup.scheduledmessenger.data.sms.OutgoingMms
 import com.kiwicup.scheduledmessenger.data.sms.SendResult
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
+import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
 /**
- * Sends one [com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage].
+ * Sends one [ScheduledMessage].
  *
  * Contract with the database: the worker may only touch the radio after `claimForSending`
  * returned 1. Every exit path leaves the row in a terminal state or back in PENDING, never
- * stuck in SENDING.
+ * stuck in SENDING. Plain texts to one person go out as SMS; pictures or several recipients go
+ * out as MMS (which also carries its own copy into the phone's store).
  */
 @HiltWorker
 class ScheduledSmsWorker @AssistedInject constructor(
@@ -31,6 +38,8 @@ class ScheduledSmsWorker @AssistedInject constructor(
     private val scheduledMessageDao: ScheduledMessageDao,
     private val smsMessageDao: SmsMessageDao,
     private val smsSender: SmsSender,
+    private val mmsSender: MmsSender,
+    private val systemStore: SystemMessageStore,
     private val timeSource: TimeSource
 ) : CoroutineWorker(appContext, params) {
 
@@ -51,11 +60,21 @@ class ScheduledSmsWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        return when (val outcome = smsSender.send(message.recipientAddress, message.messageBody)) {
+        val recipients = Recipients.decode(message.recipientAddress)
+        val attachments = AttachmentCodec.decode(message.attachments)
+        val useMms = attachments.isNotEmpty() || recipients.size > 1
+        val outcome = if (useMms) {
+            mmsSender.send(OutgoingMms(recipients, message.messageBody, attachments))
+        } else {
+            smsSender.send(message.recipientAddress, message.messageBody)
+        }
+
+        return when (outcome) {
             SendResult.Sent -> {
                 val sentAt = timeSource.now()
                 scheduledMessageDao.markSent(id, sentAt)
-                recordSentCopy(message.recipientAddress, message.messageBody, message.threadId, sentAt)
+                if (!useMms) recordSentSms(message, sentAt)
+                // MMS copies are written into the phone's store by the library; the importer picks them up.
                 Result.success()
             }
             is SendResult.PermanentFailure -> {
@@ -74,18 +93,21 @@ class ScheduledSmsWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun recordSentCopy(address: String, body: String, threadId: Long?, sentAt: Long) {
-        val resolvedThread = threadId
-            ?: smsMessageDao.findThreadIdByAddress(address)
+    private suspend fun recordSentSms(message: ScheduledMessage, sentAt: Long) {
+        val stored = systemStore.insertSentSms(message.recipientAddress, message.messageBody, sentAt)
+        val resolvedThread = stored?.threadId
+            ?: message.threadId
+            ?: smsMessageDao.findThreadIdByAddress(message.recipientAddress)
             ?: smsMessageDao.nextThreadId()
         smsMessageDao.insert(
             SmsMessage(
                 threadId = resolvedThread,
-                address = address,
-                body = body,
+                address = message.recipientAddress,
+                body = message.messageBody,
                 timestamp = sentAt,
                 status = SmsStatus.SENT,
-                isIncoming = false
+                isIncoming = false,
+                systemId = stored?.systemId
             )
         )
     }

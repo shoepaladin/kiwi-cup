@@ -6,6 +6,7 @@ import com.kiwicup.scheduledmessenger.data.inbox.IncomingSms
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSmsHandler
 import com.kiwicup.scheduledmessenger.data.local.DatabaseTestRule
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
+import com.kiwicup.scheduledmessenger.testing.FakeSystemMessageStore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,7 +24,7 @@ class IncomingSmsHandlerTest {
     fun joinsExistingThreadByAddress() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
         dao.insert(SmsMessage(threadId = 42, address = "+15550001111", body = "earlier", timestamp = 1, status = SmsStatus.RECEIVED, systemId = 1))
-        val handler = IncomingSmsHandler(dao)
+        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore())
 
         val id = handler.handle(IncomingSms("+15550001111", "new text", 2_000))
 
@@ -32,9 +33,23 @@ class IncomingSmsHandlerTest {
     }
 
     @Test
+    fun asDefaultAppWritesToSystemStoreAndReusesItsIds() = runBlocking {
+        val dao = dbRule.db.smsMessageDao()
+        val store = FakeSystemMessageStore(isDefault = true)
+        val handler = IncomingSmsHandler(dao, store)
+
+        val id = handler.handle(IncomingSms("+15550007777", "hi", 9_000))
+
+        val row = dao.getById(id)!!
+        assertEquals(1, store.rows.size)
+        assertEquals(1000L, row.systemId)
+        assertEquals(500L, row.threadId)
+    }
+
+    @Test
     fun createsNewThreadForUnknownAddressAndDedupes() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
-        val handler = IncomingSmsHandler(dao)
+        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore())
 
         val first = handler.handle(IncomingSms("+15550009999", "hello", 5_000))
         val duplicate = handler.handle(IncomingSms("+15550009999", "hello", 5_000))

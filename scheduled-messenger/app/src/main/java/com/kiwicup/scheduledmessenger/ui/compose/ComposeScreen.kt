@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.kiwicup.scheduledmessenger.core.Attachment
 import com.kiwicup.scheduledmessenger.ui.components.MessageInputBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,7 +35,9 @@ fun ComposeScreen(
     onSchedule: (Long) -> Unit,
     validateTarget: (Long) -> String?,
     onDone: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAttach: (() -> Unit)? = null,
+    onRemoveAttachment: (Attachment) -> Unit = {}
 ) {
     LaunchedEffect(state.done) { state.done?.let(onDone) }
 
@@ -55,7 +58,10 @@ fun ComposeScreen(
                 onSchedule = onSchedule,
                 nowMillis = nowMillis,
                 validateTarget = validateTarget,
-                enabled = state.recipient.isNotBlank()
+                enabled = state.recipient.isNotBlank(),
+                attachments = state.attachments,
+                onAttach = onAttach,
+                onRemoveAttachment = onRemoveAttachment
             )
         }
     ) { padding ->
@@ -66,7 +72,7 @@ fun ComposeScreen(
             OutlinedTextField(
                 value = state.recipient,
                 onValueChange = onRecipientChange,
-                label = { Text("To (phone number)") },
+                label = { Text("To (phone numbers, comma separated for a group)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 isError = state.error != null,
@@ -76,6 +82,10 @@ fun ComposeScreen(
             )
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp).testTag("compose_error"))
+            }
+            if (state.isGroup) {
+                Text("Group message: goes out as MMS to everyone listed.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp).testTag("group_hint"))
             }
             Text(
                 "Type your message below, then send it now or tap the calendar to pick a time.",

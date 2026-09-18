@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.data.inbox
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
+import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -10,17 +11,24 @@ import javax.inject.Singleton
 data class IncomingSms(val address: String, val body: String, val timestamp: Long)
 
 /**
- * Stores a freshly received text so the conversation updates instantly, before the next
- * inbox import would pick it up. The row has no systemId; the importer's later copy of the
- * same message is de-duplicated by address, body and timestamp.
+ * Stores a freshly received text so the conversation updates instantly.
+ *
+ * As the default SMS app we are the only writer to the phone's store, so the row is written
+ * there first and its ids are reused. As a non-default app the phone's store already has it;
+ * we keep a local row and the next import de-duplicates by address, body and timestamp.
  */
 @Singleton
 class IncomingSmsHandler @Inject constructor(
-    private val smsMessageDao: SmsMessageDao
+    private val smsMessageDao: SmsMessageDao,
+    private val systemStore: SystemMessageStore
 ) {
+    /** Returns the Room row id, or -1 when the message was already known. */
     suspend fun handle(sms: IncomingSms): Long {
         if (smsMessageDao.existsUnsynced(sms.address, sms.body, sms.timestamp)) return -1L
-        val threadId = smsMessageDao.findThreadIdByAddress(sms.address) ?: smsMessageDao.nextThreadId()
+        val stored = systemStore.insertReceivedSms(sms.address, sms.body, sms.timestamp)
+        val threadId = stored?.threadId
+            ?: smsMessageDao.findThreadIdByAddress(sms.address)
+            ?: smsMessageDao.nextThreadId()
         return smsMessageDao.insert(
             SmsMessage(
                 threadId = threadId,
@@ -28,7 +36,8 @@ class IncomingSmsHandler @Inject constructor(
                 body = sms.body,
                 timestamp = sms.timestamp,
                 status = SmsStatus.RECEIVED,
-                isIncoming = true
+                isIncoming = true,
+                systemId = stored?.systemId
             )
         )
     }

@@ -9,7 +9,11 @@ import androidx.work.WorkManager
 import com.kiwicup.scheduledmessenger.core.SchedulingPolicy
 import com.kiwicup.scheduledmessenger.core.SystemTimeSource
 import com.kiwicup.scheduledmessenger.core.TimeSource
+import com.kiwicup.scheduledmessenger.data.sms.AndroidMmsSender
 import com.kiwicup.scheduledmessenger.data.sms.AndroidSmsSender
+import com.kiwicup.scheduledmessenger.data.sms.MmsSender
+import com.kiwicup.scheduledmessenger.data.system.AndroidSystemMessageStore
+import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
 import com.kiwicup.scheduledmessenger.work.SchedulerApi
 import com.kiwicup.scheduledmessenger.work.WorkScheduler
@@ -32,6 +36,14 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindScheduler(impl: WorkScheduler): SchedulerApi
+
+    @Binds
+    @Singleton
+    abstract fun bindMmsSender(impl: AndroidMmsSender): MmsSender
+
+    @Binds
+    @Singleton
+    abstract fun bindSystemMessageStore(impl: AndroidSystemMessageStore): SystemMessageStore
 
     companion object {
         @Provides

@@ -15,8 +15,17 @@ data class ThreadSummary(
     val address: String,
     val body: String,
     val timestamp: Long,
-    val messageCount: Int
-)
+    val messageCount: Int,
+    val recipients: String? = null,
+    val attachments: String? = null
+) {
+    /** Group conversations list every participant; one-to-one shows the other party. */
+    val title: String
+        get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: address
+
+    val preview: String
+        get() = body.ifBlank { if (attachments.isNullOrBlank()) "" else "\uD83D\uDCF7 Picture" }
+}
 
 @Dao
 interface SmsMessageDao {
@@ -33,6 +42,15 @@ interface SmsMessageDao {
 
     @Query("SELECT MAX(systemId) FROM sms_messages")
     suspend fun maxSystemId(): Long?
+
+    @Query("SELECT MAX(mmsSystemId) FROM sms_messages")
+    suspend fun maxMmsSystemId(): Long?
+
+    @Query("SELECT * FROM sms_messages WHERE threadId = :threadId ORDER BY timestamp DESC, id DESC LIMIT 1")
+    suspend fun latestInThread(threadId: Long): SmsMessage?
+
+    @Query("SELECT * FROM sms_messages WHERE mmsSystemId = :mmsSystemId")
+    suspend fun findByMmsSystemId(mmsSystemId: Long): SmsMessage?
 
     @Query(
         "SELECT EXISTS(SELECT 1 FROM sms_messages WHERE address = :address AND body = :body " +
@@ -58,7 +76,8 @@ interface SmsMessageDao {
     @Query(
         """
         SELECT m.threadId AS threadId, m.address AS address, m.body AS body, m.timestamp AS timestamp,
-               (SELECT COUNT(*) FROM sms_messages c WHERE c.threadId = m.threadId) AS messageCount
+               (SELECT COUNT(*) FROM sms_messages c WHERE c.threadId = m.threadId) AS messageCount,
+               m.recipients AS recipients, m.attachments AS attachments
         FROM sms_messages m
         WHERE m.id = (
             SELECT x.id FROM sms_messages x

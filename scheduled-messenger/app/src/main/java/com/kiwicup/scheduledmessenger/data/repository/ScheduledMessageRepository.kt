@@ -1,6 +1,8 @@
 package com.kiwicup.scheduledmessenger.data.repository
 
-import com.kiwicup.scheduledmessenger.core.RecipientValidator
+import com.kiwicup.scheduledmessenger.core.Attachment
+import com.kiwicup.scheduledmessenger.core.AttachmentCodec
+import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.SchedulingPolicy
 import com.kiwicup.scheduledmessenger.core.SmsTextAnalyzer
 import com.kiwicup.scheduledmessenger.core.TimeSource
@@ -31,9 +33,13 @@ class ScheduledMessageRepository @Inject constructor(
     fun observeById(id: Long): Flow<ScheduledMessage?> = dao.observeById(id)
     suspend fun getById(id: Long): ScheduledMessage? = dao.getById(id)
 
-    fun validate(recipient: String, body: String, targetTimestamp: Long): ScheduleError? = when {
-        !RecipientValidator.isValid(recipient) -> ScheduleError.InvalidRecipient
-        !SmsTextAnalyzer.isSendable(body) -> ScheduleError.EmptyBody
+    /**
+     * [recipient] may list several numbers separated by commas for a group message.
+     * A message with attachments may have an empty body.
+     */
+    fun validate(recipient: String, body: String, targetTimestamp: Long, attachments: List<Attachment> = emptyList()): ScheduleError? = when {
+        Recipients.normalizeAll(recipient) == null -> ScheduleError.InvalidRecipient
+        !SmsTextAnalyzer.isSendable(body) && attachments.isEmpty() -> ScheduleError.EmptyBody
         !policy.isValidTarget(timeSource.now(), targetTimestamp) -> ScheduleError.TimeInPast
         else -> null
     }
@@ -43,14 +49,16 @@ class ScheduledMessageRepository @Inject constructor(
         recipient: String,
         body: String,
         targetTimestamp: Long,
-        threadId: Long? = null
+        threadId: Long? = null,
+        attachments: List<Attachment> = emptyList()
     ): Result<Long> {
-        validate(recipient, body, targetTimestamp)?.let { return Result.failure(IllegalArgumentException(it.message)) }
+        validate(recipient, body, targetTimestamp, attachments)?.let { return Result.failure(IllegalArgumentException(it.message)) }
         val now = timeSource.now()
         val id = dao.insert(
             ScheduledMessage(
-                recipientAddress = RecipientValidator.normalize(recipient),
+                recipientAddress = Recipients.encode(Recipients.normalizeAll(recipient)!!),
                 messageBody = body.trim(),
+                attachments = AttachmentCodec.encode(attachments),
                 targetTimestamp = targetTimestamp,
                 threadId = threadId,
                 createdAt = now,
@@ -75,8 +83,9 @@ class ScheduledMessageRepository @Inject constructor(
 
     /** Edits a still-pending message and re-arms its job. */
     suspend fun edit(id: Long, recipient: String, body: String, targetTimestamp: Long): Result<Unit> {
-        validate(recipient, body, targetTimestamp)?.let { return Result.failure(IllegalArgumentException(it.message)) }
-        val updated = dao.editPending(id, RecipientValidator.normalize(recipient), body.trim(), targetTimestamp, timeSource.now())
+        val existing = dao.getById(id) ?: return Result.failure(IllegalStateException("Message not found"))
+        validate(recipient, body, targetTimestamp, AttachmentCodec.decode(existing.attachments))?.let { return Result.failure(IllegalArgumentException(it.message)) }
+        val updated = dao.editPending(id, Recipients.encode(Recipients.normalizeAll(recipient)!!), body.trim(), targetTimestamp, timeSource.now())
         if (updated != 1) return Result.failure(IllegalStateException("Message is no longer pending"))
         enqueue(id, targetTimestamp)
         return Result.success(Unit)

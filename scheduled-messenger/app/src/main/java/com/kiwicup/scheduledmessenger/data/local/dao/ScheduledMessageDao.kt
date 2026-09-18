@@ -100,7 +100,7 @@ interface ScheduledMessageDao {
     )
     suspend fun reschedule(id: Long, newTargetTimestamp: Long, nowMillis: Long = System.currentTimeMillis()): Int
 
-    /** Edit body / recipient / time while still PENDING. */
+    /** Edit body / recipient / time while still PENDING (attachments are kept). */
     @Query(
         "UPDATE scheduled_messages SET recipientAddress = :recipientAddress, messageBody = :messageBody, " +
             "targetTimestamp = :targetTimestamp, updatedAt = :nowMillis WHERE id = :id AND status = 'PENDING'"

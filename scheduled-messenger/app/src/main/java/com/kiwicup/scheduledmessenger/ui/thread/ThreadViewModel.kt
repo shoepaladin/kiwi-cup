@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kiwicup.scheduledmessenger.core.Attachment
+import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.data.local.entity.ConversationStyle
@@ -15,6 +17,9 @@ import com.kiwicup.scheduledmessenger.data.repository.ConversationStyleRepositor
 import com.kiwicup.scheduledmessenger.data.repository.ReminderRepository
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.settings.SettingsRepository
+import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
+import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
+import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
 import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -49,8 +54,14 @@ data class ThreadUiState(
     val activeReminders: List<Reminder> = emptyList(),
     val draft: String = "",
     val snackbar: String? = null,
-    val look: ThreadLook = ThreadLook()
-)
+    val look: ThreadLook = ThreadLook(),
+    val attachments: List<Attachment> = emptyList(),
+    /** Every other participant for a group conversation; empty for one-to-one. */
+    val participants: List<String> = emptyList()
+) {
+    val isGroup: Boolean get() = participants.size > 1
+    val title: String get() = if (isGroup) participants.joinToString(", ") else address.ifEmpty { "Conversation" }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -61,12 +72,24 @@ class ThreadViewModel @Inject constructor(
     private val reminders: ReminderRepository,
     private val styles: ConversationStyleRepository,
     settingsRepository: SettingsRepository,
+    private val attachmentStore: AttachmentStore,
+    private val systemStore: SystemMessageStore,
+    private val incomingNotifier: IncomingMessageNotifier,
     private val timeSource: TimeSource
 ) : ViewModel() {
 
     val threadId: Long = checkNotNull(savedStateHandle["threadId"])
     private val draft = MutableStateFlow("")
     private val snackbar = MutableStateFlow<String?>(null)
+    private val attachments = MutableStateFlow<List<Attachment>>(emptyList())
+
+    init {
+        // Opening a conversation counts as reading it.
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { systemStore.markThreadRead(threadId) }
+            runCatching { incomingNotifier.cancelForThread(threadId) }
+        }
+    }
 
     private val messages: Flow<List<SmsMessage>> = smsMessageDao.observeThread(threadId)
     private val address: Flow<String> = messages.map { it.lastOrNull()?.address ?: "" }.distinctUntilChanged()
@@ -87,21 +110,26 @@ class ThreadViewModel @Inject constructor(
         )
     }
 
+    private val composer: Flow<Pair<String, List<Attachment>>> = combine(draft, attachments) { d, a -> d to a }
+
     val state: StateFlow<ThreadUiState> = combine(
         messages,
         reminders.observeActiveForThread(threadId),
-        draft,
+        composer,
         snackbar,
         look
-    ) { messages, active, draftText, message, look ->
+    ) { messages, active, (draftText, pending), message, look ->
+        val latest = messages.lastOrNull()
         ThreadUiState(
             threadId = threadId,
-            address = messages.lastOrNull()?.address ?: "",
+            address = latest?.address ?: "",
             messages = messages,
             activeReminders = active,
             draft = draftText,
             snackbar = message,
-            look = look
+            look = look,
+            attachments = pending,
+            participants = Recipients.decode(latest?.recipients)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThreadUiState(threadId))
 
@@ -120,17 +148,36 @@ class ThreadViewModel @Inject constructor(
     fun snackbarShown() { snackbar.value = null }
 
     fun validateTarget(millis: Long): String? =
-        scheduledMessages.validate(state.value.address, state.value.draft, millis)?.message
+        scheduledMessages.validate(recipientList(), state.value.draft, millis, attachments.value)?.message
+
+    /** Group conversations reply to everyone; one-to-one replies to the other party. */
+    private fun recipientList(): String {
+        val s = state.value
+        return if (s.isGroup) Recipients.encode(s.participants) else s.address
+    }
+
+    fun attach(uri: Uri) {
+        viewModelScope.launch {
+            val stored = attachmentStore.persist(uri)
+            if (stored == null) snackbar.value = "Could not read that file" else attachments.value = attachments.value + stored
+        }
+    }
+
+    fun removeAttachment(attachment: Attachment) {
+        attachments.value = attachments.value - attachment
+        attachmentStore.delete(listOf(attachment))
+    }
 
     fun sendNow() = schedule(timeSource.now(), "Sending…")
     fun scheduleAt(millis: Long) = schedule(millis, "Scheduled for ${TimeFormat.dateTime(millis)}")
 
     private fun schedule(target: Long, successMessage: String) {
-        val address = state.value.address
+        val recipients = recipientList()
         val body = draft.value
+        val media = attachments.value
         viewModelScope.launch {
-            scheduledMessages.schedule(address, body, target, threadId)
-                .onSuccess { draft.value = ""; snackbar.value = successMessage }
+            scheduledMessages.schedule(recipients, body, target, threadId, media)
+                .onSuccess { draft.value = ""; attachments.value = emptyList(); snackbar.value = successMessage }
                 .onFailure { snackbar.value = it.message ?: "Could not schedule" }
         }
     }

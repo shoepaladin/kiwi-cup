@@ -6,7 +6,9 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.AppDatabase
+import com.kiwicup.scheduledmessenger.data.sms.MmsSender
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
+import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
 import com.kiwicup.scheduledmessenger.data.repository.ReminderRepository
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
@@ -21,12 +23,14 @@ class TestWorkerFactory(
     private val timeSource: TimeSource,
     private val notifier: ReminderNotifier,
     private val scheduledMessages: ScheduledMessageRepository? = null,
-    private val reminders: ReminderRepository? = null
+    private val reminders: ReminderRepository? = null,
+    private val mmsSender: MmsSender = FakeMmsSender(),
+    private val systemStore: SystemMessageStore = FakeSystemMessageStore()
 ) : WorkerFactory() {
     override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker? =
         when (workerClassName) {
             ScheduledSmsWorker::class.java.name -> ScheduledSmsWorker(
-                appContext, workerParameters, db.scheduledMessageDao(), db.smsMessageDao(), smsSender, timeSource
+                appContext, workerParameters, db.scheduledMessageDao(), db.smsMessageDao(), smsSender, mmsSender, systemStore, timeSource
             )
             ReminderWorker::class.java.name -> ReminderWorker(
                 appContext, workerParameters, db.reminderDao(), db.smsMessageDao(), notifier

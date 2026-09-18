@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.kiwicup.scheduledmessenger.core.Attachment
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.ui.components.ConversationStyleDialog
 import com.kiwicup.scheduledmessenger.ui.components.MessageBubble
@@ -69,7 +70,9 @@ fun ThreadScreen(
     onRemind: (SmsMessage, String, Long) -> Unit,
     onSnackbarShown: () -> Unit,
     onBack: () -> Unit,
-    styleActions: ThreadStyleActions = ThreadStyleActions.None
+    styleActions: ThreadStyleActions = ThreadStyleActions.None,
+    onAttach: (() -> Unit)? = null,
+    onRemoveAttachment: (Attachment) -> Unit = {}
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     var remindTarget by remember { mutableStateOf<SmsMessage?>(null) }
@@ -90,7 +93,7 @@ fun ThreadScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.address.ifEmpty { "Conversation" }) },
+                title = { Text(state.title, modifier = Modifier.testTag("thread_title")) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
@@ -117,7 +120,10 @@ fun ThreadScreen(
                 onSchedule = onSchedule,
                 nowMillis = nowMillis,
                 validateTarget = validateTarget,
-                enabled = state.address.isNotEmpty()
+                enabled = state.address.isNotEmpty(),
+                attachments = state.attachments,
+                onAttach = onAttach,
+                onRemoveAttachment = onRemoveAttachment
             )
         }
     ) { padding ->

@@ -12,8 +12,11 @@ import com.kiwicup.scheduledmessenger.core.MessageStatus
 )
 data class ScheduledMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** One address, or several comma separated for a group message. */
     val recipientAddress: String,
     val messageBody: String,
+    /** Encoded with [com.kiwicup.scheduledmessenger.core.AttachmentCodec]; non-null forces MMS. */
+    val attachments: String? = null,
     /** Epoch millis at which the message should be dispatched. */
     val targetTimestamp: Long,
     val status: MessageStatus = MessageStatus.PENDING,

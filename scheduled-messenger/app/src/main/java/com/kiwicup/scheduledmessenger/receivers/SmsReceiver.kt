@@ -6,6 +6,8 @@ import android.content.Intent
 import android.provider.Telephony
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSms
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSmsHandler
+import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
+import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -13,19 +15,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-/** Listens for incoming texts (any app with RECEIVE_SMS gets this broadcast, default SMS app or not). */
+/**
+ * Incoming texts. `SMS_RECEIVED` reaches every app with the permission; `SMS_DELIVER` reaches
+ * only the default SMS app, which is then responsible for storing and announcing the message.
+ */
 @AndroidEntryPoint
 class SmsReceiver : BroadcastReceiver() {
 
     @Inject lateinit var handler: IncomingSmsHandler
+    @Inject lateinit var smsMessageDao: SmsMessageDao
+    @Inject lateinit var notifier: IncomingMessageNotifier
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        val action = intent.action
+        if (action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION && action != Telephony.Sms.Intents.SMS_DELIVER_ACTION) return
         val incoming = parse(intent) ?: return
+        val weAreDefault = action == Telephony.Sms.Intents.SMS_DELIVER_ACTION
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                handler.handle(incoming)
+                val rowId = handler.handle(incoming)
+                // Only the default app announces messages; otherwise the stock app already did.
+                if (weAreDefault && rowId > 0) smsMessageDao.getById(rowId)?.let { notifier.notifyNewMessage(it) }
             } finally {
                 pending.finish()
             }
