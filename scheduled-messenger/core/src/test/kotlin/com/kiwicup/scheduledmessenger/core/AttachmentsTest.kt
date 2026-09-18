@@ -33,6 +33,7 @@ class AttachmentsTest {
         assertEquals(listOf("1", "2"), Recipients.decode("1;2"))
         assertTrue(Recipients.isGroup("1,2"))
         assertFalse(Recipients.isGroup("1"))
-        assertEquals(listOf("1"), Recipients.normalizeAll("1, 1"))
+        assertEquals(listOf("12345"), Recipients.normalizeAll("12345, 12345"))
+        assertNull(Recipients.normalizeAll("1, 1"))
     }
 }
