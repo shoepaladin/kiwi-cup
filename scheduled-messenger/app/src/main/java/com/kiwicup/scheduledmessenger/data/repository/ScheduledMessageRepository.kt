@@ -6,7 +6,7 @@ import com.kiwicup.scheduledmessenger.core.SmsTextAnalyzer
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
-import com.kiwicup.scheduledmessenger.work.WorkScheduler
+import com.kiwicup.scheduledmessenger.work.SchedulerApi
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +21,7 @@ sealed class ScheduleError(val message: String) {
 @Singleton
 class ScheduledMessageRepository @Inject constructor(
     private val dao: ScheduledMessageDao,
-    private val scheduler: WorkScheduler,
+    private val scheduler: SchedulerApi,
     private val policy: SchedulingPolicy,
     private val timeSource: TimeSource
 ) {

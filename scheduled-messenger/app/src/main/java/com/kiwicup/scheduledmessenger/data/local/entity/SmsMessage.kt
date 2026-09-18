@@ -9,7 +9,7 @@ import com.kiwicup.scheduledmessenger.core.SmsStatus
 /** A message that belongs to a conversation thread (received, or sent by us). */
 @Entity(
     tableName = "sms_messages",
-    indices = [Index(value = ["threadId", "timestamp"])]
+    indices = [Index(value = ["threadId", "timestamp"]), Index(value = ["systemId"], unique = true)]
 )
 data class SmsMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -20,5 +20,7 @@ data class SmsMessage(
     /** Epoch millis the message was sent or received. */
     val timestamp: Long,
     val status: SmsStatus,
-    @ColumnInfo(defaultValue = "1") val isIncoming: Boolean = true
+    @ColumnInfo(defaultValue = "1") val isIncoming: Boolean = true,
+    /** `_id` of the row in the phone's SMS store when imported from it; null for messages this app sent. */
+    val systemId: Long? = null
 )

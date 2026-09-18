@@ -4,7 +4,7 @@ import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.dao.ReminderDao
 import com.kiwicup.scheduledmessenger.data.local.entity.Reminder
 import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
-import com.kiwicup.scheduledmessenger.work.WorkScheduler
+import com.kiwicup.scheduledmessenger.work.SchedulerApi
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 @Singleton
 class ReminderRepository @Inject constructor(
     private val dao: ReminderDao,
-    private val scheduler: WorkScheduler,
+    private val scheduler: SchedulerApi,
     private val notifier: ReminderNotifier,
     private val timeSource: TimeSource
 ) {

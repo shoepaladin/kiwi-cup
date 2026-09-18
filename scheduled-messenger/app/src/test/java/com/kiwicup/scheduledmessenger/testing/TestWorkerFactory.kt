@@ -8,6 +8,9 @@ import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.local.AppDatabase
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
 import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
+import com.kiwicup.scheduledmessenger.data.repository.ReminderRepository
+import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
+import com.kiwicup.scheduledmessenger.work.RearmWorker
 import com.kiwicup.scheduledmessenger.work.ReminderWorker
 import com.kiwicup.scheduledmessenger.work.ScheduledSmsWorker
 
@@ -16,7 +19,9 @@ class TestWorkerFactory(
     private val db: AppDatabase,
     private val smsSender: SmsSender,
     private val timeSource: TimeSource,
-    private val notifier: ReminderNotifier
+    private val notifier: ReminderNotifier,
+    private val scheduledMessages: ScheduledMessageRepository? = null,
+    private val reminders: ReminderRepository? = null
 ) : WorkerFactory() {
     override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker? =
         when (workerClassName) {
@@ -25,6 +30,9 @@ class TestWorkerFactory(
             )
             ReminderWorker::class.java.name -> ReminderWorker(
                 appContext, workerParameters, db.reminderDao(), db.smsMessageDao(), notifier
+            )
+            RearmWorker::class.java.name -> RearmWorker(
+                appContext, workerParameters, checkNotNull(scheduledMessages), checkNotNull(reminders)
             )
             else -> null
         }

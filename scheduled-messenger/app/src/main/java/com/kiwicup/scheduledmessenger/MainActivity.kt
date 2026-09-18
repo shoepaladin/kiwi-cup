@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kiwicup.scheduledmessenger.notifications.DeepLinks
 import com.kiwicup.scheduledmessenger.ui.navigation.AppNavHost
+import com.kiwicup.scheduledmessenger.ui.permissions.PermissionGate
 import com.kiwicup.scheduledmessenger.ui.theme.ScheduledMessengerTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -24,10 +25,12 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) consumeDeepLink(intent)
         setContent {
             ScheduledMessengerTheme {
-                AppNavHost(
-                    deepLinkThreadId = deepLinkThreadId,
-                    onDeepLinkConsumed = { deepLinkThreadId = null }
-                )
+                PermissionGate {
+                    AppNavHost(
+                        deepLinkThreadId = deepLinkThreadId,
+                        onDeepLinkConsumed = { deepLinkThreadId = null }
+                    )
+                }
             }
         }
     }

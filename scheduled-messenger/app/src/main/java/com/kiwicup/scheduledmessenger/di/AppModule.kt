@@ -7,6 +7,8 @@ import com.kiwicup.scheduledmessenger.core.SystemTimeSource
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.sms.AndroidSmsSender
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
+import com.kiwicup.scheduledmessenger.work.SchedulerApi
+import com.kiwicup.scheduledmessenger.work.WorkScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -22,6 +24,10 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindSmsSender(impl: AndroidSmsSender): SmsSender
+
+    @Binds
+    @Singleton
+    abstract fun bindScheduler(impl: WorkScheduler): SchedulerApi
 
     companion object {
         @Provides

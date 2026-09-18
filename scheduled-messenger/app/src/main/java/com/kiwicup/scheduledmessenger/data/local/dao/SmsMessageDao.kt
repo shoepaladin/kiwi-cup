@@ -27,6 +27,19 @@ interface SmsMessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(messages: List<SmsMessage>): List<Long>
 
+    /** Import path: rows whose systemId already exists are skipped (returns -1 for those). */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnoring(messages: List<SmsMessage>): List<Long>
+
+    @Query("SELECT MAX(systemId) FROM sms_messages")
+    suspend fun maxSystemId(): Long?
+
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM sms_messages WHERE address = :address AND body = :body " +
+            "AND ABS(timestamp - :timestamp) < 5000)"
+    )
+    suspend fun existsUnsynced(address: String, body: String, timestamp: Long): Boolean
+
     @Update
     suspend fun update(message: SmsMessage)
 

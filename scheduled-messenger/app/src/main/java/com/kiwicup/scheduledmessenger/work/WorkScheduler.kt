@@ -15,16 +15,24 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** What the repositories need from the scheduler; an interface so tests can substitute or defer it. */
+interface SchedulerApi {
+    /** Returns the work id, or null when the policy says the target is too stale to run at all. */
+    fun scheduleSms(messageId: Long, targetTimestamp: Long): UUID?
+    fun cancelSms(messageId: Long)
+    fun scheduleReminder(reminderId: Long, triggerTimestamp: Long): UUID
+    fun cancelReminder(reminderId: Long)
+}
+
 /** Translates database rows into WorkManager requests. Pure glue; the policy lives in `core`. */
 @Singleton
 class WorkScheduler @Inject constructor(
     private val workManager: WorkManager,
     private val policy: SchedulingPolicy,
     private val timeSource: TimeSource
-) {
+) : SchedulerApi {
 
-    /** Returns the work id, or null when the policy says the target is too stale to run at all. */
-    fun scheduleSms(messageId: Long, targetTimestamp: Long): UUID? {
+    override fun scheduleSms(messageId: Long, targetTimestamp: Long): UUID? {
         val delay = when (val action = policy.recoveryAction(timeSource.now(), targetTimestamp)) {
             is RecoveryAction.DispatchLater -> action.delayMillis
             RecoveryAction.DispatchNow -> 0L
@@ -40,12 +48,12 @@ class WorkScheduler @Inject constructor(
         return request.id
     }
 
-    fun cancelSms(messageId: Long) {
+    override fun cancelSms(messageId: Long) {
         workManager.cancelUniqueWork(WorkNames.scheduledSms(messageId))
     }
 
     /** Reminders never expire: a late reminder is still useful, so the delay is simply clamped to zero. */
-    fun scheduleReminder(reminderId: Long, triggerTimestamp: Long): UUID {
+    override fun scheduleReminder(reminderId: Long, triggerTimestamp: Long): UUID {
         val delay = policy.initialDelayMillis(timeSource.now(), triggerTimestamp)
         val request: OneTimeWorkRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInputData(workDataOf(ReminderWorker.KEY_REMINDER_ID to reminderId))
@@ -57,7 +65,7 @@ class WorkScheduler @Inject constructor(
         return request.id
     }
 
-    fun cancelReminder(reminderId: Long) {
+    override fun cancelReminder(reminderId: Long) {
         workManager.cancelUniqueWork(WorkNames.reminder(reminderId))
     }
 

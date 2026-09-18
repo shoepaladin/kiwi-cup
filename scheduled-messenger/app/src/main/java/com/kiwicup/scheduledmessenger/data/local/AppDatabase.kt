@@ -12,7 +12,7 @@ import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 
 @Database(
     entities = [SmsMessage::class, ScheduledMessage::class, Reminder::class],
-    version = 1,
+    version = 2,
     // Schema export is switched on once the first shipped version needs a migration.
     exportSchema = false
 )
