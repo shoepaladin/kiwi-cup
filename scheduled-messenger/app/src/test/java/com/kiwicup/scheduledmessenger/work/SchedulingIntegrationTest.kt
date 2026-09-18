@@ -193,12 +193,19 @@ class SchedulingIntegrationTest {
 
     @Test
     fun reenqueueAllActiveRearmsEveryOpenReminder() = runBlocking {
-        reminders.create(1, null, "a", clock.now() + hour)
-        reminders.create(2, null, "b", clock.now() - hour) // overdue: still re-armed with zero delay
+        val a = reminders.create(1, null, "a", clock.now() + hour).getOrThrow()
+        val b = reminders.create(2, null, "b", clock.now() + 2 * hour).getOrThrow()
         val done = reminders.create(3, null, "c", clock.now() + hour).getOrThrow()
         reminders.complete(done)
+        val firstWorkA = UUID.fromString(dbRule.db.reminderDao().getById(a)!!.workRequestId)
 
         assertEquals(2, reminders.reenqueueAllActive())
+
+        // Re-arming replaces the job under the same unique name and stores the new id.
+        val secondWorkA = UUID.fromString(dbRule.db.reminderDao().getById(a)!!.workRequestId)
+        assertTrue(firstWorkA != secondWorkA)
+        assertEquals(WorkInfo.State.ENQUEUED, uniqueWorkInfo(WorkNames.reminder(a))!!.state)
+        assertEquals(WorkInfo.State.ENQUEUED, uniqueWorkInfo(WorkNames.reminder(b))!!.state)
         assertNull(uniqueWorkInfo(WorkNames.reminder(done))?.takeIf { it.state == WorkInfo.State.ENQUEUED })
     }
 }
