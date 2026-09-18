@@ -27,7 +27,7 @@
 ## Core Modules & Status
 - [x] Phase 1: Core Database & Persistence Setup (CI green, run #3, 2026-09-18)
 - [x] Phase 2: WorkManager Background Dispatcher (SMS & Reminders Engine) (CI green, run #5, 2026-09-18)
-- [ ] Phase 3: Jetpack Compose UI & Queue Management
+- [x] Phase 3: Jetpack Compose UI & Queue Management (CI green, run #9, 2026-09-18)
 - [ ] Phase 4: Permissions, Boot Receivers & Resilience
 
 ## Test Matrix & Execution Log
@@ -36,7 +36,8 @@
 | Database | Unit Test | `ScheduledMessageDaoTest` (12), `ReminderDaoTest` (6), `SmsMessageDaoTest` (4) with in-memory Room under Robolectric | PASS (CI run #3, 2026-09-18) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 47s`, 22 PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35382045595 |
 | Worker | Unit Test | `ScheduledSmsWorkerTest` (8), `ReminderWorkerTest` (4) via `TestListenableWorkerBuilder` | PASS (CI run #5) | `./gradlew :app:testDebugUnitTest` -> 12 PASSED |
 | Worker | Integration Test | `SchedulingIntegrationTest` (8): repository -> WorkManager test driver (`setInitialDelayMet`) -> worker -> Room | PASS (CI run #5) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 14s`, 40 app tests PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35383891912 |
-| UI | Instrumentation | Compose UI Actions & Queue Menu | Pending | `./gradlew connectedAndroidTest` |
+| UI | Compose UI test (Robolectric-hosted, runs in CI) | `MessageInputBarTest` (4), `QueueScreenTest` (4), `ThreadScreenTest` (2): send/schedule buttons, date+time picker flow, validation error, queue sections and actions, edit dialog, long-press -> Remind me -> reminder created | PASS (CI run #9) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 57s`, 52 app tests PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35391197931 |
+| UI | Instrumentation (device) | Same screens via `connectedAndroidTest` | Not run (no emulator in CI); Robolectric-hosted Compose tests cover the same assertions | `./gradlew connectedAndroidTest` on a device |
 | Core logic | Unit Test | `StatusTransitionsTest`, `SchedulingPolicyTest`, `RecipientValidatorTest`, `SmsTextAnalyzerTest`, `WorkNamesTest` (23 tests) | PASS (local + CI run #3, 2026-09-18) | `./gradlew :core:test` -> `BUILD SUCCESSFUL in 1m 22s`, 23 PASSED / 0 FAILED |
 
 ## Phase 1 Design Notes (Staff Engineer Critique)
@@ -56,9 +57,31 @@
 - [x] Task 2 tests: 20 new tests, all green on CI run #5. Run #4 failed once on a race in the reminder re-arm test (zero-delay work fired before the assertion); fixed by using future-dated reminders.
 - [x] CI history: run #1 failed on `SmsMessageDao.observeThreadSummaries` (count computed after filtering to newest row); fixed with a correlated subquery. Run #2 was the same failure on an unrelated build-script tidy-up. Run #3 green.
 - [x] Task 1 review presented; user confirmed ("go").
-- [ ] STOP: Task 2 presented for review. Task 3 (Compose UI) starts on user confirmation.
+- [x] Task 2 review presented; user confirmed.
+- [x] Task 3 code: `ConversationsScreen`, `ThreadScreen` (bubbles, long-press context menu, reminder banner), `MessageInputBar` + `DateTimePickerDialog` (calendar then clock), `ComposeScreen`, `QueueScreen` (upcoming/history, edit, cancel, reschedule, done, delete, clear), `AppNavHost`, deep-link handling in `MainActivity`; one Hilt ViewModel per screen.
+- [x] Task 3 tests: 10 Compose UI tests green on CI run #9. Runs #7-#8 failed on test-side issues only (rows below the fold on Robolectric's small display; duplicate text match in the edit dialog); the app code compiled and behaved correctly from run #7.
+- [ ] STOP: Task 3 presented for review. Task 4 (boot receiver, runtime permissions, resilience) starts on user confirmation.
 
 ## CI Evidence Log
+### Run #9, commit c9e1bb1, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35391197931)
+```
+./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 20s
+./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+ReminderDaoTest (6), ScheduledMessageDaoTest (12), SmsMessageDaoTest (4) ...... PASSED
+ReminderWorkerTest (4), ScheduledSmsWorkerTest (8), SchedulingIntegrationTest (8) PASSED
+MessageInputBarTest > buttonsDisabledUntilTextIsTyped PASSED
+MessageInputBarTest > scheduleWalksThroughDateAndTimeAndEmitsFutureTimestamp PASSED
+MessageInputBarTest > sendNowInvokesCallback PASSED
+MessageInputBarTest > validationErrorKeepsDialogOpen PASSED
+QueueScreenTest > emptyQueueShowsHint PASSED
+QueueScreenTest > cancelAndDoneInvokeCallbacks PASSED
+QueueScreenTest > rendersUpcomingAndHistorySections PASSED
+QueueScreenTest > editOpensDialogPrefilledWithMessage PASSED
+ThreadScreenTest > longPressOpensRemindMenuAndCreatesReminder PASSED
+ThreadScreenTest > rendersBubblesAndReminderBanner PASSED
+BUILD SUCCESSFUL in 1m 57s   (52 app tests PASSED, 0 FAILED; 75 total with core)
+```
+
 ### Run #5, commit dbfb6c1, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35383891912)
 ```
 ./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 5s
