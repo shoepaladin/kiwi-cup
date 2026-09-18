@@ -1,6 +1,10 @@
 package com.kiwicup.scheduledmessenger.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -78,12 +82,15 @@ class QueueScreenTest {
             )
         )
         compose.onNodeWithText("Upcoming").assertIsDisplayed()
-        compose.onNodeWithText("History").assertIsDisplayed()
         compose.onNodeWithText("Happy birthday!").assertIsDisplayed()
+        compose.onNodeWithTag("clear_history").assertIsDisplayed()
+        // Later rows sit below the fold on the test display; scroll the lazy list to them.
+        compose.onNodeWithTag("queue_list").performScrollToNode(hasText("Reply to Sam"))
         compose.onNodeWithText("Reply to Sam").assertIsDisplayed()
+        compose.onNodeWithTag("queue_list").performScrollToNode(hasTestTag("reschedule_2"))
+        compose.onNodeWithText("History").assertExists()
         compose.onNodeWithText("No cellular service").assertIsDisplayed()
         compose.onNodeWithTag("reschedule_2").assertIsDisplayed()
-        compose.onNodeWithTag("clear_history").assertIsDisplayed()
     }
 
     @Test
@@ -105,6 +112,7 @@ class QueueScreenTest {
         render(QueueUiState(upcoming = listOf(QueueItem.Message(pending))))
         compose.onNodeWithTag("edit_1").performClick()
         compose.onNodeWithText("Edit scheduled message").assertIsDisplayed()
-        compose.onNodeWithText("Happy birthday!").assertIsDisplayed()
+        compose.onNodeWithTag("edit_body").assertTextContains("Happy birthday!")
+        compose.onNodeWithTag("edit_recipient").assertTextContains("+15550001111")
     }
 }
