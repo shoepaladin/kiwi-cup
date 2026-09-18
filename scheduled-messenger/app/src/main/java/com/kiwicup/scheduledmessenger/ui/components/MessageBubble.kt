@@ -20,9 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.SmsStatus
+import com.kiwicup.scheduledmessenger.core.ThemeColors
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 
 /** One chat bubble. Long-press opens the context menu with "Remind me about this later". */
@@ -31,12 +33,24 @@ import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 fun MessageBubble(
     message: SmsMessage,
     onRemind: (SmsMessage) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Custom bubble colors (ARGB); null falls back to the theme. */
+    incomingColor: Int? = null,
+    outgoingColor: Int? = null
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val outgoing = !message.isIncoming
-    val container = if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val content = if (outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val custom = if (outgoing) outgoingColor else incomingColor
+    val container = when {
+        custom != null -> Color(custom)
+        outgoing -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = when {
+        custom != null -> Color(ThemeColors.readableOn(custom))
+        outgoing -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Box(
         modifier = modifier

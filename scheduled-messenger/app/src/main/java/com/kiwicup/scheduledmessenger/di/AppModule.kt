@@ -1,6 +1,10 @@
 package com.kiwicup.scheduledmessenger.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.work.WorkManager
 import com.kiwicup.scheduledmessenger.core.SchedulingPolicy
 import com.kiwicup.scheduledmessenger.core.SystemTimeSource
@@ -41,5 +45,10 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideSchedulingPolicy(): SchedulingPolicy = SchedulingPolicy()
+
+        @Provides
+        @Singleton
+        fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+            PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile("settings") })
     }
 }

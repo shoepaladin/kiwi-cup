@@ -1,5 +1,8 @@
 package com.kiwicup.scheduledmessenger.ui.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,13 +21,17 @@ import com.kiwicup.scheduledmessenger.ui.conversations.ConversationsViewModel
 import com.kiwicup.scheduledmessenger.ui.queue.QueueActions
 import com.kiwicup.scheduledmessenger.ui.queue.QueueScreen
 import com.kiwicup.scheduledmessenger.ui.queue.QueueViewModel
+import com.kiwicup.scheduledmessenger.ui.settings.SettingsScreen
+import com.kiwicup.scheduledmessenger.ui.settings.SettingsViewModel
 import com.kiwicup.scheduledmessenger.ui.thread.ThreadScreen
+import com.kiwicup.scheduledmessenger.ui.thread.ThreadStyleActions
 import com.kiwicup.scheduledmessenger.ui.thread.ThreadViewModel
 
 object Routes {
     const val CONVERSATIONS = "conversations"
     const val COMPOSE = "compose"
     const val QUEUE = "queue"
+    const val SETTINGS = "settings"
     const val THREAD = "thread/{threadId}"
     fun thread(threadId: Long) = "thread/$threadId"
 }
@@ -53,7 +60,8 @@ fun AppNavHost(
                 threads = threads,
                 onOpenThread = { navController.navigate(Routes.thread(it)) },
                 onNewMessage = { navController.navigate(Routes.COMPOSE) },
-                onOpenQueue = { navController.navigate(Routes.QUEUE) }
+                onOpenQueue = { navController.navigate(Routes.QUEUE) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
         composable(
@@ -62,6 +70,9 @@ fun AppNavHost(
         ) {
             val vm: ThreadViewModel = hiltViewModel()
             val state by vm.state.collectAsState()
+            val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) vm.setWallpaper(uri)
+            }
             ThreadScreen(
                 state = state,
                 nowMillis = vm::now,
@@ -71,6 +82,28 @@ fun AppNavHost(
                 validateTarget = vm::validateTarget,
                 onRemind = vm::remind,
                 onSnackbarShown = vm::snackbarShown,
+                onBack = { navController.popBackStack() },
+                styleActions = ThreadStyleActions(
+                    onBubbleColors = vm::setBubbleColors,
+                    onPickWallpaper = {
+                        pickWallpaper.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onClearWallpaper = vm::clearWallpaper,
+                    onDim = vm::setWallpaperDim,
+                    onReset = vm::resetStyle
+                )
+            )
+        }
+        composable(Routes.SETTINGS) {
+            val vm: SettingsViewModel = hiltViewModel()
+            val settings by vm.settings.collectAsState()
+            SettingsScreen(
+                settings = settings,
+                onThemeMode = vm::setThemeMode,
+                onDynamicColor = vm::setDynamicColor,
+                onSeedColor = vm::setSeedColor,
+                onBubbleColors = vm::setBubbleColors,
+                onReset = vm::reset,
                 onBack = { navController.popBackStack() }
             )
         }

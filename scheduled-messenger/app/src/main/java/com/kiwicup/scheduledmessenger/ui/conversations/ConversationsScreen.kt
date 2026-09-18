@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -35,7 +36,8 @@ fun ConversationsScreen(
     threads: List<ThreadSummary>,
     onOpenThread: (Long) -> Unit,
     onNewMessage: () -> Unit,
-    onOpenQueue: () -> Unit
+    onOpenQueue: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -44,6 +46,9 @@ fun ConversationsScreen(
                 actions = {
                     IconButton(onClick = onOpenQueue, modifier = Modifier.testTag("open_queue")) {
                         Icon(Icons.Default.DateRange, contentDescription = "Scheduled & reminders")
+                    }
+                    IconButton(onClick = onOpenSettings, modifier = Modifier.testTag("open_settings")) {
+                        Icon(Icons.Default.Settings, contentDescription = "Appearance")
                     }
                 }
             )

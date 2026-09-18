@@ -1,5 +1,8 @@
 package com.kiwicup.scheduledmessenger.ui.thread
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,13 +32,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
+import com.kiwicup.scheduledmessenger.ui.components.ConversationStyleDialog
 import com.kiwicup.scheduledmessenger.ui.components.MessageBubble
 import com.kiwicup.scheduledmessenger.ui.components.MessageInputBar
 import com.kiwicup.scheduledmessenger.ui.components.ReminderDialog
 import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
+
+/** Style callbacks, grouped so the screen signature stays readable. */
+data class ThreadStyleActions(
+    val onBubbleColors: (incoming: Int?, outgoing: Int?) -> Unit,
+    val onPickWallpaper: () -> Unit,
+    val onClearWallpaper: () -> Unit,
+    val onDim: (Int) -> Unit,
+    val onReset: () -> Unit
+) {
+    companion object {
+        val None = ThreadStyleActions({ _, _ -> }, {}, {}, {}, {})
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,10 +68,13 @@ fun ThreadScreen(
     validateTarget: (Long) -> String?,
     onRemind: (SmsMessage, String, Long) -> Unit,
     onSnackbarShown: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    styleActions: ThreadStyleActions = ThreadStyleActions.None
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     var remindTarget by remember { mutableStateOf<SmsMessage?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var styleOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(state.snackbar) {
@@ -67,6 +93,18 @@ fun ThreadScreen(
                 title = { Text(state.address.ifEmpty { "Conversation" }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
+                actions = {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("thread_menu")) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Style this conversation") },
+                            onClick = { menuOpen = false; styleOpen = true },
+                            modifier = Modifier.testTag("menu_style")
+                        )
+                    }
                 }
             )
         },
@@ -83,28 +121,50 @@ fun ThreadScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier
+        Box(modifier = Modifier
             .fillMaxSize()
             .padding(padding)) {
-            if (state.activeReminders.isNotEmpty()) {
-                Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = state.activeReminders.joinToString("\n") { "⏰ ${it.reminderText} · ${TimeFormat.dateTime(it.triggerTimestamp)}" },
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .testTag("reminder_banner")
-                    )
-                }
+            state.look.wallpaper?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("wallpaper")
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = state.look.wallpaperDimPercent / 100f))
+                )
             }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("message_list")
-            ) {
-                items(state.messages, key = { it.id }) { message ->
-                    MessageBubble(message = message, onRemind = { remindTarget = it })
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (state.activeReminders.isNotEmpty()) {
+                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = state.activeReminders.joinToString("\n") { "⏰ ${it.reminderText} · ${TimeFormat.dateTime(it.triggerTimestamp)}" },
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .testTag("reminder_banner")
+                        )
+                    }
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("message_list")
+                ) {
+                    items(state.messages, key = { it.id }) { message ->
+                        MessageBubble(
+                            message = message,
+                            onRemind = { remindTarget = it },
+                            incomingColor = state.look.incomingBubbleColor,
+                            outgoingColor = state.look.outgoingBubbleColor
+                        )
+                    }
                 }
             }
         }
@@ -120,6 +180,19 @@ fun ThreadScreen(
                 onRemind(message, text, millis)
             },
             onDismiss = { remindTarget = null }
+        )
+    }
+
+    if (styleOpen) {
+        ConversationStyleDialog(
+            address = state.address,
+            style = state.look.style,
+            onBubbleColors = styleActions.onBubbleColors,
+            onPickWallpaper = styleActions.onPickWallpaper,
+            onClearWallpaper = styleActions.onClearWallpaper,
+            onDim = styleActions.onDim,
+            onReset = styleActions.onReset,
+            onDismiss = { styleOpen = false }
         )
     }
 }

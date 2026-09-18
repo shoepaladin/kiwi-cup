@@ -5,7 +5,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.kiwicup.scheduledmessenger.ui.theme.ThemeViewModel
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kiwicup.scheduledmessenger.notifications.DeepLinks
@@ -24,7 +27,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) consumeDeepLink(intent)
         setContent {
-            ScheduledMessengerTheme {
+            val themeViewModel: ThemeViewModel = hiltViewModel()
+            val settings by themeViewModel.settings.collectAsState()
+            ScheduledMessengerTheme(settings = settings) {
                 PermissionGate {
                     AppNavHost(
                         deepLinkThreadId = deepLinkThreadId,

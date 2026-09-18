@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.di
 import android.content.Context
 import androidx.room.Room
 import com.kiwicup.scheduledmessenger.data.local.AppDatabase
+import com.kiwicup.scheduledmessenger.data.local.dao.ConversationStyleDao
 import com.kiwicup.scheduledmessenger.data.local.dao.ReminderDao
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
@@ -33,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun provideReminderDao(db: AppDatabase): ReminderDao = db.reminderDao()
+
+    @Provides
+    fun provideConversationStyleDao(db: AppDatabase): ConversationStyleDao = db.conversationStyleDao()
 }
