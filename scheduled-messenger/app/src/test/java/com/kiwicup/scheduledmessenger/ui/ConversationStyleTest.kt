@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.data.local.entity.ConversationStyle
@@ -58,10 +59,12 @@ class ConversationStyleTest {
         compose.onNodeWithTag("wallpaper").assertIsDisplayed()
         compose.onNodeWithTag("thread_menu").performClick()
         compose.onNodeWithTag("menu_style").performClick()
-        compose.onNodeWithTag("pick_wallpaper").performClick()
-        compose.onNodeWithTag("clear_wallpaper").performClick()
+        // The dialog body scrolls; bring each control into view before tapping it.
+        compose.onNodeWithTag("conv_outgoing_row").performScrollTo()
         compose.onNodeWithTag("conv_outgoing_row").performScrollToNode(hasTestTag("conv_outgoing_Pink"))
         compose.onNodeWithTag("conv_outgoing_Pink").performClick()
+        compose.onNodeWithTag("pick_wallpaper").performScrollTo().performClick()
+        compose.onNodeWithTag("clear_wallpaper").performScrollTo().performClick()
         compose.onNodeWithTag("reset_style").performClick()
 
         assertEquals(listOf("pick", "clear", "reset"), picks)
