@@ -41,7 +41,7 @@ fun ColorSwatches(
     modifier: Modifier = Modifier
 ) {
     var hex by remember(selected) { mutableStateOf(selected?.let(ThemeColors::toHex) ?: "") }
-    var hexError by remember { mutableStateOf(false) }
+    var hexError by remember(selected) { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 6.dp))

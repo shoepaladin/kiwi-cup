@@ -14,7 +14,6 @@ import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.data.repository.ConversationStyleRepository
 import com.kiwicup.scheduledmessenger.data.repository.ReminderRepository
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
-import com.kiwicup.scheduledmessenger.data.settings.AppSettings
 import com.kiwicup.scheduledmessenger.data.settings.SettingsRepository
 import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -72,11 +71,21 @@ class ThreadViewModel @Inject constructor(
     private val messages: Flow<List<SmsMessage>> = smsMessageDao.observeThread(threadId)
     private val address: Flow<String> = messages.map { it.lastOrNull()?.address ?: "" }.distinctUntilChanged()
 
-    private val look: Flow<ThreadLook> = combine(
-        address.flatMapLatest { addr -> if (addr.isEmpty()) flowOf(null) else styles.observe(addr) },
-        settingsRepository.settings
-    ) { style, settings -> style to settings }
-        .flatMapLatest { (style, settings) -> flowOf(buildLook(style, settings)) }
+    // The wallpaper is decoded only when the style row changes; settings changes just re-pick colors.
+    private val styleWithWallpaper: Flow<Pair<ConversationStyle?, Bitmap?>> = address
+        .flatMapLatest { addr -> if (addr.isEmpty()) flowOf(null) else styles.observe(addr) }
+        .distinctUntilChanged()
+        .map { style -> style to style?.wallpaperPath?.let { decodeWallpaper(it) } }
+
+    private val look: Flow<ThreadLook> = combine(styleWithWallpaper, settingsRepository.settings) { (style, bitmap), settings ->
+        ThreadLook(
+            incomingBubbleColor = style?.incomingBubbleColor ?: settings.incomingBubbleColor,
+            outgoingBubbleColor = style?.outgoingBubbleColor ?: settings.outgoingBubbleColor,
+            wallpaper = bitmap,
+            wallpaperDimPercent = style?.wallpaperDimPercent ?: 30,
+            style = style
+        )
+    }
 
     val state: StateFlow<ThreadUiState> = combine(
         messages,
@@ -95,14 +104,6 @@ class ThreadViewModel @Inject constructor(
             look = look
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThreadUiState(threadId))
-
-    private suspend fun buildLook(style: ConversationStyle?, settings: AppSettings): ThreadLook = ThreadLook(
-        incomingBubbleColor = style?.incomingBubbleColor ?: settings.incomingBubbleColor,
-        outgoingBubbleColor = style?.outgoingBubbleColor ?: settings.outgoingBubbleColor,
-        wallpaper = style?.wallpaperPath?.let { decodeWallpaper(it) },
-        wallpaperDimPercent = style?.wallpaperDimPercent ?: 30,
-        style = style
-    )
 
     private suspend fun decodeWallpaper(path: String): Bitmap? = withContext(Dispatchers.IO) {
         runCatching {
