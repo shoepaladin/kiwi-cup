@@ -12,19 +12,21 @@
 ## Architecture Risk Assessment & Mitigation Log
 | Potential Issue / Edge Case | Risk Level | Mitigation Strategy | Status |
 | :--- | :--- | :--- | :--- |
-| WorkManager delay under Doze Mode | High | `OneTimeWorkRequest` with `setInitialDelay` for the common case; for targets < 15 min away or when the user opts in, delegate to `AlarmManager.setExactAndAllowWhileIdle` (needs `SCHEDULE_EXACT_ALARM` on API 31+, `USE_EXACT_ALARM` not allowed for this app category). Worker marks `setExpedited(RUN_AS_NON_EXPEDITED_WORK_REQUEST)` so it runs promptly once due. Decision deferred to Phase 2 with a policy switch in `core`. | Planned (Phase 2) |
-| System Reboot (`BOOT_COMPLETED`) | High | WorkManager already persists its own queue across reboot, but its delays are wall-clock relative and can be lost if the app is force-stopped. `BootCompletedReceiver` reads every `PENDING` row and re-enqueues with `ExistingWorkPolicy.REPLACE` keyed by `WorkNames.scheduledSms(id)`, so duplicates are impossible. `SchedulingPolicy.recoveryAction` decides: future -> re-delay; overdue <= 6 h -> send now; overdue > 6 h -> `FAILED("missed while device was off")`. | Core logic done & tested; receiver in Phase 4 |
+| WorkManager delay under Doze Mode | High | `OneTimeWorkRequest` with `setInitialDelay` for the common case; for targets < 15 min away or when the user opts in, delegate to `AlarmManager.setExactAndAllowWhileIdle` (needs `SCHEDULE_EXACT_ALARM` on API 31+, `USE_EXACT_ALARM` not allowed for this app category). Worker marks `setExpedited(RUN_AS_NON_EXPEDITED_WORK_REQUEST)` so it runs promptly once due. **Phase 2 decision**: v1 uses plain `OneTimeWorkRequest` + `setInitialDelay` only. `setExpedited` is not allowed together with a delay, and exact alarms need a user-granted special permission on Android 12+. Expected worst case in deep Doze: delivery a few minutes late, never lost. Exact-alarm delegation stays a Phase 4 option if testing on a real device shows unacceptable lag. | Decided (v1: WorkManager delay) |
+| System Reboot (`BOOT_COMPLETED`) | High | WorkManager already persists its own queue across reboot, but its delays are wall-clock relative and can be lost if the app is force-stopped. `BootCompletedReceiver` reads every `PENDING` row and re-enqueues with `ExistingWorkPolicy.REPLACE` keyed by `WorkNames.scheduledSms(id)`, so duplicates are impossible. `SchedulingPolicy.recoveryAction` decides: future -> re-delay; overdue <= 6 h -> send now; overdue > 6 h -> `FAILED("missed while device was off")`. | Re-arm path (`reenqueueAllPending`, `reenqueueAllActive`) done & tested; receiver in Phase 4 |
 | Device powered off at target timestamp | High | Same path as reboot: the 6 h lateness window (`SchedulingPolicy.maxLatenessMillis`) bounds how stale a message can be and still go out. Window is a constructor parameter for tuning. | Core logic done & tested |
 | Missing `SEND_SMS` / `POST_NOTIFICATIONS` | Medium | Worker checks `checkSelfPermission` before dispatch and marks `FAILED("SEND_SMS permission revoked")` rather than crashing; UI gates the compose box and shows a rationale + settings deep link. Notification permission missing -> reminder still marked complete but a persistent in-app banner is shown. | Planned (Phase 4) |
 | Race condition (Database delete vs. Worker execution) | Medium | No optimistic-locking column needed: every status change is a guarded `UPDATE ... WHERE id = ? AND status = ?` that returns the affected row count. Worker must get `claimForSending == 1` before touching the radio; user cancel must get `cancel == 1`. SQLite executes each statement atomically so exactly one side wins. Rows are never hard-deleted while `PENDING`/`SENDING`; cancel is a status. | Done & tested (`ScheduledMessageDaoTest.claimIsGrantedExactlyOnce`, `cancelBeatsLateWorker`) |
-| Status consistency under signal loss | Medium | `SmsManager.sendTextMessage` is fire-and-forget; success/failure arrives via the `sentIntent` broadcast. Worker will register a `PendingIntent` per part and suspend until all parts report (with timeout). Transient radio errors (`RESULT_ERROR_NO_SERVICE`, `RESULT_ERROR_RADIO_OFF`) -> `releaseClaim` back to `PENDING` + `Result.retry()` with exponential backoff (max 3 attempts); permanent errors -> `FAILED(reason)`. Multipart: `sendMultipartTextMessage` so all parts share one status. | Planned (Phase 2) |
-| Duplicate notifications for one reminder | Low | `ReminderDao.markCompleted` is guarded (`isCompleted = 0`) and the worker posts the notification only when it returns 1. | Done & tested |
+| Status consistency under signal loss | Medium | `SmsManager.sendTextMessage` is fire-and-forget; success/failure arrives via the `sentIntent` broadcast. Worker will register a `PendingIntent` per part and suspend until all parts report (with timeout). Transient radio errors (`RESULT_ERROR_NO_SERVICE`, `RESULT_ERROR_RADIO_OFF`) -> `releaseClaim` back to `PENDING` + `Result.retry()` with exponential backoff (max 3 attempts); permanent errors -> `FAILED(reason)`. Multipart: `sendMultipartTextMessage` so all parts share one status. Implemented in `AndroidSmsSender` (60 s receipt timeout -> transient). Worker retries at most 3 times with exponential backoff (30 s base) before `FAILED`. | Done; worker paths tested with a fake sender. `AndroidSmsSender` itself needs a device test (Robolectric cannot emulate the radio). |
+| Duplicate notifications for one reminder | Low | `ReminderDao.markCompleted` is guarded (`isCompleted = 0`) and the worker posts the notification only when it returns 1. | Done & tested (`ReminderWorkerTest.secondRunDoesNotNotifyAgain`) |
+| Reminder due while notifications are blocked | Low | Worker leaves the reminder active (not completed) and returns failure so nothing is silently lost; the queue screen will show it as overdue. | Done & tested |
+| Scheduled row deleted while its job is queued | Low | Worker treats a missing row as a no-op success; repository `delete` cancels the unique work first. | Done & tested |
 | Build environment cannot reach `dl.google.com` (Android SDK + AndroidX) | High (blocks local verification) | Decision (user, 2026-09-18): run Android unit tests on GitHub Actions via `.github/workflows/scheduled-messenger-tests.yml`. Pure-Kotlin `core` tests additionally run locally. | Mitigated |
 | Wrong library versions (cannot be checked locally) | Medium | Version catalog pinned to widely-used mid-2025 releases; CI is the oracle. | Mitigated: all artifacts resolved, KSP + Hilt + Room + Robolectric compile and run on CI |
 
 ## Core Modules & Status
 - [x] Phase 1: Core Database & Persistence Setup (CI green, run #3, 2026-09-18)
-- [ ] Phase 2: WorkManager Background Dispatcher (SMS & Reminders Engine)
+- [x] Phase 2: WorkManager Background Dispatcher (SMS & Reminders Engine) (CI green, run #5, 2026-09-18)
 - [ ] Phase 3: Jetpack Compose UI & Queue Management
 - [ ] Phase 4: Permissions, Boot Receivers & Resilience
 
@@ -32,7 +34,8 @@
 | Module | Test Type | Target File / Case | Status | Evidence / Terminal Command |
 | :--- | :--- | :--- | :--- | :--- |
 | Database | Unit Test | `ScheduledMessageDaoTest` (12), `ReminderDaoTest` (6), `SmsMessageDaoTest` (4) with in-memory Room under Robolectric | PASS (CI run #3, 2026-09-18) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 47s`, 22 PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35382045595 |
-| Worker | Integration Test | WorkManager Scheduled Dispatch | Pending | `./gradlew testDebugUnitTest` |
+| Worker | Unit Test | `ScheduledSmsWorkerTest` (8), `ReminderWorkerTest` (4) via `TestListenableWorkerBuilder` | PASS (CI run #5) | `./gradlew :app:testDebugUnitTest` -> 12 PASSED |
+| Worker | Integration Test | `SchedulingIntegrationTest` (8): repository -> WorkManager test driver (`setInitialDelayMet`) -> worker -> Room | PASS (CI run #5) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 14s`, 40 app tests PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35383891912 |
 | UI | Instrumentation | Compose UI Actions & Queue Menu | Pending | `./gradlew connectedAndroidTest` |
 | Core logic | Unit Test | `StatusTransitionsTest`, `SchedulingPolicyTest`, `RecipientValidatorTest`, `SmsTextAnalyzerTest`, `WorkNamesTest` (23 tests) | PASS (local + CI run #3, 2026-09-18) | `./gradlew :core:test` -> `BUILD SUCCESSFUL in 1m 22s`, 23 PASSED / 0 FAILED |
 
@@ -49,10 +52,45 @@
 - [x] Task 1 code: Room entities, DAOs, `AppDatabase`, Hilt `DatabaseModule`, `core` rules.
 - [x] `core` tests pass locally (23 tests, evidence below).
 - [x] Task 1 Android DAO tests: 22/22 pass on GitHub Actions (run #3).
+- [x] Task 2 code: `SmsSender` seam + `AndroidSmsSender`, `ScheduledSmsWorker`, `ReminderWorker`, `ReminderNotifier` (deep link), `WorkScheduler`, `ScheduledMessageRepository`, `ReminderRepository`, `AppModule`.
+- [x] Task 2 tests: 20 new tests, all green on CI run #5. Run #4 failed once on a race in the reminder re-arm test (zero-delay work fired before the assertion); fixed by using future-dated reminders.
 - [x] CI history: run #1 failed on `SmsMessageDao.observeThreadSummaries` (count computed after filtering to newest row); fixed with a correlated subquery. Run #2 was the same failure on an unrelated build-script tidy-up. Run #3 green.
-- [ ] STOP: Task 1 presented for review. Task 2 (WorkManager engines) starts on user confirmation.
+- [x] Task 1 review presented; user confirmed ("go").
+- [ ] STOP: Task 2 presented for review. Task 3 (Compose UI) starts on user confirmation.
 
 ## CI Evidence Log
+### Run #5, commit dbfb6c1, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35383891912)
+```
+./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 5s
+./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+> Task :app:testDebugUnitTest
+ReminderDaoTest (6) ........................................ PASSED
+ScheduledMessageDaoTest (12) ............................... PASSED
+SmsMessageDaoTest (4) ...................................... PASSED
+ReminderWorkerTest > blockedNotificationsLeaveReminderActive PASSED
+ReminderWorkerTest > secondRunDoesNotNotifyAgain PASSED
+ReminderWorkerTest > postsNotificationWithDeepLinkAndCompletesReminder PASSED
+ReminderWorkerTest > unknownReminderIsANoOp PASSED
+ScheduledSmsWorkerTest > missingPermissionFailsWithoutTouchingRadio PASSED
+ScheduledSmsWorkerTest > deletedMessageIsANoOp PASSED
+ScheduledSmsWorkerTest > successfulSendMarksSentAndRecordsThreadCopy PASSED
+ScheduledSmsWorkerTest > permanentFailureMarksFailedWithReason PASSED
+ScheduledSmsWorkerTest > cancelledMessageIsNeverSent PASSED
+ScheduledSmsWorkerTest > sentCopyJoinsExistingThreadForSameAddress PASSED
+ScheduledSmsWorkerTest > transientFailureOnLastAttemptGivesUp PASSED
+ScheduledSmsWorkerTest > transientFailureReleasesClaimAndRetries PASSED
+SchedulingIntegrationTest > rebootReplayDispatchesSlightlyLateMessagesAndExpiresStaleOnes PASSED
+SchedulingIntegrationTest > cancelRemovesWorkAndMarksCancelled PASSED
+SchedulingIntegrationTest > rescheduleAfterFailureReplacesWorkUnderSameUniqueName PASSED
+SchedulingIntegrationTest > reminderFiresWhenDelayIsMetAndCompleteCancelsWork PASSED
+SchedulingIntegrationTest > reenqueueAllActiveRearmsEveryOpenReminder PASSED
+SchedulingIntegrationTest > scheduleEnqueuesDelayedWorkAndSendsWhenDelayIsMet PASSED
+SchedulingIntegrationTest > editReplacesWorkAndKeepsSingleJob PASSED
+SchedulingIntegrationTest > validationRejectsBadInput PASSED
+BUILD SUCCESSFUL in 1m 14s
+36 actionable tasks: 34 executed, 2 up-to-date
+```
+
 ### Run #3, commit 84bf109, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35382045595)
 ```
 ./gradlew :core:test --no-daemon --stacktrace
