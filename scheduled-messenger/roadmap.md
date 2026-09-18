@@ -6,7 +6,7 @@
 - **Database**: Room Persistence Library (SQLite)
 - **Background Dispatcher**: WorkManager
 - **DI Framework**: Hilt
-- **Project location**: `scheduled-messenger/` (monorepo convention: one Gradle project per app)
+- **Project location**: `scheduled-messenger/` (monorepo convention: one Gradle project per app); this tracker lives alongside it at `scheduled-messenger/roadmap.md`
 - **Module split**: `app` (Android: Room, WorkManager, Compose, Hilt) and `core` (pure Kotlin JVM: status transitions, scheduling policy, SMS validation) so business rules are testable without an Android SDK.
 
 ## Architecture Risk Assessment & Mitigation Log

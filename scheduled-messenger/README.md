@@ -6,7 +6,7 @@
 
 Write a text now, send it later. Long-press any message to get a reminder about it at a time you choose.
 
-Primarily made with Claude! Engineering progress is tracked in the repository-level [`roadmap.md`](../roadmap.md).
+Primarily made with Claude! Engineering progress is tracked in [`roadmap.md`](roadmap.md).
 
 ## Status
 

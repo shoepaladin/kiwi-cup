@@ -61,6 +61,13 @@ interface SmsMessageDao {
     @Query("SELECT COUNT(*) FROM sms_messages WHERE threadId = :threadId")
     suspend fun countInThread(threadId: Long): Int
 
+    @Query("SELECT threadId FROM sms_messages WHERE address = :address ORDER BY timestamp DESC LIMIT 1")
+    suspend fun findThreadIdByAddress(address: String): Long?
+
+    /** Next unused thread id for a brand-new conversation. */
+    @Query("SELECT COALESCE(MAX(threadId), 0) + 1 FROM sms_messages")
+    suspend fun nextThreadId(): Long
+
     @Query("DELETE FROM sms_messages WHERE threadId = :threadId")
     suspend fun deleteThread(threadId: Long): Int
 
