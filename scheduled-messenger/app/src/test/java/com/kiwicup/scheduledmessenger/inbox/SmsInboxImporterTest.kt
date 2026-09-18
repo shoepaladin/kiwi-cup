@@ -15,7 +15,9 @@ import com.kiwicup.scheduledmessenger.core.Attachment
 import com.kiwicup.scheduledmessenger.core.AttachmentCodec
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
+import com.kiwicup.scheduledmessenger.data.inbox.ThreadResolver
 import com.kiwicup.scheduledmessenger.data.local.DatabaseTestRule
+import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,7 +42,7 @@ class SmsInboxImporterTest {
     fun setUp() {
         Shadows.shadowOf(ApplicationProvider.getApplicationContext<Application>())
             .grantPermissions(Manifest.permission.READ_SMS)
-        importer = SmsInboxImporter(context, dbRule.db.smsMessageDao())
+        importer = SmsInboxImporter(context, dbRule.db.smsMessageDao(), ThreadResolver(dbRule.db.smsMessageDao()))
     }
 
     private fun stubProvider(vararg rows: Array<Any?>) {
@@ -119,6 +121,19 @@ class SmsInboxImporterTest {
 
         // Second pass is incremental.
         assertEquals(0, importer.importNew().imported)
+    }
+
+    @Test
+    fun importFoldsLocalOnlyConversationIntoThePhonesThread() = runBlocking {
+        val dao = dbRule.db.smsMessageDao()
+        // A text sent while the app was not default lives in a local (negative) thread.
+        dao.insert(SmsMessage(threadId = -1, address = "5550001111", body = "sent earlier", timestamp = 500, status = SmsStatus.SENT, isIncoming = false))
+        stubProvider(arrayOf(10L, 3L, "+1 555-000-1111", "reply", 1_000L, Telephony.Sms.MESSAGE_TYPE_INBOX))
+
+        importer.importNew()
+
+        assertEquals(0, dao.countInThread(-1))
+        assertEquals(listOf("sent earlier", "reply"), dao.getThread(3L).map { it.body })
     }
 
     @Test

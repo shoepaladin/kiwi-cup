@@ -76,7 +76,7 @@ class ScheduledSmsWorkerTest {
         assertEquals(listOf("+15550001111", "+15550002222"), mmsSender.calls[0].recipients)
         assertEquals(MessageStatus.SENT, dbRule.db.scheduledMessageDao().getById(id)!!.status)
         // The library writes the MMS into the phone's store; no local SMS copy is fabricated.
-        assertEquals(0, dbRule.db.smsMessageDao().countInThread(1L))
+        assertEquals(0, dbRule.db.smsMessageDao().countInThread(-1L))
     }
 
     @Test
@@ -125,7 +125,7 @@ class ScheduledSmsWorkerTest {
         assertEquals(MessageStatus.SENT, dbRule.db.scheduledMessageDao().getById(id)!!.status)
         assertEquals(listOf(FakeSmsSender.Call("+15550001111", "see you at 6")), sender.calls)
 
-        val copies = dbRule.db.smsMessageDao().getThread(1L)
+        val copies = dbRule.db.smsMessageDao().getThread(-1L)
         assertEquals(1, copies.size)
         assertEquals(SmsStatus.SENT, copies[0].status)
         assertFalse(copies[0].isIncoming)

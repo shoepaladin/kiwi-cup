@@ -1,6 +1,9 @@
 package com.kiwicup.scheduledmessenger.data.system
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import android.net.Uri
 import com.kiwicup.scheduledmessenger.core.Attachment
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +37,40 @@ class AttachmentStore @Inject constructor(
     fun readBytes(attachment: Attachment): ByteArray? = runCatching {
         context.contentResolver.openInputStream(Uri.parse(attachment.uri))?.use { it.readBytes() }
     }.getOrNull()
+
+    /**
+     * Bytes ready for an MMS. Carriers reject messages above roughly 1 MB, so images larger than
+     * [maxBytes] are re-encoded as JPEG at decreasing sizes and qualities until they fit.
+     * Non-image media is passed through untouched (the carrier may still reject it).
+     */
+    fun readBytesForMms(attachment: Attachment, maxBytes: Int = MMS_MAX_BYTES): Pair<ByteArray, String>? {
+        val raw = readBytes(attachment) ?: return null
+        if (!attachment.isImage || raw.size <= maxBytes) return raw to attachment.mimeType
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(raw, 0, raw.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / sample > MMS_MAX_EDGE_PX || bounds.outHeight / sample > MMS_MAX_EDGE_PX) sample *= 2
+        var bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.size, BitmapFactory.Options().apply { inSampleSize = sample })
+            ?: return raw to attachment.mimeType
+        var quality = 85
+        while (true) {
+            val out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            val bytes = out.toByteArray()
+            if (bytes.size <= maxBytes || (quality <= 40 && bitmap.width <= 480)) return bytes to "image/jpeg"
+            if (quality > 40) {
+                quality -= 15
+            } else {
+                bitmap = Bitmap.createScaledBitmap(bitmap, bitmap.width / 2, bitmap.height / 2, true)
+                quality = 85
+            }
+        }
+    }
+
+    companion object {
+        const val MMS_MAX_BYTES = 900 * 1024
+        const val MMS_MAX_EDGE_PX = 1600
+    }
 
     fun delete(attachments: List<Attachment>) {
         attachments.forEach { a ->

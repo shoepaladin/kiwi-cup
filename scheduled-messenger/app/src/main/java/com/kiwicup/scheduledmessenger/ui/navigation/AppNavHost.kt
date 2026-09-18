@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,6 +66,11 @@ fun AppNavHost(
             var isDefault by remember { mutableStateOf(DefaultSmsApp.isDefault(context)) }
             val requestDefault = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 isDefault = DefaultSmsApp.isDefault(context)
+            }
+            // The user may change the default app in system settings; re-check whenever we come back.
+            LifecycleResumeEffect(Unit) {
+                isDefault = DefaultSmsApp.isDefault(context)
+                onPauseOrDispose { }
             }
             ConversationsScreen(
                 threads = threads,

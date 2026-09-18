@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSms
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSmsHandler
+import com.kiwicup.scheduledmessenger.data.inbox.ThreadResolver
 import com.kiwicup.scheduledmessenger.data.local.DatabaseTestRule
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.testing.FakeSystemMessageStore
@@ -24,7 +25,7 @@ class IncomingSmsHandlerTest {
     fun joinsExistingThreadByAddress() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
         dao.insert(SmsMessage(threadId = 42, address = "+15550001111", body = "earlier", timestamp = 1, status = SmsStatus.RECEIVED, systemId = 1))
-        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore())
+        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore(), ThreadResolver(dao))
 
         val id = handler.handle(IncomingSms("+15550001111", "new text", 2_000))
 
@@ -36,7 +37,7 @@ class IncomingSmsHandlerTest {
     fun asDefaultAppWritesToSystemStoreAndReusesItsIds() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
         val store = FakeSystemMessageStore(isDefault = true)
-        val handler = IncomingSmsHandler(dao, store)
+        val handler = IncomingSmsHandler(dao, store, ThreadResolver(dao))
 
         val id = handler.handle(IncomingSms("+15550007777", "hi", 9_000))
 
@@ -49,7 +50,7 @@ class IncomingSmsHandlerTest {
     @Test
     fun createsNewThreadForUnknownAddressAndDedupes() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
-        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore())
+        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore(), ThreadResolver(dao))
 
         val first = handler.handle(IncomingSms("+15550009999", "hello", 5_000))
         val duplicate = handler.handle(IncomingSms("+15550009999", "hello", 5_000))
@@ -57,7 +58,8 @@ class IncomingSmsHandlerTest {
         assertTrue(first > 0)
         assertEquals(-1L, duplicate)
         val stored = dao.getById(first)!!
-        assertEquals(1L, stored.threadId)
-        assertEquals(1, dao.countInThread(1))
+        // Local-only conversations get negative ids so they never collide with the phone's thread ids.
+        assertEquals(-1L, stored.threadId)
+        assertEquals(1, dao.countInThread(-1))
     }
 }

@@ -20,15 +20,15 @@ data class IncomingSms(val address: String, val body: String, val timestamp: Lon
 @Singleton
 class IncomingSmsHandler @Inject constructor(
     private val smsMessageDao: SmsMessageDao,
-    private val systemStore: SystemMessageStore
+    private val systemStore: SystemMessageStore,
+    private val threads: ThreadResolver
 ) {
     /** Returns the Room row id, or -1 when the message was already known. */
     suspend fun handle(sms: IncomingSms): Long {
         if (smsMessageDao.existsUnsynced(sms.address, sms.body, sms.timestamp)) return -1L
         val stored = systemStore.insertReceivedSms(sms.address, sms.body, sms.timestamp)
-        val threadId = stored?.threadId
-            ?: smsMessageDao.findThreadIdByAddress(sms.address)
-            ?: smsMessageDao.nextThreadId()
+        val threadId = stored?.threadId ?: threads.findOrCreate(sms.address)
+        if (stored != null) threads.mergeLocalInto(sms.address, stored.threadId)
         return smsMessageDao.insert(
             SmsMessage(
                 threadId = threadId,

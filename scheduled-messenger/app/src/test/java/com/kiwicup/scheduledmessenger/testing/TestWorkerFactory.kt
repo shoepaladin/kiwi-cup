@@ -5,6 +5,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.kiwicup.scheduledmessenger.core.TimeSource
+import com.kiwicup.scheduledmessenger.data.inbox.ThreadResolver
 import com.kiwicup.scheduledmessenger.data.local.AppDatabase
 import com.kiwicup.scheduledmessenger.data.sms.MmsSender
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
@@ -30,7 +31,8 @@ class TestWorkerFactory(
     override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker? =
         when (workerClassName) {
             ScheduledSmsWorker::class.java.name -> ScheduledSmsWorker(
-                appContext, workerParameters, db.scheduledMessageDao(), db.smsMessageDao(), smsSender, mmsSender, systemStore, timeSource
+                appContext, workerParameters, db.scheduledMessageDao(), db.smsMessageDao(), smsSender, mmsSender, systemStore,
+                ThreadResolver(db.smsMessageDao()), timeSource
             )
             ReminderWorker::class.java.name -> ReminderWorker(
                 appContext, workerParameters, db.reminderDao(), db.smsMessageDao(), notifier

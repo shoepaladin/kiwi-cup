@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Tablets without a radio can still install the app; sending is simply unavailable there. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:name=".ScheduledMessengerApp"

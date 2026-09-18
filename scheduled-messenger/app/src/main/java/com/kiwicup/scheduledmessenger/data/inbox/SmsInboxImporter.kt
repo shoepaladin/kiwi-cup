@@ -28,7 +28,8 @@ import kotlinx.coroutines.withContext
 @Singleton
 class SmsInboxImporter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val smsMessageDao: SmsMessageDao
+    private val smsMessageDao: SmsMessageDao,
+    private val threads: ThreadResolver
 ) {
     data class Result(val imported: Int, val skipped: Boolean)
 
@@ -40,6 +41,8 @@ class SmsInboxImporter @Inject constructor(
         val rows = readSmsSince(smsMessageDao.maxSystemId() ?: 0L) + readMmsSince(smsMessageDao.maxMmsSystemId() ?: 0L)
         if (rows.isEmpty()) return@withContext Result(0, skipped = false)
         val inserted = smsMessageDao.insertIgnoring(rows).count { it != -1L }
+        // Conversations that existed only locally now have a real thread on the phone: fold them in.
+        rows.distinctBy { it.threadId }.forEach { threads.mergeLocalInto(it.address, it.threadId) }
         Result(inserted, skipped = false)
     }
 
@@ -96,12 +99,15 @@ class SmsInboxImporter @Inject constructor(
                 val id = c.getLong(iId)
                 val box = c.getInt(iBox)
                 val incoming = box == Telephony.Mms.MESSAGE_BOX_INBOX
+                val threadId = c.getLong(iThread)
                 val (from, to) = readAddresses(id)
                 val (text, attachments) = readParts(id)
                 val address = (if (incoming) from else to.firstOrNull()) ?: from ?: to.firstOrNull() ?: continue
-                val others = (listOfNotNull(from) + to).distinct()
+                // The phone's canonical recipient list for the thread excludes our own number;
+                // the message's own address rows include it, so prefer the former for group replies.
+                val others = readThreadRecipients(threadId)?.takeIf { it.size > 1 } ?: (listOfNotNull(from) + to).distinct()
                 out += SmsMessage(
-                    threadId = c.getLong(iThread),
+                    threadId = threadId,
                     address = address,
                     body = text,
                     timestamp = c.getLong(iDate) * 1000L, // MMS dates are stored in seconds
@@ -141,6 +147,22 @@ class SmsInboxImporter @Inject constructor(
             }
         }
         return from to to
+    }
+
+    /** Canonical participants of a thread (excludes this phone's own number); null when unavailable. */
+    private fun readThreadRecipients(threadId: Long): List<String>? {
+        val conv = runCatching {
+            context.contentResolver.query(CONVERSATIONS_URI, arrayOf("recipient_ids"), "_id = ?", arrayOf(threadId.toString()), null)
+        }.getOrNull() ?: return null
+        val ids = conv.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            ?.split(' ')?.filter { it.isNotBlank() } ?: return null
+        val addresses = ArrayList<String>()
+        ids.forEach { id ->
+            runCatching {
+                context.contentResolver.query(CANONICAL_ADDRESSES_URI, arrayOf("address"), "_id = ?", arrayOf(id), null)
+            }.getOrNull()?.use { c -> if (c.moveToFirst()) c.getString(0)?.let(addresses::add) }
+        }
+        return addresses.takeIf { it.isNotEmpty() }
     }
 
     /** Returns (text, media parts). */
@@ -186,5 +208,7 @@ class SmsInboxImporter @Inject constructor(
         const val PART_TEXT = "text"
         const val PART_MID = "mid"
         val MMS_PART_URI: Uri = Uri.parse("content://mms/part")
+        val CONVERSATIONS_URI: Uri = Uri.parse("content://mms-sms/conversations?simple=true")
+        val CANONICAL_ADDRESSES_URI: Uri = Uri.parse("content://mms-sms/canonical-addresses")
     }
 }

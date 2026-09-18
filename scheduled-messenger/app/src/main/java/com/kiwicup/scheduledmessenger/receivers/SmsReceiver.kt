@@ -7,6 +7,7 @@ import android.provider.Telephony
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSms
 import com.kiwicup.scheduledmessenger.data.inbox.IncomingSmsHandler
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
+import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -29,8 +30,10 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         if (action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION && action != Telephony.Sms.Intents.SMS_DELIVER_ACTION) return
-        val incoming = parse(intent) ?: return
         val weAreDefault = action == Telephony.Sms.Intents.SMS_DELIVER_ACTION
+        // The default app receives BOTH broadcasts for one text; SMS_DELIVER is the authoritative one.
+        if (!weAreDefault && DefaultSmsApp.isDefault(context)) return
+        val incoming = parse(intent) ?: return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {

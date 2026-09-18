@@ -11,6 +11,7 @@ import com.kiwicup.scheduledmessenger.core.AttachmentCodec
 import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.core.TimeSource
+import com.kiwicup.scheduledmessenger.data.inbox.ThreadResolver
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
@@ -40,6 +41,7 @@ class ScheduledSmsWorker @AssistedInject constructor(
     private val smsSender: SmsSender,
     private val mmsSender: MmsSender,
     private val systemStore: SystemMessageStore,
+    private val threads: ThreadResolver,
     private val timeSource: TimeSource
 ) : CoroutineWorker(appContext, params) {
 
@@ -97,8 +99,8 @@ class ScheduledSmsWorker @AssistedInject constructor(
         val stored = systemStore.insertSentSms(message.recipientAddress, message.messageBody, sentAt)
         val resolvedThread = stored?.threadId
             ?: message.threadId
-            ?: smsMessageDao.findThreadIdByAddress(message.recipientAddress)
-            ?: smsMessageDao.nextThreadId()
+            ?: threads.findOrCreate(message.recipientAddress)
+        if (stored != null) threads.mergeLocalInto(message.recipientAddress, stored.threadId)
         smsMessageDao.insert(
             SmsMessage(
                 threadId = resolvedThread,

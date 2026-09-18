@@ -96,9 +96,22 @@ interface SmsMessageDao {
     @Query("SELECT threadId FROM sms_messages WHERE address = :address ORDER BY timestamp DESC LIMIT 1")
     suspend fun findThreadIdByAddress(address: String): Long?
 
-    /** Next unused thread id for a brand-new conversation. */
+    /** Next unused thread id for a brand-new conversation (kept for tests; prefer [nextLocalThreadId]). */
     @Query("SELECT COALESCE(MAX(threadId), 0) + 1 FROM sms_messages")
     suspend fun nextThreadId(): Long
+
+    /** Local-only conversations use negative ids so they never collide with the phone's thread ids. */
+    @Query("SELECT MIN(COALESCE((SELECT MIN(threadId) FROM sms_messages), 0), 0) - 1")
+    suspend fun nextLocalThreadId(): Long
+
+    data class AddressThread(val address: String, val threadId: Long)
+
+    /** Candidate conversations whose address ends with the given digits (LIKE pattern). */
+    @Query("SELECT DISTINCT address, threadId FROM sms_messages WHERE address LIKE :tailPattern ORDER BY timestamp DESC")
+    suspend fun threadsForAddressTail(tailPattern: String): List<AddressThread>
+
+    @Query("UPDATE sms_messages SET threadId = :toThread WHERE threadId = :fromThread")
+    suspend fun reassignThread(fromThread: Long, toThread: Long): Int
 
     @Query("DELETE FROM sms_messages WHERE threadId = :threadId")
     suspend fun deleteThread(threadId: Long): Int

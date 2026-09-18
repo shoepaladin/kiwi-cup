@@ -54,9 +54,9 @@ class AndroidMmsSender @Inject constructor(
             }
             val libMessage = Message(message.body, message.recipients.toTypedArray())
             message.attachments.forEach { attachment ->
-                val bytes = attachmentStore.readBytes(attachment)
+                val (bytes, mime) = attachmentStore.readBytesForMms(attachment)
                     ?: return SendResult.PermanentFailure("Attachment is missing: ${attachment.uri}")
-                libMessage.addMedia(bytes, attachment.mimeType)
+                libMessage.addMedia(bytes, mime)
             }
             val sentIntent = Intent(context, MmsSentReceiverImpl::class.java).putExtra(MmsSentReceiverImpl.EXTRA_TOKEN, token)
             try {

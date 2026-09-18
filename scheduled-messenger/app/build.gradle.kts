@@ -20,14 +20,41 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Sideload builds: a stable key from CI secrets when present, else the debug key so the
+        // APK is still installable (updates then require an uninstall first).
+        create("sideload") {
+            val keystore = rootProject.file("sideload.keystore")
+            if (keystore.exists() && System.getenv("SIDELOAD_KEYSTORE_PASSWORD") != null) {
+                storeFile = keystore
+                storePassword = System.getenv("SIDELOAD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SIDELOAD_KEY_ALIAS") ?: "sideload"
+                keyPassword = System.getenv("SIDELOAD_KEY_PASSWORD") ?: System.getenv("SIDELOAD_KEYSTORE_PASSWORD")
+            } else {
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Not minified yet: the MMS library and Room rely on reflection and a shrink pass
+            // needs keep rules verified on a device first. APK stays small enough for sideloading.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("sideload")
         }
+    }
+
+    lint {
+        // Lint findings are reported as artifacts; only real errors fail the build.
+        abortOnError = true
+        warningsAsErrors = false
+        checkReleaseBuilds = false
+        disable += setOf("ObsoleteLintCustomCheck", "OldTargetApi", "GradleDependency", "AndroidGradlePluginVersion")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
