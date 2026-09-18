@@ -32,7 +32,7 @@
 - [x] Phase 3: Jetpack Compose UI & Queue Management (CI green, run #9, 2026-09-18)
 - [x] Phase 4: Permissions, Boot Receivers & Resilience (CI green, run #12, 2026-09-18)
 - [x] Phase 5: Theming & per-conversation styles (CI green, run #16, 2026-09-18)
-- [ ] Phase 6: Default SMS app + MMS (groups, pictures)
+- [x] Phase 6: Default SMS app + MMS (groups, pictures) (CI green, run #20, 2026-09-18)
 - [ ] Phase 7: Expert review, hardening, release APK
 
 ## Test Matrix & Execution Log
@@ -43,6 +43,7 @@
 | Worker | Integration Test | `SchedulingIntegrationTest` (8): repository -> WorkManager test driver (`setInitialDelayMet`) -> worker -> Room | PASS (CI run #5) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 14s`, 40 app tests PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35383891912 |
 | UI | Compose UI test (Robolectric-hosted, runs in CI) | `MessageInputBarTest` (4), `QueueScreenTest` (4), `ThreadScreenTest` (2): send/schedule buttons, date+time picker flow, validation error, queue sections and actions, edit dialog, long-press -> Remind me -> reminder created | PASS (CI run #9) | `./gradlew :app:testDebugUnitTest` -> `BUILD SUCCESSFUL in 1m 57s`, 52 app tests PASSED / 0 FAILED. https://github.com/shoepaladin/kiwi-cup/actions/runs/35391197931 |
 | Theming | Unit + UI | `ThemeColorsTest` (7, core), `SettingsRepositoryTest` (2), `ConversationStyleRepositoryTest` (4), `SettingsScreenTest` (1), `ConversationStyleTest` (1) | PASS (CI run #16) | https://github.com/shoepaladin/kiwi-cup/actions/runs/35404637057 -> 30 core + 69 app tests PASSED |
+| Default app + MMS | Unit + UI | `AttachmentsTest` (3, core), `SmsInboxImporterTest.importsMmsWithAddressesAndParts`, `IncomingSmsHandlerTest.asDefaultApp...`, `ScheduledSmsWorkerTest` (+4: MMS routing, system store), `DefaultSmsAppTest` (2), `HeadlessSmsSendServiceTest` (2), `MmsUiTest` (4) | PASS (CI run #20) | https://github.com/shoepaladin/kiwi-cup/actions/runs/35406626086 -> 33 core + 80 app tests PASSED |
 | UI | Instrumentation (device) | Same screens via `connectedAndroidTest` | Not run (no emulator in CI); Robolectric-hosted Compose tests cover the same assertions | `./gradlew connectedAndroidTest` on a device |
 | Core logic | Unit Test | `StatusTransitionsTest`, `SchedulingPolicyTest`, `RecipientValidatorTest`, `SmsTextAnalyzerTest`, `WorkNamesTest` (23 tests) | PASS (local + CI run #3, 2026-09-18) | `./gradlew :core:test` -> `BUILD SUCCESSFUL in 1m 22s`, 23 PASSED / 0 FAILED |
 
@@ -71,7 +72,8 @@
 - [x] Task 4 tests: 9 new tests green on CI run #12 (84 total). Run #11 failed on one test-side compile error (Robolectric's `setCursor` wants its own cursor type); replaced with a fake content provider.
 - [x] Task 4 presented; user chose (c): visual polish first, then default-SMS + MMS, then an expert review before an APK.
 - [x] Task 5 (theming): `ThemeColors` (core), `SettingsRepository` (DataStore), `ConversationStyle` table (DB v3), `ConversationStyleRepository` (wallpaper copied into app storage), `SettingsScreen`, `ConversationStyleDialog`, theme wiring in `MainActivity`. Runs #14-#15 failed on test-side off-screen taps (small Robolectric display); run #16 green with 99 tests.
-- [ ] Task 6: default SMS app + MMS.
+- [x] Task 6 (default SMS app + MMS): `DefaultSmsApp` role request, `SystemMessageStore` (writes to the phone's store when default), `SmsReceiver` handles SMS_DELIVER, `MmsReceivedReceiverImpl`/`MmsSentReceiverImpl` on Fossify's `mmslib` fork (JitPack), `AndroidMmsSender` awaits the library receipt, importer reads the MMS store, `HeadlessSmsSendService` quick reply, `IncomingMessageNotifier`, attachments via photo picker (`AttachmentStore` copies into app storage), group recipients, pictures in bubbles (Coil). DB v4. Runs #18-#19 failed on a test assertion and on Hilt vs the library's final `onReceive` (solved with an entry point); run #20 green with 113 tests.
+- [ ] Task 7: expert hardening review and release APK.
 
 ## Remaining Work Before Daily Use (not in the four phases)
 - **Device smoke test** (user): install debug APK, grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives.
