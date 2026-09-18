@@ -2,6 +2,7 @@ package com.kiwicup.scheduledmessenger.ui
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -30,7 +31,7 @@ class MessageInputBarTest {
 
     private fun render(onSendNow: () -> Unit = {}, onSchedule: (Long) -> Unit = {}, validate: (Long) -> String? = { null }) {
         compose.setContent {
-            var text by mutableStateOf("")
+            var text by remember { mutableStateOf("") }
             ScheduledMessengerTheme(dynamicColor = false) {
                 MessageInputBar(
                     text = text,
