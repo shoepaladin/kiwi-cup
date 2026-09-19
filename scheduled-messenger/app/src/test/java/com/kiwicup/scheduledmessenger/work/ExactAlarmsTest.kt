@@ -11,6 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowAlarmManager
 
 @RunWith(AndroidJUnit4::class)
 class ExactAlarmsTest {
@@ -20,7 +21,7 @@ class ExactAlarmsTest {
 
     @org.junit.Before
     fun allowExactAlarms() {
-        shadowAlarms.setCanScheduleExactAlarms(true)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
     }
 
     @Test
