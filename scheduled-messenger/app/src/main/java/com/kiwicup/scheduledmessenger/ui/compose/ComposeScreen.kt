@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.ui.compose
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,9 @@ fun ComposeScreen(
     LaunchedEffect(state.done) { state.done?.let(onDone) }
 
     Scaffold(
+        // See ThreadScreen: under enableEdgeToEdge() the window no longer resizes for the
+        // keyboard, so the IME inset has to be consumed here or the input bar sits underneath it.
+        modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
                 title = { Text("New message") },

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.Attachment
+import com.kiwicup.scheduledmessenger.core.shouldScrollToLatest
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.ui.components.ConversationStyleDialog
 import com.kiwicup.scheduledmessenger.ui.components.MessageBubble
@@ -86,11 +88,23 @@ fun ThreadScreen(
             onSnackbarShown()
         }
     }
+    // Set when the user sends, consumed when the sent message arrives: a send should land in view
+    // even if they had scrolled back through the history.
+    var sendRequestedScroll by remember { mutableStateOf(false) }
+
     LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        if (shouldScrollToLatest(listState.firstVisibleItemIndex, sendRequestedScroll)) {
+            sendRequestedScroll = false
+            // Index 0 is the newest message; the list is laid out in reverse.
+            listState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
+        // Without this the keyboard draws over the input bar: enableEdgeToEdge() means the window
+        // no longer resizes itself, so the IME inset has to be consumed here instead.
+        modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
                 title = { Text(state.title, modifier = Modifier.testTag("thread_title")) },
@@ -116,7 +130,10 @@ fun ThreadScreen(
             MessageInputBar(
                 text = state.draft,
                 onTextChange = onDraftChange,
-                onSendNow = onSendNow,
+                onSendNow = {
+                    sendRequestedScroll = true
+                    onSendNow()
+                },
                 onSchedule = onSchedule,
                 nowMillis = nowMillis,
                 validateTarget = validateTarget,
@@ -159,11 +176,16 @@ fun ThreadScreen(
                 }
                 LazyColumn(
                     state = listState,
+                    // Bottom-anchored by construction, the Compose equivalent of a RecyclerView's
+                    // stackFromEnd. It keeps the newest message in view when the keyboard opens
+                    // and shrinks the list, which a top-anchored list would scroll off the bottom.
+                    // asReversed() is a view over the list, not a copy.
+                    reverseLayout = true,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("message_list")
                 ) {
-                    items(state.messages, key = { it.id }) { message ->
+                    items(state.messages.asReversed(), key = { it.id }) { message ->
                         MessageBubble(
                             message = message,
                             onRemind = { remindTarget = it },
