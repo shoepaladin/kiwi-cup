@@ -108,6 +108,32 @@ The one case the heuristic cannot resolve — a repeatedly-refused restricted pe
 unrestricted sibling in the batch — is covered by a test that documents it rather than papering over
 it. It does not arise here because the app always requests contacts alongside SMS.
 
+## Android 17 (API 37): SMS OTP Protection
+
+The test device turned out to be on Android 17, which adds a second, independent reason the
+default-SMS-app role is mandatory rather than optional polish.
+
+Android 17 withholds OTP-bearing SMS from apps for **three hours** after receipt: the
+`SMS_RECEIVED_ACTION` broadcast is suppressed and SMS provider queries are filtered for that
+message. Two tiers:
+
+- **All apps, any target SDK**: WebOTP-format messages, when the app is not the verified intended
+  recipient.
+- **Apps targeting API 37+**: ordinary SMS messages that look like OTPs and use neither WebOTP nor
+  the SMS Retriever format.
+
+**The default SMS app is exempt from both.** So without the role this app would silently show an
+incomplete inbox — not an error, just messages missing for three hours, which is far worse to
+diagnose than a failure.
+
+`targetSdk` is deliberately left at 35. Moving to 37 would opt into the stricter tier (ordinary
+SMS, not just WebOTP) for no benefit, since nothing here needs an API 37 feature. Revisit only
+when a Play release forces it, and hold the role first.
+
+Not yet verified on a device: whether Android 17 still exposes "Allow restricted settings" in the
+same place, and whether Google's developer-verification requirement for sideloading (announced for
+some countries from September 2026, global 2027) affects installs on this device.
+
 ## Remaining Work Before Daily Use (not in the four phases)
 - **Device smoke test** (user, next step): install the release APK from the APK workflow's artifact, clear the restricted-permission block (App info → ⋮ → "Allow restricted settings"), grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives. This is the only remaining gate before daily use — everything below is a known limitation, not a blocker.
 - ~~**Exact alarms**~~ done in `34bbf3d`: `ExactAlarms` + `ExactAlarmReceiver` fire at the chosen minute via `setExactAndAllowWhileIdle`, gated on `canScheduleExactAlarms()`, with the WorkManager job kept as the safety net.

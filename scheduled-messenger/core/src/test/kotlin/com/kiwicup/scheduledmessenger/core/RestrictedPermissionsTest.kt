@@ -324,6 +324,16 @@ class InstallSourceTest {
     }
 
     @Test
+    fun `android 16 and 17 are still covered`() {
+        // The thresholds are open-ended on purpose: each new release has tightened sideload
+        // handling, never loosened it, so a future API must not fall through to "unrestricted".
+        listOf(36, 37, 38).forEach { sdk ->
+            assertTrue("API $sdk should restrict sms", InstallSource.smsLikelyRestricted(sdk, FILE_MANAGER))
+            assertTrue("API $sdk should restrict the role", InstallSource.roleAlsoRestricted(sdk, FILE_MANAGER))
+        }
+    }
+
+    @Test
     fun `the role is never blocked when the installer allowlisted`() {
         assertFalse(InstallSource.roleAlsoRestricted(sdkInt = 36, installerPackage = InstallSource.PLAY_STORE))
         assertFalse(InstallSource.roleAlsoRestricted(sdkInt = 36, installerPackage = null))
