@@ -10,7 +10,6 @@ import android.os.Process
 import android.provider.Telephony
 import com.kiwicup.scheduledmessenger.core.DiagnosticReport
 import com.kiwicup.scheduledmessenger.core.DiagnosticSection
-import com.kiwicup.scheduledmessenger.core.InstallSource
 import com.kiwicup.scheduledmessenger.core.PermissionDiagnostics
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissions
 import com.kiwicup.scheduledmessenger.core.gateState
@@ -31,7 +30,6 @@ object DiagnosticSnapshot {
                 app(context),
                 install(context),
                 verdict(context, activity, log),
-                restrictedSettings(context),
                 role(context),
                 permissions(context, activity, log)
             )
@@ -102,14 +100,14 @@ object DiagnosticSnapshot {
         "Verdict",
         listOf(
             "sms likely restricted" to reading { AppPermissions.smsRestrictedByInstaller(context) },
-            "role also restricted" to reading {
-                InstallSource.roleAlsoRestricted(Build.VERSION.SDK_INT, AppPermissions.installerPackage(context))
-            },
+            "role status" to reading { DefaultSmsApp.status(context) },
             "gate state" to reading {
                 gateState(
                     AppPermissions.states(context, activity, log),
                     AppPermissions.requiredSet,
-                    AppPermissions.smsRestrictedByInstaller(context)
+                    DefaultSmsApp.status(context),
+                    roleOffered = false,
+                    restrictedByInstaller = AppPermissions.smsRestrictedByInstaller(context)
                 )
             }
         )
@@ -169,22 +167,11 @@ object DiagnosticSnapshot {
     }
 
     /**
-     * Whether the user's "Allow restricted settings" tap actually took effect, which is the one
-     * thing the instructions screen asks for and the one thing it cannot otherwise confirm.
-     *
-     * The op name is written out rather than taken from [AppOpsManager], whose constant for it is
-     * not public API; the string is the stable identifier the platform uses. If this reads
-     * `allowed` while the SMS permissions are still denied, then clearing restricted settings is
-     * not the remedy for a hard-restricted permission and only a reinstall can help.
+     * Only informative once a permission reads granted, where `ignored` would mean the grant is
+     * being silently overridden. While a permission is denied this is `ignored` for every
+     * permission alike, restricted or not, so it discriminates nothing — a device report showed
+     * exactly that, after this reading had been added on the theory that it would.
      */
-    private fun restrictedSettings(context: Context) = DiagnosticSection(
-        "Restricted settings",
-        listOf(
-            "access_restricted_settings" to opMode(context, "android:access_restricted_settings")
-        )
-    )
-
-    /** `ignored` is the tell for a silently blocked permission; `allowed` means the op is not the problem. */
     private fun appOpMode(context: Context, permission: String): String {
         val op = runCatching { AppOpsManager.permissionToOp(permission) }.getOrNull() ?: return "none"
         return opMode(context, op)

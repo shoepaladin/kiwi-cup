@@ -50,17 +50,31 @@ object InstallSource {
         installerPackage == null || installerPackage == PLAY_STORE
 
     /**
-     * True when the SMS group will be refused on sight. Hard restriction landed in Android 10
-     * (API 29); Android 15 (API 35) additionally gates the default-SMS-app *role* behind the same
-     * user opt-in, so on 35+ neither the permissions nor the role can be obtained until the user
-     * allows restricted settings.
+     * True when a *runtime permission request* for the SMS group will be refused on sight. Hard
+     * restriction landed in Android 10 (API 29).
+     *
+     * This says nothing about the default-SMS-app role. An earlier version of this file claimed
+     * the role was restricted alongside the permissions from API 35, and a device report from a
+     * Pixel 8a on API 37, sideloaded via com.google.android.packageinstaller, disproved it:
+     * `isRoleAvailable` was true and `createRequestRoleIntent` returned an intent. The role is not
+     * blocked by the installer — it is the way *past* the installer, because the role controller
+     * grants the SMS group to whichever app holds the role. That is why sideloaded SMS apps work
+     * at all. Never use this flag to suppress a role request.
      */
     fun smsLikelyRestricted(sdkInt: Int, installerPackage: String?): Boolean =
         sdkInt >= 29 && !allowlistsRestrictedPermissions(installerPackage)
+}
 
-    /** On these versions the role request is refused too, so offering it first cannot help. */
-    fun roleAlsoRestricted(sdkInt: Int, installerPackage: String?): Boolean =
-        sdkInt >= 35 && !allowlistsRestrictedPermissions(installerPackage)
+/** Whether the default-SMS-app role can be asked for, as the platform currently reports it. */
+enum class SmsRoleStatus {
+    /** We are the default SMS app, so the SMS group came with it. */
+    HELD,
+
+    /** The system will draw the role dialog if we ask. */
+    OFFERABLE,
+
+    /** No SMS role on this device — a tablet with no radio — so it cannot carry anything. */
+    UNAVAILABLE
 }
 
 /** One permission exactly as the system currently reports it, plus our own count of asks. */
@@ -131,6 +145,13 @@ enum class PermissionGateState {
     /** Nothing asked yet: fire the request. */
     ASK,
 
+    /**
+     * Ask to become the default SMS app. This comes before any permission request, because on a
+     * sideload the role is the only route to the SMS group: requesting the permissions directly
+     * is refused without a dialog, while the role controller grants them outright.
+     */
+    REQUEST_ROLE,
+
     /** The user turned something down but can be asked again. */
     EXPLAIN_AND_ASK,
 
@@ -153,23 +174,42 @@ enum class PermissionGateState {
 fun gateState(
     states: List<PermissionState>,
     required: Set<String> = states.mapTo(mutableSetOf()) { it.permission },
+    /** As the platform reports it; see [SmsRoleStatus]. */
+    role: SmsRoleStatus = SmsRoleStatus.UNAVAILABLE,
+    /** Whether the role dialog has already been put in front of the user this install. */
+    roleOffered: Boolean = false,
     /**
-     * Set from [InstallSource.smsLikelyRestricted]. When the installer could not allowlist, the
-     * refusal is a foregone conclusion, so the gate skips straight to the instructions instead of
-     * firing a request that the system answers with an alarming dialog and nothing else.
+     * Set from [InstallSource.smsLikelyRestricted]. Note where this is consulted: only *after* the
+     * role has been offered and not taken. An earlier version checked it first and returned
+     * [PermissionGateState.RESTRICTED] before anything had been asked for, which made the app
+     * refuse to try and then blame Android for the result.
      */
     restrictedByInstaller: Boolean = false
 ): PermissionGateState {
     if (states.none { it.permission in required }) return PermissionGateState.READY
     val diagnoses = PermissionDiagnostics.diagnose(states).filterKeys { it in required }.values
-    return when {
-        diagnoses.all { it == PermissionDiagnosis.GRANTED } -> PermissionGateState.READY
-        restrictedByInstaller -> PermissionGateState.RESTRICTED
-        diagnoses.any { it == PermissionDiagnosis.BLOCKED_AS_RESTRICTED } -> PermissionGateState.RESTRICTED
+    if (diagnoses.all { it == PermissionDiagnosis.GRANTED }) return PermissionGateState.READY
+
+    // The role leads, unconditionally. On a sideload it is the only route to the SMS group, since
+    // the role controller grants the group outright where a runtime request is refused; on a Play
+    // Store install it is required anyway to send and receive.
+    if (role == SmsRoleStatus.OFFERABLE && !roleOffered) return PermissionGateState.REQUEST_ROLE
+
+    val ordinary = when {
         diagnoses.any { it == PermissionDiagnosis.NOT_YET_ASKED } -> PermissionGateState.ASK
         diagnoses.any { it == PermissionDiagnosis.DENIED_CAN_RETRY } -> PermissionGateState.EXPLAIN_AND_ASK
         else -> PermissionGateState.OPEN_SETTINGS
     }
+
+    // Holding the role means the group is grantable by the ordinary route whatever the installer
+    // was, so the sideload instructions would be actively misleading here.
+    if (role == SmsRoleStatus.HELD) return ordinary
+
+    // The role was offered and declined, or does not exist on this device. Only now is a refusal
+    // a foregone conclusion, and only now are the instructions the right thing to show.
+    val refusalIsCertain =
+        restrictedByInstaller || diagnoses.any { it == PermissionDiagnosis.BLOCKED_AS_RESTRICTED }
+    return if (refusalIsCertain) PermissionGateState.RESTRICTED else ordinary
 }
 
 /**
@@ -179,21 +219,27 @@ fun gateState(
  */
 object RestrictedPermissionHelp {
     const val OVERFLOW_ITEM = "Allow restricted settings"
+    const val ROLE_ACTION = "Make this your default SMS app"
 
     /**
-     * Order matters and is the whole point. On Android 15+ the restriction covers the
-     * default-SMS-app role as well as the permissions, so asking to be the default app *first*
-     * gets refused silently, with no dialog shown at all. The overflow item has to come before
-     * anything else is attempted.
+     * Order matters and an earlier version had it exactly backwards. It put the overflow item
+     * first on the theory that the role was restricted until restricted settings were allowed. A
+     * device report disproved that: on a sideloaded Pixel 8a running API 37 the role was
+     * available and offerable while every SMS permission sat denied.
+     *
+     * The role leads because it is the remedy, not another thing the restriction blocks: the role
+     * controller grants the SMS group to its holder, which is the only reason a sideloaded SMS
+     * app can work at all. The settings route below is the fallback for when the role dialog does
+     * not appear or is declined.
      */
     val steps: List<String> = listOf(
-        "Open this app's App info page (the button below goes straight there).",
-        "Tap the three-dot menu in the top corner, then \"$OVERFLOW_ITEM\". On Android 15 and " +
-            "newer this sits at the bottom of the page, so scroll down. This step has to come " +
-            "first — until it is done, Android silently refuses everything below.",
+        "Tap \"$ROLE_ACTION\" below and accept. Holding that role is what grants SMS access, and " +
+            "on a sideloaded install it is the only thing that can.",
+        "Only if no dialog appeared, or you declined it: open this app's App info page, tap the " +
+            "three-dot menu in the top corner, then \"$OVERFLOW_ITEM\". On Android 15 and newer " +
+            "this sits at the bottom of the page, so scroll down.",
         "Still in App info, open Permissions, tap SMS, and choose Allow.",
-        "Return here and tap Check again. The app will then offer to become your default SMS " +
-            "app, which is what unlocks sending and receiving."
+        "Return here and tap Check again."
     )
 
     /** The alternative for anyone with a computer to hand: the shell installer allowlists. */

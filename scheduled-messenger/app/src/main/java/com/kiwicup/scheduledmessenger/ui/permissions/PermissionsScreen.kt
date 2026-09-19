@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissionHelp
+import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 
 /**
  * Shown until the required permissions are granted. Stateless so it can be rendered in tests.
@@ -33,6 +34,8 @@ fun PermissionsScreen(
     onRequest: () -> Unit,
     onOpenSettings: () -> Unit,
     onRecheck: () -> Unit = onRequest,
+    onRequestRole: () -> Unit = {},
+    roleStatus: SmsRoleStatus = SmsRoleStatus.OFFERABLE,
     onCopyDiagnostics: () -> Unit = {},
     onSaveDiagnostics: () -> Unit = {},
     diagnosticsStatus: String? = null
@@ -45,14 +48,21 @@ fun PermissionsScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (state == PermissionGateState.RESTRICTED) {
-            RestrictedContent(
+        when (state) {
+            PermissionGateState.REQUEST_ROLE -> RoleContent(
+                onRequestRole = onRequestRole,
+                onRecheck = onRecheck
+            )
+
+            PermissionGateState.RESTRICTED -> RestrictedContent(
                 onOpenSettings = onOpenSettings,
                 onRecheck = onRecheck,
-                onRequest = onRequest
+                onRequest = onRequest,
+                onRequestRole = onRequestRole,
+                roleStatus = roleStatus
             )
-        } else {
-            OrdinaryContent(
+
+            else -> OrdinaryContent(
                 missing = missing,
                 state = state,
                 onRequest = onRequest,
@@ -147,16 +157,40 @@ private fun OrdinaryContent(
 }
 
 /**
- * The sideload case. The numbered steps lead the screen rather than a request button, because
- * until the user allows restricted settings Android refuses both the permission request and the
- * default-SMS-app role without drawing anything at all. The retry below stays available for the
- * moment after they have done it, and as an escape hatch if we misjudged the installer.
+ * Shown while the default-SMS-app role is the outstanding thing. The gate fires the dialog itself,
+ * so in the normal case this flashes past; it exists as a visible, tappable fallback for when the
+ * system declines to draw that dialog, which is exactly the failure that went undiagnosed before.
+ */
+@Composable
+private fun RoleContent(onRequestRole: () -> Unit, onRecheck: () -> Unit) {
+    Text("Set Scheduled Messenger as your SMS app", style = MaterialTheme.typography.titleLarge)
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "Android grants SMS access to whichever app holds the default-SMS role. Accepting the " +
+            "prompt is what lets this app read and send texts.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag("role_hint")
+    )
+    Spacer(Modifier.height(24.dp))
+    Button(onClick = onRequestRole, modifier = Modifier.testTag("role_button")) {
+        Text(RestrictedPermissionHelp.ROLE_ACTION)
+    }
+    TextButton(onClick = onRecheck, modifier = Modifier.padding(top = 8.dp)) { Text("Check again") }
+}
+
+/**
+ * The fallback, reached only once the role has been offered and not taken. The role button still
+ * leads, because it remains the only thing that can grant the SMS group on a sideload; the
+ * settings steps below are for when that dialog does not appear at all.
  */
 @Composable
 private fun RestrictedContent(
     onOpenSettings: () -> Unit,
     onRecheck: () -> Unit,
-    onRequest: () -> Unit
+    onRequest: () -> Unit,
+    onRequestRole: () -> Unit,
+    roleStatus: SmsRoleStatus
 ) {
     Text("Android is blocking SMS access", style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
@@ -168,6 +202,12 @@ private fun RestrictedContent(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag("restricted_hint")
     )
+    if (roleStatus != SmsRoleStatus.HELD) {
+        Spacer(Modifier.height(20.dp))
+        Button(onClick = onRequestRole, modifier = Modifier.testTag("role_button")) {
+            Text(RestrictedPermissionHelp.ROLE_ACTION)
+        }
+    }
     Spacer(Modifier.height(20.dp))
     RestrictedPermissionHelp.steps.forEachIndexed { index, step ->
         Text(

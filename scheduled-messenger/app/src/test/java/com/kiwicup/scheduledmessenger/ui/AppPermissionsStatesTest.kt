@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissions
+import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 import com.kiwicup.scheduledmessenger.core.gateState
 import com.kiwicup.scheduledmessenger.ui.permissions.AppPermissions
 import com.kiwicup.scheduledmessenger.ui.permissions.PermissionAskLog
@@ -94,14 +95,36 @@ class AppPermissionsStatesTest {
     }
 
     @Test
-    fun aSideloadedInstallSkipsStraightToInstructions() {
-        // The regression: on a sideloaded Android 15 install the gate used to fire a request
-        // that Android refuses without a dialog, so the user's first screen was a system warning.
+    fun aSideloadedFirstLaunchOffersTheRoleInsteadOfGivingUp() {
+        // The regression, straight from a device report: the gate read a non-Play-Store installer
+        // and returned RESTRICTED before asking for anything, so every permission came back
+        // asks=0 while the role sat offerable and unasked.
+        val states = AppPermissions.states(context, activity = null, log = log)
+        assertEquals(
+            PermissionGateState.REQUEST_ROLE,
+            gateState(
+                states,
+                AppPermissions.requiredSet,
+                role = SmsRoleStatus.OFFERABLE,
+                roleOffered = false,
+                restrictedByInstaller = true
+            )
+        )
+    }
+
+    @Test
+    fun instructionsAppearOnlyAfterTheRoleWasOfferedAndNotTaken() {
         log.recordAsked(AppPermissions.all)
         val states = AppPermissions.states(context, activity = null, log = log)
         assertEquals(
             PermissionGateState.RESTRICTED,
-            gateState(states, AppPermissions.requiredSet, restrictedByInstaller = true)
+            gateState(
+                states,
+                AppPermissions.requiredSet,
+                role = SmsRoleStatus.OFFERABLE,
+                roleOffered = true,
+                restrictedByInstaller = true
+            )
         )
     }
 
@@ -111,7 +134,12 @@ class AppPermissionsStatesTest {
         val states = AppPermissions.states(context, activity = null, log = log)
         assertEquals(
             PermissionGateState.READY,
-            gateState(states, AppPermissions.requiredSet, restrictedByInstaller = true)
+            gateState(
+                states,
+                AppPermissions.requiredSet,
+                role = SmsRoleStatus.OFFERABLE,
+                restrictedByInstaller = true
+            )
         )
     }
 

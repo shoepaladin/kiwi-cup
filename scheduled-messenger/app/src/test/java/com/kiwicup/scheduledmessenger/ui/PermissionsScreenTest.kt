@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissionHelp
+import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 import com.kiwicup.scheduledmessenger.ui.permissions.PermissionsScreen
 import com.kiwicup.scheduledmessenger.ui.theme.ScheduledMessengerTheme
 import org.junit.Assert.assertEquals
@@ -29,6 +30,8 @@ class PermissionsScreenTest {
         onRequest: () -> Unit = {},
         onOpenSettings: () -> Unit = {},
         onRecheck: () -> Unit = {},
+        onRequestRole: () -> Unit = {},
+        roleStatus: SmsRoleStatus = SmsRoleStatus.OFFERABLE,
         onCopyDiagnostics: () -> Unit = {},
         onSaveDiagnostics: () -> Unit = {},
         diagnosticsStatus: String? = null
@@ -41,6 +44,8 @@ class PermissionsScreenTest {
                     onRequest = onRequest,
                     onOpenSettings = onOpenSettings,
                     onRecheck = onRecheck,
+                    onRequestRole = onRequestRole,
+                    roleStatus = roleStatus,
                     onCopyDiagnostics = onCopyDiagnostics,
                     onSaveDiagnostics = onSaveDiagnostics,
                     diagnosticsStatus = diagnosticsStatus
@@ -159,6 +164,36 @@ class PermissionsScreenTest {
     @Test
     fun restrictedStateOffersTheDiagnosticReport() =
         assertDiagnosticsOffered(PermissionGateState.RESTRICTED)
+
+    @Test
+    fun roleStateOffersTheDiagnosticReport() =
+        assertDiagnosticsOffered(PermissionGateState.REQUEST_ROLE)
+
+    @Test
+    fun theRoleStateOffersATappableRoleButton() {
+        // The gate fires the dialog itself, so this button only matters when the system declines
+        // to draw it — which is the failure that previously went undiagnosed.
+        var requests = 0
+        show(state = PermissionGateState.REQUEST_ROLE, onRequestRole = { requests++ })
+        compose.onNodeWithTag("role_button").performScrollTo().performClick()
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun theRestrictedStateStillLeadsWithTheRole() {
+        // The role remains the only thing that can grant the SMS group on a sideload, so the
+        // instructions screen must not bury it behind the settings steps.
+        var requests = 0
+        show(state = PermissionGateState.RESTRICTED, onRequestRole = { requests++ })
+        compose.onNodeWithTag("role_button").performScrollTo().performClick()
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun theRestrictedStateDropsTheRoleButtonOnceTheRoleIsHeld() {
+        show(state = PermissionGateState.RESTRICTED, roleStatus = SmsRoleStatus.HELD)
+        compose.onNodeWithTag("role_button").assertDoesNotExist()
+    }
 
     @Test
     fun copyingTheReportIsOneTap() {

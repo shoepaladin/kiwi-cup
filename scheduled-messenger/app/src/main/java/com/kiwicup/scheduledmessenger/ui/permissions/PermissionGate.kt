@@ -17,17 +17,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
+import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 import com.kiwicup.scheduledmessenger.core.gateState
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 
 /**
  * Wraps the app: shows [PermissionsScreen] until the required permissions exist, then [content].
- * Kicks off an inbox import every time the gate opens (cheap: the import is incremental).
  *
- * The default-SMS-app role is requested *before* the SMS permissions, which is the order Android
- * documents ("an app must request to become the default SMS handler before it requests the
- * READ_SMS permission") and the order that actually works: holding the role is what makes the
- * system grant the SMS group, and asking for the permissions first can get them refused outright.
+ * The order is role first, permissions second, instructions last, and that order is the whole
+ * design. On an install the Play Store did not make, the SMS group is hard-restricted and a
+ * runtime request for it is refused without a dialog — the "denied access to SMS" warning. The
+ * default-SMS-app role is not subject to that: the role controller grants the group to whichever
+ * app holds the role, which is the only reason a sideloaded SMS app can work at all.
+ *
+ * A previous version read the installer up front and jumped straight to the instructions screen
+ * whenever it was not the Play Store. A device report showed the cost: every permission came back
+ * asks=0 while the role sat offerable and unasked. The app had diagnosed itself into never trying.
  */
 @Composable
 fun PermissionGate(content: @Composable () -> Unit) {
@@ -36,21 +41,35 @@ fun PermissionGate(content: @Composable () -> Unit) {
     val viewModel: PermissionsViewModel = hiltViewModel()
     val log = remember { PermissionAskLog(context) }
 
-    // Fixed for the life of the install: who installed us cannot change under our feet.
+    // Fixed for the life of the install: who installed us cannot change under our feet. Used only
+    // to choose what to say once the role has been offered and not taken — never to skip asking.
     val restrictedByInstaller = remember { AppPermissions.smsRestrictedByInstaller(context) }
 
     var states by remember { mutableStateOf(AppPermissions.states(context, activity, log)) }
-    var roleRequested by rememberSaveable { mutableStateOf(false) }
+    var roleStatus by remember { mutableStateOf(DefaultSmsApp.status(context)) }
+    var roleOffered by rememberSaveable { mutableStateOf(false) }
     var permissionsRequested by rememberSaveable { mutableStateOf(false) }
     var diagnosticsStatus by remember { mutableStateOf<String?>(null) }
 
+    // Launching an activity for result before the host is resumed can be dropped silently, which
+    // is one candidate explanation for a role dialog that never appeared. Nothing is launched
+    // until the gate is actually on screen.
+    var resumed by remember { mutableStateOf(false) }
+
     fun refresh() {
         states = AppPermissions.states(context, activity, log)
+        roleStatus = DefaultSmsApp.status(context)
     }
 
     fun diagnosticText() = DiagnosticSnapshot.collect(context, activity, log).render()
 
-    fun currentState() = gateState(states, AppPermissions.requiredSet, restrictedByInstaller)
+    fun currentState() = gateState(
+        states,
+        AppPermissions.requiredSet,
+        roleStatus,
+        roleOffered,
+        restrictedByInstaller
+    )
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -62,41 +81,35 @@ fun PermissionGate(content: @Composable () -> Unit) {
         permissionLauncher.launch(AppPermissions.all.toTypedArray())
     }
 
-    // The role dialog is a plain activity, so its result arrives here rather than as a grant.
+    // The role dialog is a plain activity, so its result arrives here rather than as a grant. The
+    // grant itself lands asynchronously, so this only refreshes; whether a permission request is
+    // still needed is decided by the gate on the next pass.
     val roleLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
-        refresh()
-        // Accepting the role usually grants the SMS group outright; declining leaves it to the
-        // permission prompt. Either way the remaining permissions still have to be asked for.
-        if (currentState() != PermissionGateState.READY) requestPermissions()
+    ) { refresh() }
+
+    fun requestRole() {
+        roleOffered = true
+        DefaultSmsApp.requestIntent(context)?.let { roleLauncher.launch(it) }
     }
 
-    // Coming back from Settings (or the default-app dialog) must refresh without a tap.
     LifecycleResumeEffect(Unit) {
+        resumed = true
         refresh()
-        onPauseOrDispose { }
-    }
-
-    LaunchedEffect(Unit) {
-        val current = currentState()
-        if (current == PermissionGateState.READY) return@LaunchedEffect
-        // When the installer could not allowlist the SMS group, Android refuses both the role
-        // request and the permission request without drawing anything. Firing either one just
-        // produces a system warning dialog and no progress, so show the instructions instead and
-        // let the user drive from there.
-        if (current == PermissionGateState.RESTRICTED) return@LaunchedEffect
-        val roleIntent = if (roleRequested) null else DefaultSmsApp.requestIntent(context)
-        when {
-            roleIntent != null -> {
-                roleRequested = true
-                roleLauncher.launch(roleIntent)
-            }
-            !permissionsRequested -> requestPermissions()
-        }
+        onPauseOrDispose { resumed = false }
     }
 
     val state = currentState()
+
+    LaunchedEffect(state, resumed) {
+        if (!resumed) return@LaunchedEffect
+        when (state) {
+            PermissionGateState.REQUEST_ROLE -> if (!roleOffered) requestRole()
+            PermissionGateState.ASK -> if (!permissionsRequested) requestPermissions()
+            else -> Unit
+        }
+    }
+
     if (state == PermissionGateState.READY) {
         // Import on every return to the foreground; the import is incremental and cheap.
         LifecycleResumeEffect(Unit) {
@@ -114,6 +127,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
             missing = AppPermissions.missingRequired(context),
             state = state,
             onRequest = ::requestPermissions,
+            onRequestRole = {
+                // Re-offering is allowed from the button even after a decline: the user asking
+                // for it is different from the app looping on it.
+                roleOffered = false
+                requestRole()
+            },
+            roleStatus = roleStatus,
             onOpenSettings = {
                 context.startActivity(
                     Intent(
