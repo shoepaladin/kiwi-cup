@@ -73,16 +73,43 @@
 - [x] Task 4 presented; user chose (c): visual polish first, then default-SMS + MMS, then an expert review before an APK.
 - [x] Task 5 (theming): `ThemeColors` (core), `SettingsRepository` (DataStore), `ConversationStyle` table (DB v3), `ConversationStyleRepository` (wallpaper copied into app storage), `SettingsScreen`, `ConversationStyleDialog`, theme wiring in `MainActivity`. Runs #14-#15 failed on test-side off-screen taps (small Robolectric display); run #16 green with 99 tests.
 - [x] Task 6 (default SMS app + MMS): `DefaultSmsApp` role request, `SystemMessageStore` (writes to the phone's store when default), `SmsReceiver` handles SMS_DELIVER, `MmsReceivedReceiverImpl`/`MmsSentReceiverImpl` on Fossify's `mmslib` fork (JitPack), `AndroidMmsSender` awaits the library receipt, importer reads the MMS store, `HeadlessSmsSendService` quick reply, `IncomingMessageNotifier`, attachments via photo picker (`AttachmentStore` copies into app storage), group recipients, pictures in bubbles (Coil). DB v4. Runs #18-#19 failed on a test assertion and on Hilt vs the library's final `onReceive` (solved with an entry point); run #20 green with 113 tests.
-- [ ] Task 7: expert hardening review and release APK.
+- [x] Task 7 (expert hardening review + release APK): review findings applied in `34bbf3d` (crash fixes, duplicate guards, exact alarms). Getting both workflows green then took five more commits, four of which were real defects rather than test wiring — see the run #31 entry below. Release APK built and signed on CI (run #10 of the APK workflow); awaiting the user's device smoke test.
 
 ## Remaining Work Before Daily Use (not in the four phases)
-- **Device smoke test** (user): install debug APK, grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives.
-- **Exact alarms** if WorkManager's delay proves too loose under Doze on the user's phone (`SCHEDULE_EXACT_ALARM`, contained change in `WorkScheduler`).
-- **Schema export + migrations** before the first shared release (`exportSchema = true`, drop `fallbackToDestructiveMigration`).
-- **Contact names** instead of raw numbers (needs `READ_CONTACTS`).
-- **Release build**: signing config, `isMinifyEnabled = true` with keep rules for Room/Hilt/WorkManager.
+- **Device smoke test** (user, next step): install the release APK from the APK workflow's artifact, grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives. This is the only remaining gate before daily use — everything below is a known limitation, not a blocker.
+- ~~**Exact alarms**~~ done in `34bbf3d`: `ExactAlarms` + `ExactAlarmReceiver` fire at the chosen minute via `setExactAndAllowWhileIdle`, gated on `canScheduleExactAlarms()`, with the WorkManager job kept as the safety net.
+- **Schema export + migrations** before the first shared release (`exportSchema = true`, drop `fallbackToDestructiveMigration`). The database is at v4; today an upgrade wipes local history.
+- **Contact names in the conversation list** — names already resolve inside an open thread (`ThreadViewModel` via `ContactNames`), but the list still shows raw numbers. The first attempt put a `displayName` field on `ThreadSummary`, which is the Room POJO that broke the build in `ab65b9f`; the right shape is a separate UI type mapped outside Room.
+- **Release build hardening**: the APK workflow signs with a throwaway keystore generated in CI when `SIDELOAD_KEYSTORE_BASE64` is unset, and `isMinifyEnabled` is still off. A real signing key and R8 with keep rules for Room/Hilt/WorkManager are needed before sharing builds with anyone else.
+- **Instrumented tests**: everything so far is JVM/Robolectric. Nothing has run on a real device or emulator, and the MMS send path in particular depends on carrier behaviour that no host-side test can reproduce.
 
 ## CI Evidence Log
+### Run #31, commit 8b6731b, 2026-09-19 — first fully green run (https://github.com/shoepaladin/kiwi-cup/actions/runs/35448309626)
+```
+./gradlew :core:test --no-daemon --stacktrace            -> 33 PASSED, BUILD SUCCESSFUL in 1m 17s
+./gradlew :app:testDebugUnitTest --no-daemon --stacktrace -> 95 PASSED, BUILD SUCCESSFUL in 2m 8s
+                                                            128 tests total, 0 FAILED
+```
+APK workflow run #10 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35448309737): `lintDebug` + `assembleRelease`
+both successful; artifact `scheduled-messenger-apk` (9.2 MB) and `lint-report` uploaded.
+
+Five commits were needed to get from the Task 6 green run to here. Only the first was a trivial build break;
+the rest were genuine defects that the Android-side tests were the first thing ever to exercise:
+
+| Commit | Defect | Kind |
+| --- | --- | --- |
+| `3cf3838` | `android:Theme.DeviceDefault.DayNight.NoActionBar` does not exist in the framework at any API level (the `values-v29` guess was wrong). Replaced with `values/` + `values-night/` and concrete Light/Dark parents. | Resource bug |
+| `ab65b9f` | Room's KSP processor rejects `@Ignore` on a primary-constructor parameter of a plain `@Query` result POJO (documented only for `@Entity`). `ThreadSummary` reverted to exactly its seven query columns. | Build/ORM contract |
+| `c1c4e38` | `ExactAlarms` (package `work`) referenced `ExactAlarmReceiver` (package `receivers`) with no import. | Compile |
+| `3371d11` | `ShadowAlarmManager.setCanScheduleExactAlarms` is static, not an instance method on the shadow. | Test wiring |
+| `7d8abf1` | **Real bug.** `scheduleSms`/`scheduleReminder` always returned the id of the request they had just built, even under `ExistingWorkPolicy.KEEP`, where WorkManager discards that request and keeps the existing job. Re-arm on reboot/app start therefore persisted a work id that belonged to no running job. Now resolved from `getWorkInfosForUniqueWork`. | Correctness |
+| `8b6731b` | **Real bug.** Re-arm passed `replace = false` and `KEEP` was applied unconditionally, so a message whose recomputed delay came back as zero (due now, e.g. its time passed while the device was off but within the lateness window) kept a stale job still counting down its pre-reboot delay and would never send. `KEEP` now applies only when the delay is still positive or the existing job is actually `RUNNING`. | Correctness |
+
+The last two are the substantive ones: together they meant the reboot-recovery path — the whole reason
+`BootCompletedReceiver` and `RearmWorker` exist — could leave a due message permanently un-sent while the
+database recorded a work id pointing at nothing. Neither is reachable from the `core` tests, and neither
+would have surfaced without the Robolectric-hosted `SchedulingIntegrationTest` running on CI.
+
 ### Run #12, commit 1a8cb6e, 2026-09-18 (https://github.com/shoepaladin/kiwi-cup/actions/runs/35402186017)
 ```
 ./gradlew :core:test --no-daemon --stacktrace        -> 23 PASSED, BUILD SUCCESSFUL in 1m 20s
