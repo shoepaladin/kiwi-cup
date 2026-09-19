@@ -50,11 +50,14 @@ class WorkScheduler @Inject constructor(
             .addTag(WorkNames.TAG_SCHEDULED_SMS)
             .build()
         val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-        workManager.enqueueUniqueWork(WorkNames.scheduledSms(messageId), policyForExisting, request)
+        val name = WorkNames.scheduledSms(messageId)
+        workManager.enqueueUniqueWork(name, policyForExisting, request)
         // WorkManager alone may run minutes late in Doze; an exact alarm (when allowed) fires the
         // worker at the chosen minute and the delayed job above stays as the safety net.
         if (delay > 0) exactAlarms.scheduleSms(messageId, targetTimestamp)
-        return request.id
+        // Under KEEP, an existing job survives and this request is discarded, so the caller must
+        // be told the id of the job that is actually enqueued, not the one just built.
+        return currentWorkId(name, request.id)
     }
 
     /** Fired by the exact alarm: run the message's job now (the claim logic prevents double sends). */
@@ -82,9 +85,10 @@ class WorkScheduler @Inject constructor(
             .addTag(WorkNames.TAG_REMINDER)
             .build()
         val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-        workManager.enqueueUniqueWork(WorkNames.reminder(reminderId), policyForExisting, request)
+        val name = WorkNames.reminder(reminderId)
+        workManager.enqueueUniqueWork(name, policyForExisting, request)
         if (delay > 0) exactAlarms.scheduleReminder(reminderId, triggerTimestamp)
-        return request.id
+        return currentWorkId(name, request.id)
     }
 
     fun runReminderNow(reminderId: Long) {
@@ -99,6 +103,11 @@ class WorkScheduler @Inject constructor(
         workManager.cancelUniqueWork(WorkNames.reminder(reminderId))
         exactAlarms.cancelReminder(reminderId)
     }
+
+    /** Under KEEP, WorkManager silently discards [fallback]'s request and keeps the job already
+     *  enqueued for [uniqueName]; look up which job is actually live so callers store the right id. */
+    private fun currentWorkId(uniqueName: String, fallback: UUID): UUID =
+        workManager.getWorkInfosForUniqueWork(uniqueName).get().firstOrNull()?.id ?: fallback
 
     companion object {
         const val RETRY_BACKOFF_SECONDS = 30L
