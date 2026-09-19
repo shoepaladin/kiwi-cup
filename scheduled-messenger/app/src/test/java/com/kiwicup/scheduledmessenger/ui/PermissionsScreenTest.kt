@@ -116,6 +116,16 @@ class PermissionsScreenTest {
     }
 
     @Test
+    fun restrictedStateKeepsAnEscapeHatchForAMisjudgedInstaller() {
+        // The installer check is a heuristic and the restriction can be cleared mid-session, so
+        // the user must never be trapped on this screen with no way to fire the real prompt.
+        var requests = 0
+        show(state = PermissionGateState.RESTRICTED, onRequest = { requests++ })
+        compose.onNodeWithTag("restricted_try_prompt").performScrollTo().performClick()
+        assertEquals(1, requests)
+    }
+
+    @Test
     fun restrictedStateMentionsTheAdbAlternative() {
         show(state = PermissionGateState.RESTRICTED)
         compose.onNodeWithTag("adb_hint").performScrollTo().assertIsDisplayed()

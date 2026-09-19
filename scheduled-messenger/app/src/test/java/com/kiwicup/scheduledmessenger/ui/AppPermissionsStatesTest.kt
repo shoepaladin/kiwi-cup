@@ -87,6 +87,35 @@ class AppPermissionsStatesTest {
     }
 
     @Test
+    fun theInstallerCheckRunsWithoutThrowing() {
+        // getInstallSourceInfo can throw on some devices; a failure there must degrade to
+        // "treat as sideloaded" rather than crashing the gate before anything is on screen.
+        AppPermissions.smsRestrictedByInstaller(context)
+    }
+
+    @Test
+    fun aSideloadedInstallSkipsStraightToInstructions() {
+        // The regression: on a sideloaded Android 15 install the gate used to fire a request
+        // that Android refuses without a dialog, so the user's first screen was a system warning.
+        log.recordAsked(AppPermissions.all)
+        val states = AppPermissions.states(context, activity = null, log = log)
+        assertEquals(
+            PermissionGateState.RESTRICTED,
+            gateState(states, AppPermissions.requiredSet, restrictedByInstaller = true)
+        )
+    }
+
+    @Test
+    fun aSideloadedInstallStillOpensOnceTheUserClearsTheRestriction() {
+        grant(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS)
+        val states = AppPermissions.states(context, activity = null, log = log)
+        assertEquals(
+            PermissionGateState.READY,
+            gateState(states, AppPermissions.requiredSet, restrictedByInstaller = true)
+        )
+    }
+
+    @Test
     fun statesReportTheAskCountBackFromTheLog() {
         log.recordAsked(AppPermissions.all)
         log.recordAsked(AppPermissions.all)

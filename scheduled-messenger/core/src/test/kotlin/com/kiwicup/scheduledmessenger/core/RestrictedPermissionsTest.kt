@@ -276,6 +276,113 @@ class GateStateTest {
     }
 }
 
+class InstallSourceTest {
+
+    private val FILE_MANAGER = "com.google.android.packageinstaller"
+
+    @Test
+    fun `the play store allowlists`() {
+        assertTrue(InstallSource.allowlistsRestrictedPermissions(InstallSource.PLAY_STORE))
+    }
+
+    @Test
+    fun `a null installer means the shell installed it and allowlisted`() {
+        // adb install records no installing package and allowlists restricted permissions.
+        assertTrue(InstallSource.allowlistsRestrictedPermissions(null))
+    }
+
+    @Test
+    fun `ordinary sideload installers cannot allowlist`() {
+        listOf(FILE_MANAGER, "org.fdroid.fdroid", "com.android.chrome", "dev.imranr.obtainium").forEach {
+            assertFalse("$it cannot allowlist", InstallSource.allowlistsRestrictedPermissions(it))
+        }
+    }
+
+    @Test
+    fun `sms is restricted on a sideloaded modern android`() {
+        assertTrue(InstallSource.smsLikelyRestricted(sdkInt = 35, installerPackage = FILE_MANAGER))
+        assertTrue(InstallSource.smsLikelyRestricted(sdkInt = 29, installerPackage = FILE_MANAGER))
+    }
+
+    @Test
+    fun `sms is not restricted before android 10`() {
+        assertFalse(InstallSource.smsLikelyRestricted(sdkInt = 28, installerPackage = FILE_MANAGER))
+    }
+
+    @Test
+    fun `sms is not restricted when the installer allowlisted`() {
+        assertFalse(InstallSource.smsLikelyRestricted(sdkInt = 35, installerPackage = InstallSource.PLAY_STORE))
+        assertFalse(InstallSource.smsLikelyRestricted(sdkInt = 35, installerPackage = null))
+    }
+
+    @Test
+    fun `the default sms role is only blocked from android 15`() {
+        // This is what made the role prompt never appear: on 35+ the role request is refused
+        // silently, so leading with it produces no dialog and no progress.
+        assertTrue(InstallSource.roleAlsoRestricted(sdkInt = 35, installerPackage = FILE_MANAGER))
+        assertFalse(InstallSource.roleAlsoRestricted(sdkInt = 34, installerPackage = FILE_MANAGER))
+    }
+
+    @Test
+    fun `the role is never blocked when the installer allowlisted`() {
+        assertFalse(InstallSource.roleAlsoRestricted(sdkInt = 36, installerPackage = InstallSource.PLAY_STORE))
+        assertFalse(InstallSource.roleAlsoRestricted(sdkInt = 36, installerPackage = null))
+    }
+}
+
+class RestrictedByInstallerGateTest {
+
+    private val smsRequired = setOf(READ_SMS, RECEIVE_SMS, SEND_SMS)
+
+    @Test
+    fun `a sideloaded first launch shows instructions without asking first`() {
+        // The regression this exists for: on Android 15 the app fired a request that could only
+        // ever come back refused, so the user's first experience was a system warning dialog.
+        val states = listOf(neverAsked(READ_SMS), neverAsked(RECEIVE_SMS), neverAsked(SEND_SMS))
+        assertEquals(
+            PermissionGateState.RESTRICTED,
+            gateState(states, smsRequired, restrictedByInstaller = true)
+        )
+    }
+
+    @Test
+    fun `the same first launch asks normally when the installer allowlisted`() {
+        val states = listOf(neverAsked(READ_SMS), neverAsked(RECEIVE_SMS), neverAsked(SEND_SMS))
+        assertEquals(
+            PermissionGateState.ASK,
+            gateState(states, smsRequired, restrictedByInstaller = false)
+        )
+    }
+
+    @Test
+    fun `granted permissions still open the gate even on a sideloaded install`() {
+        // Once the user clears the restriction the flag stays true, so it must not trap them.
+        val states = listOf(granted(READ_SMS, 1), granted(RECEIVE_SMS, 1), granted(SEND_SMS, 1))
+        assertEquals(
+            PermissionGateState.READY,
+            gateState(states, smsRequired, restrictedByInstaller = true)
+        )
+    }
+
+    @Test
+    fun `a partial grant on a sideloaded install still shows instructions`() {
+        val states = listOf(granted(READ_SMS, 1), granted(RECEIVE_SMS, 1), autoDenied(SEND_SMS))
+        assertEquals(
+            PermissionGateState.RESTRICTED,
+            gateState(states, smsRequired, restrictedByInstaller = true)
+        )
+    }
+
+    @Test
+    fun `the installer flag outranks a retryable denial`() {
+        val states = listOf(deniedOnce(READ_SMS), granted(RECEIVE_SMS), granted(SEND_SMS))
+        assertEquals(
+            PermissionGateState.RESTRICTED,
+            gateState(states, smsRequired, restrictedByInstaller = true)
+        )
+    }
+}
+
 class RestrictedPermissionHelpTest {
 
     @Test
@@ -291,6 +398,18 @@ class RestrictedPermissionHelpTest {
         val permissions = RestrictedPermissionHelp.steps.indexOfFirst { it.contains("Permissions") }
         assertTrue(appInfo >= 0 && permissions >= 0)
         assertTrue("App info must come before the Permissions step", appInfo < permissions)
+    }
+
+    @Test
+    fun `the overflow step comes before the default sms app step`() {
+        // On Android 15+ the role is refused until restricted settings are allowed, so
+        // instructions that mention becoming the default app first would repeat the bug.
+        val overflow = RestrictedPermissionHelp.steps.indexOfFirst {
+            it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM)
+        }
+        val defaultApp = RestrictedPermissionHelp.steps.indexOfFirst { it.contains("default SMS") }
+        assertTrue(overflow >= 0 && defaultApp >= 0)
+        assertTrue("restricted settings must be allowed before the role is offered", overflow < defaultApp)
     }
 
     @Test

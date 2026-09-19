@@ -42,7 +42,11 @@ fun PermissionsScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (state == PermissionGateState.RESTRICTED) {
-            RestrictedContent(onOpenSettings = onOpenSettings, onRecheck = onRecheck)
+            RestrictedContent(
+                onOpenSettings = onOpenSettings,
+                onRecheck = onRecheck,
+                onRequest = onRequest
+            )
         } else {
             OrdinaryContent(
                 missing = missing,
@@ -100,12 +104,17 @@ private fun OrdinaryContent(
 }
 
 /**
- * The sideload case. Deliberately does not offer "Grant permissions": asking again cannot work,
- * and the settings toggle refuses too until the overflow item has been tapped, so the numbered
- * steps are the only thing on this screen that leads anywhere.
+ * The sideload case. The numbered steps lead the screen rather than a request button, because
+ * until the user allows restricted settings Android refuses both the permission request and the
+ * default-SMS-app role without drawing anything at all. The retry below stays available for the
+ * moment after they have done it, and as an escape hatch if we misjudged the installer.
  */
 @Composable
-private fun RestrictedContent(onOpenSettings: () -> Unit, onRecheck: () -> Unit) {
+private fun RestrictedContent(
+    onOpenSettings: () -> Unit,
+    onRecheck: () -> Unit,
+    onRequest: () -> Unit
+) {
     Text("Android is blocking SMS access", style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Text(
@@ -130,6 +139,9 @@ private fun RestrictedContent(onOpenSettings: () -> Unit, onRecheck: () -> Unit)
     Spacer(Modifier.height(20.dp))
     Button(onClick = onOpenSettings, modifier = Modifier.testTag("open_app_info")) { Text("Open App info") }
     TextButton(onClick = onRecheck, modifier = Modifier.testTag("restricted_recheck")) { Text("Check again") }
+    TextButton(onClick = onRequest, modifier = Modifier.testTag("restricted_try_prompt")) {
+        Text("Try the permission prompt anyway")
+    }
     Spacer(Modifier.height(12.dp))
     Text(
         RestrictedPermissionHelp.ADB_ALTERNATIVE,

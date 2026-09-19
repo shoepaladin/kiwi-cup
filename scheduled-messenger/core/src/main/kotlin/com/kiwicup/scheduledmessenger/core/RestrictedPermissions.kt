@@ -34,6 +34,35 @@ object RestrictedPermissions {
     fun isRestricted(permission: String): Boolean = permission in all
 }
 
+/**
+ * Who installed the app decides whether its restricted permissions were allowlisted, and that is
+ * knowable before asking for anything. Only an installer holding
+ * `WHITELIST_RESTRICTED_PERMISSIONS` can allowlist, which in practice means the Play Store or the
+ * shell. Everything else — a file manager, a browser download, F-Droid, Obtainium — cannot, and on
+ * those installs the SMS group is refused without a dialog.
+ */
+object InstallSource {
+    const val PLAY_STORE = "com.android.vending"
+
+    /** `adb install` runs as the shell, which allowlists restricted permissions and records no
+     *  installing package. A null installer therefore means shell-installed, not unknown. */
+    fun allowlistsRestrictedPermissions(installerPackage: String?): Boolean =
+        installerPackage == null || installerPackage == PLAY_STORE
+
+    /**
+     * True when the SMS group will be refused on sight. Hard restriction landed in Android 10
+     * (API 29); Android 15 (API 35) additionally gates the default-SMS-app *role* behind the same
+     * user opt-in, so on 35+ neither the permissions nor the role can be obtained until the user
+     * allows restricted settings.
+     */
+    fun smsLikelyRestricted(sdkInt: Int, installerPackage: String?): Boolean =
+        sdkInt >= 29 && !allowlistsRestrictedPermissions(installerPackage)
+
+    /** On these versions the role request is refused too, so offering it first cannot help. */
+    fun roleAlsoRestricted(sdkInt: Int, installerPackage: String?): Boolean =
+        sdkInt >= 35 && !allowlistsRestrictedPermissions(installerPackage)
+}
+
 /** One permission exactly as the system currently reports it, plus our own count of asks. */
 data class PermissionState(
     val permission: String,
@@ -123,12 +152,19 @@ enum class PermissionGateState {
  */
 fun gateState(
     states: List<PermissionState>,
-    required: Set<String> = states.mapTo(mutableSetOf()) { it.permission }
+    required: Set<String> = states.mapTo(mutableSetOf()) { it.permission },
+    /**
+     * Set from [InstallSource.smsLikelyRestricted]. When the installer could not allowlist, the
+     * refusal is a foregone conclusion, so the gate skips straight to the instructions instead of
+     * firing a request that the system answers with an alarming dialog and nothing else.
+     */
+    restrictedByInstaller: Boolean = false
 ): PermissionGateState {
     if (states.none { it.permission in required }) return PermissionGateState.READY
     val diagnoses = PermissionDiagnostics.diagnose(states).filterKeys { it in required }.values
     return when {
         diagnoses.all { it == PermissionDiagnosis.GRANTED } -> PermissionGateState.READY
+        restrictedByInstaller -> PermissionGateState.RESTRICTED
         diagnoses.any { it == PermissionDiagnosis.BLOCKED_AS_RESTRICTED } -> PermissionGateState.RESTRICTED
         diagnoses.any { it == PermissionDiagnosis.NOT_YET_ASKED } -> PermissionGateState.ASK
         diagnoses.any { it == PermissionDiagnosis.DENIED_CAN_RETRY } -> PermissionGateState.EXPLAIN_AND_ASK
@@ -144,15 +180,24 @@ fun gateState(
 object RestrictedPermissionHelp {
     const val OVERFLOW_ITEM = "Allow restricted settings"
 
+    /**
+     * Order matters and is the whole point. On Android 15+ the restriction covers the
+     * default-SMS-app role as well as the permissions, so asking to be the default app *first*
+     * gets refused silently, with no dialog shown at all. The overflow item has to come before
+     * anything else is attempted.
+     */
     val steps: List<String> = listOf(
         "Open this app's App info page (the button below goes straight there).",
         "Tap the three-dot menu in the top corner, then \"$OVERFLOW_ITEM\". On Android 15 and " +
-            "newer you may need to scroll to the bottom of the page to find it.",
-        "Come back to Permissions, tap SMS, and choose Allow.",
-        "Return here and tap Check again."
+            "newer this sits at the bottom of the page, so scroll down. This step has to come " +
+            "first — until it is done, Android silently refuses everything below.",
+        "Still in App info, open Permissions, tap SMS, and choose Allow.",
+        "Return here and tap Check again. The app will then offer to become your default SMS " +
+            "app, which is what unlocks sending and receiving."
     )
 
-    /** The alternative for anyone with a computer to hand: adb allowlists these on install. */
+    /** The alternative for anyone with a computer to hand: the shell installer allowlists. */
     const val ADB_ALTERNATIVE =
-        "Installing with \"adb install\" instead allowlists these permissions automatically."
+        "Or reinstall with \"adb install\" from a computer: the shell installer allowlists these " +
+            "permissions automatically, so none of the steps above are needed."
 }

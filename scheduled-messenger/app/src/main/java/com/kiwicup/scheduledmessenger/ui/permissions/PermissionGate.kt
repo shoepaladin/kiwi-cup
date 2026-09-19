@@ -36,6 +36,9 @@ fun PermissionGate(content: @Composable () -> Unit) {
     val viewModel: PermissionsViewModel = hiltViewModel()
     val log = remember { PermissionAskLog(context) }
 
+    // Fixed for the life of the install: who installed us cannot change under our feet.
+    val restrictedByInstaller = remember { AppPermissions.smsRestrictedByInstaller(context) }
+
     var states by remember { mutableStateOf(AppPermissions.states(context, activity, log)) }
     var roleRequested by rememberSaveable { mutableStateOf(false) }
     var permissionsRequested by rememberSaveable { mutableStateOf(false) }
@@ -43,6 +46,8 @@ fun PermissionGate(content: @Composable () -> Unit) {
     fun refresh() {
         states = AppPermissions.states(context, activity, log)
     }
+
+    fun currentState() = gateState(states, AppPermissions.requiredSet, restrictedByInstaller)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -61,7 +66,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
         refresh()
         // Accepting the role usually grants the SMS group outright; declining leaves it to the
         // permission prompt. Either way the remaining permissions still have to be asked for.
-        if (gateState(states, AppPermissions.requiredSet) != PermissionGateState.READY) requestPermissions()
+        if (currentState() != PermissionGateState.READY) requestPermissions()
     }
 
     // Coming back from Settings (or the default-app dialog) must refresh without a tap.
@@ -71,7 +76,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        if (gateState(states, AppPermissions.requiredSet) == PermissionGateState.READY) return@LaunchedEffect
+        val current = currentState()
+        if (current == PermissionGateState.READY) return@LaunchedEffect
+        // When the installer could not allowlist the SMS group, Android refuses both the role
+        // request and the permission request without drawing anything. Firing either one just
+        // produces a system warning dialog and no progress, so show the instructions instead and
+        // let the user drive from there.
+        if (current == PermissionGateState.RESTRICTED) return@LaunchedEffect
         val roleIntent = if (roleRequested) null else DefaultSmsApp.requestIntent(context)
         when {
             roleIntent != null -> {
@@ -82,7 +93,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
         }
     }
 
-    val state = gateState(states, AppPermissions.requiredSet)
+    val state = currentState()
     if (state == PermissionGateState.READY) {
         // Import on every return to the foreground; the import is incremental and cheap.
         LifecycleResumeEffect(Unit) {

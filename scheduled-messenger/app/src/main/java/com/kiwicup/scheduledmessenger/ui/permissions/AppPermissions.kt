@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.kiwicup.scheduledmessenger.core.InstallSource
 import com.kiwicup.scheduledmessenger.core.PermissionState
 
 /** Which runtime permissions the app asks for, and which of them block the main UI. */
@@ -33,6 +34,27 @@ object AppPermissions {
     fun missingRequired(context: Context): List<String> = required.filterNot { isGranted(context, it) }
 
     val requiredSet: Set<String> get() = required.toSet()
+
+    /**
+     * Who installed us, which decides whether the SMS group was allowlisted. Null means the shell
+     * (adb), which does allowlist — so a failure to read this must not be reported as null, or a
+     * sideloaded install would be mistaken for an adb one.
+     */
+    fun installerPackage(context: Context): String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching { context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName }
+                .getOrDefault(UNKNOWN_INSTALLER)
+        } else {
+            @Suppress("DEPRECATION")
+            runCatching { context.packageManager.getInstallerPackageName(context.packageName) }
+                .getOrDefault(UNKNOWN_INSTALLER)
+        }
+
+    fun smsRestrictedByInstaller(context: Context): Boolean =
+        InstallSource.smsLikelyRestricted(Build.VERSION.SDK_INT, installerPackage(context))
+
+    /** Stands in for an installer we could not read: treated as a sideload, never as the shell. */
+    private const val UNKNOWN_INSTALLER = "unknown"
 
     /**
      * Snapshots the whole batch, optional permissions included: the optional ones are what prove
