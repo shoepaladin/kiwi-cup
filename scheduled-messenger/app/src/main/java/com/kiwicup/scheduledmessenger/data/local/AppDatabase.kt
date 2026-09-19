@@ -14,8 +14,9 @@ import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 
 @Database(
     entities = [SmsMessage::class, ScheduledMessage::class, Reminder::class, ConversationStyle::class],
-    version = 4,
-    // Schema export is switched on once the first shipped version needs a migration.
+    version = 1,
+    // Version 1 is the first installed schema. Before the first schema change: turn on exportSchema,
+    // commit schemas/, add a Migration and drop the destructive fallback in DatabaseModule.
     exportSchema = false
 )
 @TypeConverters(Converters::class)

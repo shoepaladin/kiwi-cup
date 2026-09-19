@@ -31,7 +31,10 @@ class AttachmentStore @Inject constructor(
                 target.outputStream().use { output -> input.copyTo(output) }
             } != null
         }.getOrDefault(false)
-        if (ok) Attachment(Uri.fromFile(target).toString(), mime) else { target.delete(); null }
+        if (!ok) { target.delete(); return@withContext null }
+        // Images are downscaled at send time; anything else must already fit an MMS.
+        if (!mime.startsWith("image/") && target.length() > MMS_MAX_BYTES) { target.delete(); return@withContext null }
+        Attachment(Uri.fromFile(target).toString(), mime)
     }
 
     fun readBytes(attachment: Attachment): ByteArray? = runCatching {

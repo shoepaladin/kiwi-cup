@@ -7,9 +7,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import com.kiwicup.scheduledmessenger.notifications.ComposeRequest
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
+import com.kiwicup.scheduledmessenger.work.ExactAlarms
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,7 +38,8 @@ import com.kiwicup.scheduledmessenger.ui.thread.ThreadViewModel
 
 object Routes {
     const val CONVERSATIONS = "conversations"
-    const val COMPOSE = "compose"
+    const val COMPOSE = "compose?to={to}&body={body}"
+    fun compose(to: String = "", body: String = "") = "compose?to=${Uri.encode(to)}&body=${Uri.encode(body)}"
     const val QUEUE = "queue"
     const val SETTINGS = "settings"
     const val THREAD = "thread/{threadId}"
@@ -49,12 +53,20 @@ object Routes {
 fun AppNavHost(
     deepLinkThreadId: Long?,
     onDeepLinkConsumed: () -> Unit,
+    composeRequest: ComposeRequest? = null,
+    onComposeRequestConsumed: () -> Unit = {},
     navController: NavHostController = rememberNavController()
 ) {
     LaunchedEffect(deepLinkThreadId) {
         if (deepLinkThreadId != null) {
             navController.navigate(Routes.thread(deepLinkThreadId)) { launchSingleTop = true }
             onDeepLinkConsumed()
+        }
+    }
+    LaunchedEffect(composeRequest) {
+        if (composeRequest != null) {
+            navController.navigate(Routes.compose(composeRequest.recipients, composeRequest.body)) { launchSingleTop = true }
+            onComposeRequestConsumed()
         }
     }
 
@@ -75,7 +87,7 @@ fun AppNavHost(
             ConversationsScreen(
                 threads = threads,
                 onOpenThread = { navController.navigate(Routes.thread(it)) },
-                onNewMessage = { navController.navigate(Routes.COMPOSE) },
+                onNewMessage = { navController.navigate(Routes.compose()) },
                 onOpenQueue = { navController.navigate(Routes.QUEUE) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 isDefaultSmsApp = isDefault,
@@ -120,6 +132,12 @@ fun AppNavHost(
         composable(Routes.SETTINGS) {
             val vm: SettingsViewModel = hiltViewModel()
             val settings by vm.settings.collectAsState()
+            val context = LocalContext.current
+            var exactAllowed by remember { mutableStateOf(vm.exactAlarmsAllowed()) }
+            LifecycleResumeEffect(Unit) {
+                exactAllowed = vm.exactAlarmsAllowed()
+                onPauseOrDispose { }
+            }
             SettingsScreen(
                 settings = settings,
                 onThemeMode = vm::setThemeMode,
@@ -127,10 +145,18 @@ fun AppNavHost(
                 onSeedColor = vm::setSeedColor,
                 onBubbleColors = vm::setBubbleColors,
                 onReset = vm::reset,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                exactAlarmsAllowed = exactAllowed,
+                onOpenExactAlarmSettings = ExactAlarms.settingsIntent(context)?.let { intent -> { context.startActivity(intent) } }
             )
         }
-        composable(Routes.COMPOSE) {
+        composable(
+            route = Routes.COMPOSE,
+            arguments = listOf(
+                navArgument("to") { type = NavType.StringType; defaultValue = "" },
+                navArgument("body") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) {
             val vm: ComposeViewModel = hiltViewModel()
             val state by vm.state.collectAsState()
             val pickAttachment = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -151,7 +177,8 @@ fun AppNavHost(
                 },
                 onBack = { navController.popBackStack() },
                 onAttach = { pickAttachment.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
-                onRemoveAttachment = vm::removeAttachment
+                onRemoveAttachment = vm::removeAttachment,
+                isDefaultSmsApp = DefaultSmsApp.isDefault(LocalContext.current)
             )
         }
         composable(Routes.QUEUE) {

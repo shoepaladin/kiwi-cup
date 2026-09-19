@@ -36,9 +36,12 @@ class AndroidSystemMessageStore @Inject constructor(
             val values = ContentValues().apply {
                 put(Telephony.Sms.ADDRESS, address)
                 put(Telephony.Sms.BODY, body)
-                put(Telephony.Sms.DATE, timestamp)
+                // Stock apps store receipt time in DATE and the carrier's timestamp in DATE_SENT.
+                put(Telephony.Sms.DATE, System.currentTimeMillis())
+                put(Telephony.Sms.DATE_SENT, timestamp)
                 put(Telephony.Sms.READ, read)
-                put(Telephony.Sms.SEEN, read)
+                // SEEN = 1: this app posts its own notification, so the system need not flag it as new.
+                put(Telephony.Sms.SEEN, 1)
                 put(Telephony.Sms.TYPE, type)
                 put(Telephony.Sms.THREAD_ID, threadId)
             }

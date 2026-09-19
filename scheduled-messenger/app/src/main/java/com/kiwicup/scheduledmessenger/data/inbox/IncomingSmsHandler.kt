@@ -6,6 +6,8 @@ import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** One received text, already reassembled from its parts. */
 data class IncomingSms(val address: String, val body: String, val timestamp: Long)
@@ -23,9 +25,11 @@ class IncomingSmsHandler @Inject constructor(
     private val systemStore: SystemMessageStore,
     private val threads: ThreadResolver
 ) {
+    private val lock = Mutex()
+
     /** Returns the Room row id, or -1 when the message was already known. */
-    suspend fun handle(sms: IncomingSms): Long {
-        if (smsMessageDao.existsUnsynced(sms.address, sms.body, sms.timestamp)) return -1L
+    suspend fun handle(sms: IncomingSms): Long = lock.withLock {
+        if (threads.findUnsynced(sms.address, sms.body, sms.timestamp) != null) return@withLock -1L
         val stored = systemStore.insertReceivedSms(sms.address, sms.body, sms.timestamp)
         val threadId = stored?.threadId ?: threads.findOrCreate(sms.address)
         if (stored != null) threads.mergeLocalInto(sms.address, stored.threadId)

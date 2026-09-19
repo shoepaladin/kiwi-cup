@@ -2,21 +2,19 @@ package com.kiwicup.scheduledmessenger.receivers
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.klinker.android.send_message.MmsSentReceiver
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
- * The MMS library reports the outcome of a send here (matched by task affinity in the manifest).
- * The library's base class already marks the row in the phone's store; we relay the result to
- * whoever is waiting on it inside the app.
+ * The MMS library reports the outcome of a send here (explicit intent from within this app).
+ * The base class already marks the row in the phone's store and calls this on a background
+ * thread; we relay the result to the sender waiting inside the app and refresh the inbox.
  */
 class MmsSentReceiverImpl : MmsSentReceiver() {
 
@@ -35,12 +33,10 @@ class MmsSentReceiverImpl : MmsSentReceiver() {
                     .putExtra(EXTRA_RESULT_CODE, resultCode)
             )
         }
-        // Pull the library's copy of the sent MMS into our inbox so the conversation updates now.
-        val importer = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java).importer()
-        val pending = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try { runCatching { importer.importNew() } } finally { pending.finish() }
-        }
+        runCatching {
+            val importer = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java).importer()
+            runBlocking { importer.importNew() }
+        }.onFailure { Log.w("MmsSent", "import after send failed", it) }
     }
 
     companion object {

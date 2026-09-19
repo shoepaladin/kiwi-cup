@@ -44,7 +44,7 @@ class ReminderNotifier @Inject constructor(
         ensureChannel()
         val contentIntent = PendingIntent.getActivity(
             context,
-            reminder.id.toInt(),
+            REQUEST_BASE + (reminder.id % 100_000).toInt(),
             DeepLinks.openThread(context, reminder.threadId, reminder.id),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
@@ -70,6 +70,7 @@ class ReminderNotifier @Inject constructor(
     companion object {
         const val CHANNEL_ID = "reminders"
         private const val ID_BASE = 10_000
+        private const val REQUEST_BASE = 1_000_000
         fun notificationId(reminderId: Long): Int = ID_BASE + (reminderId % 100_000).toInt()
     }
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kiwicup.scheduledmessenger.core.ThemeMode
 import com.kiwicup.scheduledmessenger.data.settings.AppSettings
 import com.kiwicup.scheduledmessenger.data.settings.SettingsRepository
+import com.kiwicup.scheduledmessenger.work.ExactAlarms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,8 +15,11 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: SettingsRepository
+    private val repository: SettingsRepository,
+    private val exactAlarms: ExactAlarms
 ) : ViewModel() {
+    fun exactAlarmsAllowed(): Boolean = exactAlarms.canScheduleExact()
+
     val settings: StateFlow<AppSettings> = repository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 

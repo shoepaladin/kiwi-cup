@@ -11,10 +11,6 @@ import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 /**
  * Incoming texts. `SMS_RECEIVED` reaches every app with the permission; `SMS_DELIVER` reaches
@@ -34,15 +30,10 @@ class SmsReceiver : BroadcastReceiver() {
         // The default app receives BOTH broadcasts for one text; SMS_DELIVER is the authoritative one.
         if (!weAreDefault && DefaultSmsApp.isDefault(context)) return
         val incoming = parse(intent) ?: return
-        val pending = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try {
-                val rowId = handler.handle(incoming)
-                // Only the default app announces messages; otherwise the stock app already did.
-                if (weAreDefault && rowId > 0) smsMessageDao.getById(rowId)?.let { notifier.notifyNewMessage(it) }
-            } finally {
-                pending.finish()
-            }
+        ReceiverScope.run(this, "SmsReceiver") {
+            val rowId = handler.handle(incoming)
+            // Only the default app announces messages; otherwise the stock app already did.
+            if (weAreDefault && rowId > 0) smsMessageDao.getById(rowId)?.let { notifier.notifyNewMessage(it) }
         }
     }
 

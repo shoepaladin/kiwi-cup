@@ -9,20 +9,18 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.kiwicup.scheduledmessenger.core.AttachmentCodec
 import com.kiwicup.scheduledmessenger.core.Recipients
-import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.core.TimeSource
-import com.kiwicup.scheduledmessenger.data.inbox.ThreadResolver
+import com.kiwicup.scheduledmessenger.data.inbox.SentMessageRecorder
+import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
-import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
-import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 import com.kiwicup.scheduledmessenger.data.sms.MmsSender
 import com.kiwicup.scheduledmessenger.data.sms.OutgoingMms
 import com.kiwicup.scheduledmessenger.data.sms.SendResult
 import com.kiwicup.scheduledmessenger.data.sms.SmsSender
-import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 
 /**
  * Sends one [ScheduledMessage].
@@ -40,8 +38,8 @@ class ScheduledSmsWorker @AssistedInject constructor(
     private val smsMessageDao: SmsMessageDao,
     private val smsSender: SmsSender,
     private val mmsSender: MmsSender,
-    private val systemStore: SystemMessageStore,
-    private val threads: ThreadResolver,
+    private val sentRecorder: SentMessageRecorder,
+    private val importer: SmsInboxImporter,
     private val timeSource: TimeSource
 ) : CoroutineWorker(appContext, params) {
 
@@ -65,18 +63,28 @@ class ScheduledSmsWorker @AssistedInject constructor(
         val recipients = Recipients.decode(message.recipientAddress)
         val attachments = AttachmentCodec.decode(message.attachments)
         val useMms = attachments.isNotEmpty() || recipients.size > 1
-        val outcome = if (useMms) {
-            mmsSender.send(OutgoingMms(recipients, message.messageBody, attachments))
-        } else {
-            smsSender.send(message.recipientAddress, message.messageBody)
+        val outcome = try {
+            if (useMms) {
+                mmsSender.send(OutgoingMms(recipients, message.messageBody, attachments))
+            } else {
+                smsSender.send(message.recipientAddress, message.messageBody)
+            }
+        } catch (e: CancellationException) {
+            // WorkManager stopped us (replaced, constraints, shutdown): hand the row back.
+            scheduledMessageDao.releaseClaim(id, timeSource.now())
+            throw e
         }
 
         return when (outcome) {
             SendResult.Sent -> {
                 val sentAt = timeSource.now()
                 scheduledMessageDao.markSent(id, sentAt)
-                if (!useMms) recordSentSms(message, sentAt)
-                // MMS copies are written into the phone's store by the library; the importer picks them up.
+                if (useMms) {
+                    // The library wrote the MMS into the phone's store; pull it into the inbox now.
+                    runCatching { importer.importNew() }
+                } else {
+                    sentRecorder.record(message.recipientAddress, message.messageBody, message.threadId, sentAt)
+                }
                 Result.success()
             }
             is SendResult.PermanentFailure -> {
@@ -93,25 +101,6 @@ class ScheduledSmsWorker @AssistedInject constructor(
                 }
             }
         }
-    }
-
-    private suspend fun recordSentSms(message: ScheduledMessage, sentAt: Long) {
-        val stored = systemStore.insertSentSms(message.recipientAddress, message.messageBody, sentAt)
-        val resolvedThread = stored?.threadId
-            ?: message.threadId
-            ?: threads.findOrCreate(message.recipientAddress)
-        if (stored != null) threads.mergeLocalInto(message.recipientAddress, stored.threadId)
-        smsMessageDao.insert(
-            SmsMessage(
-                threadId = resolvedThread,
-                address = message.recipientAddress,
-                body = message.messageBody,
-                timestamp = sentAt,
-                status = SmsStatus.SENT,
-                isIncoming = false,
-                systemId = stored?.systemId
-            )
-        )
     }
 
     private fun hasSendPermission(): Boolean =

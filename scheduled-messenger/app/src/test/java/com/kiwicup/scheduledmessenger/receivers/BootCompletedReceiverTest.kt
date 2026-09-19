@@ -21,6 +21,7 @@ import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
 import com.kiwicup.scheduledmessenger.testing.FakeSmsSender
 import com.kiwicup.scheduledmessenger.testing.FixedTimeSource
 import com.kiwicup.scheduledmessenger.testing.TestWorkerFactory
+import com.kiwicup.scheduledmessenger.work.ExactAlarms
 import com.kiwicup.scheduledmessenger.work.RearmWorker
 import com.kiwicup.scheduledmessenger.work.WorkScheduler
 import kotlinx.coroutines.delay
@@ -63,7 +64,7 @@ class BootCompletedReceiverTest {
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
         workManager = WorkManager.getInstance(context)
-        scheduler = WorkScheduler(workManager, policy, clock)
+        scheduler = WorkScheduler(workManager, policy, clock, ExactAlarms(context))
     }
 
     private suspend fun awaitRearmFinished() {
@@ -102,8 +103,8 @@ class BootCompletedReceiverTest {
 
 /** Defers WorkScheduler resolution until after WorkManager is initialised. */
 private class LazyScheduler(private val provider: () -> WorkScheduler) : com.kiwicup.scheduledmessenger.work.SchedulerApi {
-    override fun scheduleSms(messageId: Long, targetTimestamp: Long) = provider().scheduleSms(messageId, targetTimestamp)
+    override fun scheduleSms(messageId: Long, targetTimestamp: Long, replace: Boolean) = provider().scheduleSms(messageId, targetTimestamp, replace)
     override fun cancelSms(messageId: Long) = provider().cancelSms(messageId)
-    override fun scheduleReminder(reminderId: Long, triggerTimestamp: Long) = provider().scheduleReminder(reminderId, triggerTimestamp)
+    override fun scheduleReminder(reminderId: Long, triggerTimestamp: Long, replace: Boolean) = provider().scheduleReminder(reminderId, triggerTimestamp, replace)
     override fun cancelReminder(reminderId: Long) = provider().cancelReminder(reminderId)
 }

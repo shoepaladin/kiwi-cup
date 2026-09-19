@@ -15,9 +15,12 @@ object AppPermissions {
         Manifest.permission.SEND_SMS
     )
 
-    /** Asked for alongside, but the app works without it (reminders show in the queue instead). */
-    val optional: List<String> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+    /** Asked for alongside, but the app works without them. */
+    val optional: List<String> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.READ_PHONE_STATE)
+    }
 
     val all: List<String> get() = required + optional
 
@@ -30,7 +33,9 @@ object AppPermissions {
         Manifest.permission.READ_SMS -> "Read your text messages (to show conversations)"
         Manifest.permission.RECEIVE_SMS -> "Receive text messages (to update conversations live)"
         Manifest.permission.SEND_SMS -> "Send text messages (to deliver scheduled texts)"
-        Manifest.permission.POST_NOTIFICATIONS -> "Show notifications (for reminders)"
+        Manifest.permission.POST_NOTIFICATIONS -> "Show notifications (for reminders and new messages)"
+        Manifest.permission.READ_CONTACTS -> "Read contacts (to show names instead of numbers)"
+        Manifest.permission.READ_PHONE_STATE -> "Read phone state (needed by picture messaging on some phones)"
         else -> permission
     }
 }

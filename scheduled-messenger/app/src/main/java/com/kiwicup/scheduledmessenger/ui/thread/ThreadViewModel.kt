@@ -19,7 +19,9 @@ import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.settings.SettingsRepository
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
 import com.kiwicup.scheduledmessenger.data.system.SystemMessageStore
+import com.kiwicup.scheduledmessenger.data.system.ContactNames
 import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
+import com.kiwicup.scheduledmessenger.notifications.VisibleThread
 import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -57,10 +59,12 @@ data class ThreadUiState(
     val look: ThreadLook = ThreadLook(),
     val attachments: List<Attachment> = emptyList(),
     /** Every other participant for a group conversation; empty for one-to-one. */
-    val participants: List<String> = emptyList()
+    val participants: List<String> = emptyList(),
+    /** Contact name for the other party when known. */
+    val contactName: String? = null
 ) {
     val isGroup: Boolean get() = participants.size > 1
-    val title: String get() = if (isGroup) participants.joinToString(", ") else address.ifEmpty { "Conversation" }
+    val title: String get() = if (isGroup) participants.joinToString(", ") else contactName ?: address.ifEmpty { "Conversation" }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,6 +79,7 @@ class ThreadViewModel @Inject constructor(
     private val attachmentStore: AttachmentStore,
     private val systemStore: SystemMessageStore,
     private val incomingNotifier: IncomingMessageNotifier,
+    private val contacts: ContactNames,
     private val timeSource: TimeSource
 ) : ViewModel() {
 
@@ -84,11 +89,17 @@ class ThreadViewModel @Inject constructor(
     private val attachments = MutableStateFlow<List<Attachment>>(emptyList())
 
     init {
+        VisibleThread.current = threadId
         // Opening a conversation counts as reading it.
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { systemStore.markThreadRead(threadId) }
             runCatching { incomingNotifier.cancelForThread(threadId) }
         }
+    }
+
+    override fun onCleared() {
+        if (VisibleThread.current == threadId) VisibleThread.current = null
+        super.onCleared()
     }
 
     private val messages: Flow<List<SmsMessage>> = smsMessageDao.observeThread(threadId)
@@ -129,7 +140,8 @@ class ThreadViewModel @Inject constructor(
             snackbar = message,
             look = look,
             attachments = pending,
-            participants = Recipients.decode(latest?.recipients)
+            participants = Recipients.decode(latest?.recipients),
+            contactName = latest?.address?.let { contacts.displayName(it) }?.takeIf { it != latest.address }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThreadUiState(threadId))
 

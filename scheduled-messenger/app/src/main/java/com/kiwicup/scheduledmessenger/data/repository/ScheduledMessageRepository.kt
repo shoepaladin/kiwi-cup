@@ -102,19 +102,22 @@ class ScheduledMessageRepository @Inject constructor(
         return Result.success(Unit)
     }
 
-    /** Used after reboot / app update: re-arms every PENDING row. Returns how many were re-armed. */
+    /**
+     * Used after reboot / app start: makes sure every PENDING row has a job, without touching
+     * jobs that already exist (an in-flight send must never be cancelled and restarted).
+     */
     suspend fun reenqueueAllPending(): Int {
         var count = 0
         dao.getPending().forEach { message ->
-            if (enqueue(message.id, message.targetTimestamp)) count++
+            if (enqueue(message.id, message.targetTimestamp, replace = false)) count++
         }
         return count
     }
 
     suspend fun clearHistory(): Int = dao.clearHistory()
 
-    private suspend fun enqueue(id: Long, targetTimestamp: Long): Boolean {
-        val workId = scheduler.scheduleSms(id, targetTimestamp)
+    private suspend fun enqueue(id: Long, targetTimestamp: Long, replace: Boolean = true): Boolean {
+        val workId = scheduler.scheduleSms(id, targetTimestamp, replace)
         return if (workId == null) {
             dao.markFailed(id, REASON_MISSED, timeSource.now())
             false

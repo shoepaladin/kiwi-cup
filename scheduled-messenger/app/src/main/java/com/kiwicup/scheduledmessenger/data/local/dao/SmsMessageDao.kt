@@ -2,6 +2,7 @@ package com.kiwicup.scheduledmessenger.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
+import androidx.room.Ignore
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -17,11 +18,16 @@ data class ThreadSummary(
     val timestamp: Long,
     val messageCount: Int,
     val recipients: String? = null,
-    val attachments: String? = null
+    val attachments: String? = null,
+    /** Filled in by the view model from contacts; ignored by Room. */
+    @Ignore val displayName: String? = null
 ) {
+    constructor(threadId: Long, address: String, body: String, timestamp: Long, messageCount: Int, recipients: String?, attachments: String?) :
+        this(threadId, address, body, timestamp, messageCount, recipients, attachments, null)
+
     /** Group conversations list every participant; one-to-one shows the other party. */
     val title: String
-        get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: address
+        get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: displayName ?: address
 
     val preview: String
         get() = body.ifBlank { if (attachments.isNullOrBlank()) "" else "\uD83D\uDCF7 Picture" }
@@ -52,11 +58,15 @@ interface SmsMessageDao {
     @Query("SELECT * FROM sms_messages WHERE mmsSystemId = :mmsSystemId")
     suspend fun findByMmsSystemId(mmsSystemId: Long): SmsMessage?
 
+    /** Rows this app created itself (no system ids) that look like the given message. SMSC vs device clocks drift, so the window is generous. */
     @Query(
-        "SELECT EXISTS(SELECT 1 FROM sms_messages WHERE address = :address AND body = :body " +
-            "AND ABS(timestamp - :timestamp) < 5000)"
+        "SELECT * FROM sms_messages WHERE systemId IS NULL AND mmsSystemId IS NULL AND body = :body " +
+            "AND ABS(timestamp - :timestamp) < 300000 AND address LIKE :addressTail"
     )
-    suspend fun existsUnsynced(address: String, body: String, timestamp: Long): Boolean
+    suspend fun findUnsyncedCandidates(addressTail: String, body: String, timestamp: Long): List<SmsMessage>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM sms_messages WHERE systemId = :systemId)")
+    suspend fun existsSystemId(systemId: Long): Boolean
 
     @Update
     suspend fun update(message: SmsMessage)

@@ -6,7 +6,10 @@ import android.net.Uri
 import android.os.IBinder
 import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.TimeSource
-import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
+import android.util.Log
+import com.kiwicup.scheduledmessenger.data.inbox.SentMessageRecorder
+import com.kiwicup.scheduledmessenger.data.sms.SendResult
+import com.kiwicup.scheduledmessenger.data.sms.SmsSender
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +25,8 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class HeadlessSmsSendService : Service() {
 
-    @Inject lateinit var scheduledMessages: ScheduledMessageRepository
+    @Inject lateinit var smsSender: SmsSender
+    @Inject lateinit var sentRecorder: SentMessageRecorder
     @Inject lateinit var timeSource: TimeSource
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -37,7 +41,14 @@ class HeadlessSmsSendService : Service() {
         }
         scope.launch {
             try {
-                scheduledMessages.schedule(Recipients.encode(request.recipients), request.text, timeSource.now())
+                // The caller (in-call screen) expects the text to go out now, not via a queued job.
+                request.recipients.forEach { address ->
+                    if (smsSender.send(address, request.text) is SendResult.Sent) {
+                        sentRecorder.record(address, request.text, null, timeSource.now())
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w("QuickReply", "quick reply failed", t)
             } finally {
                 stopSelf(startId)
             }

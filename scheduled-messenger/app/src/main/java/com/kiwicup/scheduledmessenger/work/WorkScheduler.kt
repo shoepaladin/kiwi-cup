@@ -17,10 +17,14 @@ import javax.inject.Singleton
 
 /** What the repositories need from the scheduler; an interface so tests can substitute or defer it. */
 interface SchedulerApi {
-    /** Returns the work id, or null when the policy says the target is too stale to run at all. */
-    fun scheduleSms(messageId: Long, targetTimestamp: Long): UUID?
+    /**
+     * Returns the work id, or null when the policy says the target is too stale to run at all.
+     * [replace] = false keeps an existing job for this message (used when re-arming after a
+     * reboot or app start, so an in-flight send is never cancelled and restarted).
+     */
+    fun scheduleSms(messageId: Long, targetTimestamp: Long, replace: Boolean = true): UUID?
     fun cancelSms(messageId: Long)
-    fun scheduleReminder(reminderId: Long, triggerTimestamp: Long): UUID
+    fun scheduleReminder(reminderId: Long, triggerTimestamp: Long, replace: Boolean = true): UUID
     fun cancelReminder(reminderId: Long)
 }
 
@@ -29,10 +33,11 @@ interface SchedulerApi {
 class WorkScheduler @Inject constructor(
     private val workManager: WorkManager,
     private val policy: SchedulingPolicy,
-    private val timeSource: TimeSource
+    private val timeSource: TimeSource,
+    private val exactAlarms: ExactAlarms
 ) : SchedulerApi {
 
-    override fun scheduleSms(messageId: Long, targetTimestamp: Long): UUID? {
+    override fun scheduleSms(messageId: Long, targetTimestamp: Long, replace: Boolean): UUID? {
         val delay = when (val action = policy.recoveryAction(timeSource.now(), targetTimestamp)) {
             is RecoveryAction.DispatchLater -> action.delayMillis
             RecoveryAction.DispatchNow -> 0L
@@ -44,16 +49,31 @@ class WorkScheduler @Inject constructor(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, RETRY_BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(WorkNames.TAG_SCHEDULED_SMS)
             .build()
-        workManager.enqueueUniqueWork(WorkNames.scheduledSms(messageId), ExistingWorkPolicy.REPLACE, request)
+        val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+        workManager.enqueueUniqueWork(WorkNames.scheduledSms(messageId), policyForExisting, request)
+        // WorkManager alone may run minutes late in Doze; an exact alarm (when allowed) fires the
+        // worker at the chosen minute and the delayed job above stays as the safety net.
+        if (delay > 0) exactAlarms.scheduleSms(messageId, targetTimestamp)
         return request.id
+    }
+
+    /** Fired by the exact alarm: run the message's job now (the claim logic prevents double sends). */
+    fun runSmsNow(messageId: Long) {
+        val request = OneTimeWorkRequestBuilder<ScheduledSmsWorker>()
+            .setInputData(workDataOf(ScheduledSmsWorker.KEY_MESSAGE_ID to messageId))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, RETRY_BACKOFF_SECONDS, TimeUnit.SECONDS)
+            .addTag(WorkNames.TAG_SCHEDULED_SMS)
+            .build()
+        workManager.enqueueUniqueWork(WorkNames.scheduledSms(messageId), ExistingWorkPolicy.REPLACE, request)
     }
 
     override fun cancelSms(messageId: Long) {
         workManager.cancelUniqueWork(WorkNames.scheduledSms(messageId))
+        exactAlarms.cancelSms(messageId)
     }
 
     /** Reminders never expire: a late reminder is still useful, so the delay is simply clamped to zero. */
-    override fun scheduleReminder(reminderId: Long, triggerTimestamp: Long): UUID {
+    override fun scheduleReminder(reminderId: Long, triggerTimestamp: Long, replace: Boolean): UUID {
         val delay = policy.initialDelayMillis(timeSource.now(), triggerTimestamp)
         val request: OneTimeWorkRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInputData(workDataOf(ReminderWorker.KEY_REMINDER_ID to reminderId))
@@ -61,12 +81,23 @@ class WorkScheduler @Inject constructor(
             .setBackoffCriteria(BackoffPolicy.LINEAR, RETRY_BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(WorkNames.TAG_REMINDER)
             .build()
-        workManager.enqueueUniqueWork(WorkNames.reminder(reminderId), ExistingWorkPolicy.REPLACE, request)
+        val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+        workManager.enqueueUniqueWork(WorkNames.reminder(reminderId), policyForExisting, request)
+        if (delay > 0) exactAlarms.scheduleReminder(reminderId, triggerTimestamp)
         return request.id
+    }
+
+    fun runReminderNow(reminderId: Long) {
+        val request = OneTimeWorkRequestBuilder<ReminderWorker>()
+            .setInputData(workDataOf(ReminderWorker.KEY_REMINDER_ID to reminderId))
+            .addTag(WorkNames.TAG_REMINDER)
+            .build()
+        workManager.enqueueUniqueWork(WorkNames.reminder(reminderId), ExistingWorkPolicy.REPLACE, request)
     }
 
     override fun cancelReminder(reminderId: Long) {
         workManager.cancelUniqueWork(WorkNames.reminder(reminderId))
+        exactAlarms.cancelReminder(reminderId)
     }
 
     companion object {

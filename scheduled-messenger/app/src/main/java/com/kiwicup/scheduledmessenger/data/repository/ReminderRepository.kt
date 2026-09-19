@@ -60,14 +60,14 @@ class ReminderRepository @Inject constructor(
 
     suspend fun reenqueueAllActive(): Int {
         val active = dao.getActive()
-        active.forEach { arm(it.id, it.triggerTimestamp) }
+        active.forEach { arm(it.id, it.triggerTimestamp, replace = false) }
         return active.size
     }
 
     suspend fun clearCompleted(): Int = dao.clearCompleted()
 
-    private suspend fun arm(id: Long, triggerTimestamp: Long) {
-        val workId = scheduler.scheduleReminder(id, triggerTimestamp)
+    private suspend fun arm(id: Long, triggerTimestamp: Long, replace: Boolean = true) {
+        val workId = scheduler.scheduleReminder(id, triggerTimestamp, replace)
         dao.setWorkRequestId(id, workId.toString())
     }
 }

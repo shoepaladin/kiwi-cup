@@ -41,7 +41,9 @@ fun SettingsScreen(
     onSeedColor: (Int) -> Unit,
     onBubbleColors: (incoming: Int?, outgoing: Int?) -> Unit,
     onReset: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    exactAlarmsAllowed: Boolean = true,
+    onOpenExactAlarmSettings: (() -> Unit)? = null
 ) {
     Scaffold(
         topBar = {
@@ -88,6 +90,18 @@ fun SettingsScreen(
                 onSelect = { it?.let(onSeedColor) },
                 tag = "seed"
             )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+            Text("Scheduling", style = MaterialTheme.typography.titleMedium)
+            if (exactAlarmsAllowed) {
+                Text("Scheduled texts go out at the exact minute, even while the phone sleeps.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp).testTag("exact_ok"))
+            } else {
+                Text("Android is not allowing exact timing, so a scheduled text may go out a few minutes late while the phone sleeps.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp).testTag("exact_off"))
+                if (onOpenExactAlarmSettings != null) {
+                    TextButton(onClick = onOpenExactAlarmSettings, modifier = Modifier.testTag("exact_settings")) { Text("Allow exact timing") }
+                }
+            }
             HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
             Text("Message bubbles (default for every conversation)", style = MaterialTheme.typography.titleMedium)
             Text("Long-press a conversation title to style just that one.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -18,8 +18,10 @@ class BootCompletedReceiver : BroadcastReceiver() {
     companion object {
         val HANDLED_ACTIONS = setOf(
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_LOCKED_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
+            // Delays are relative to the clock at enqueue time; re-arm when the user changes it.
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
             "android.intent.action.QUICKBOOT_POWERON"
         )
     }

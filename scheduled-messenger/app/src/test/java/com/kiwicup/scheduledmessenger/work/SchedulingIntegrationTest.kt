@@ -22,6 +22,7 @@ import com.kiwicup.scheduledmessenger.notifications.ReminderNotifier
 import com.kiwicup.scheduledmessenger.testing.FakeSmsSender
 import com.kiwicup.scheduledmessenger.testing.FixedTimeSource
 import com.kiwicup.scheduledmessenger.testing.TestWorkerFactory
+import com.kiwicup.scheduledmessenger.work.ExactAlarms
 import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -69,7 +70,7 @@ class SchedulingIntegrationTest {
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
         workManager = WorkManager.getInstance(context)
-        scheduler = WorkScheduler(workManager, policy, clock)
+        scheduler = WorkScheduler(workManager, policy, clock, ExactAlarms(context))
         messages = ScheduledMessageRepository(dbRule.db.scheduledMessageDao(), scheduler, policy, clock)
         reminders = ReminderRepository(dbRule.db.reminderDao(), scheduler, notifier, clock)
     }
@@ -201,9 +202,9 @@ class SchedulingIntegrationTest {
 
         assertEquals(2, reminders.reenqueueAllActive())
 
-        // Re-arming replaces the job under the same unique name and stores the new id.
+        // Re-arming after a restart keeps the existing job (never cancels one that may be running).
         val secondWorkA = UUID.fromString(dbRule.db.reminderDao().getById(a)!!.workRequestId)
-        assertTrue(firstWorkA != secondWorkA)
+        assertEquals(firstWorkA, secondWorkA)
         assertEquals(WorkInfo.State.ENQUEUED, uniqueWorkInfo(WorkNames.reminder(a))!!.state)
         assertEquals(WorkInfo.State.ENQUEUED, uniqueWorkInfo(WorkNames.reminder(b))!!.state)
         assertNull(uniqueWorkInfo(WorkNames.reminder(done))?.takeIf { it.state == WorkInfo.State.ENQUEUED })

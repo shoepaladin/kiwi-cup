@@ -137,6 +137,24 @@ class SmsInboxImporterTest {
     }
 
     @Test
+    fun importAdoptsTheSystemRowForATextTheAppStoredItself() = runBlocking {
+        val dao = dbRule.db.smsMessageDao()
+        // Received while not default: handler stored a local copy without a system id.
+        val localId = dao.insert(SmsMessage(threadId = -1, address = "+15550001111", body = "hello there", timestamp = 1_000L, status = SmsStatus.RECEIVED))
+        // The phone's store has the same text, a different address format and a slightly different clock.
+        stubProvider(arrayOf(44L, 9L, "1 (555) 000-1111", "hello there", 61_000L, Telephony.Sms.MESSAGE_TYPE_INBOX))
+
+        val result = importer.importNew()
+
+        assertEquals(1, result.imported)
+        val rows = dao.getThread(9L)
+        assertEquals(1, rows.size)
+        assertEquals(localId, rows[0].id)
+        assertEquals(44L, rows[0].systemId)
+        assertEquals(0, dao.countInThread(-1))
+    }
+
+    @Test
     fun withoutPermissionNothingIsRead() = runBlocking {
         Shadows.shadowOf(ApplicationProvider.getApplicationContext<Application>())
             .denyPermissions(Manifest.permission.READ_SMS)

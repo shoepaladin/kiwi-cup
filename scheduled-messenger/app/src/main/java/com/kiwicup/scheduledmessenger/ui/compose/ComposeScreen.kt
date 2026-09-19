@@ -37,7 +37,8 @@ fun ComposeScreen(
     onDone: (String) -> Unit,
     onBack: () -> Unit,
     onAttach: (() -> Unit)? = null,
-    onRemoveAttachment: (Attachment) -> Unit = {}
+    onRemoveAttachment: (Attachment) -> Unit = {},
+    isDefaultSmsApp: Boolean = true
 ) {
     LaunchedEffect(state.done) { state.done?.let(onDone) }
 
@@ -86,6 +87,10 @@ fun ComposeScreen(
             if (state.isGroup) {
                 Text("Group message: goes out as MMS to everyone listed.", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp).testTag("group_hint"))
+            }
+            if ((state.isGroup || state.attachments.isNotEmpty()) && !isDefaultSmsApp) {
+                Text("Pictures and group texts need this app to be your default messaging app.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp).testTag("needs_default_hint"))
             }
             Text(
                 "Type your message below, then send it now or tap the calendar to pick a time.",

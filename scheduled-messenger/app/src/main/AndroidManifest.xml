@@ -14,6 +14,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The MMS library reads SIM/subscription state on some devices. Requested as optional. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Contact names instead of raw numbers. Optional. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Send at the exact minute even in Doze. User-controllable on Android 12+. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Tablets without a radio can still install the app; sending is simply unavailable there. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
@@ -25,6 +31,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.ScheduledMessenger">
 
         <activity
@@ -77,14 +84,18 @@
                 <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
         </receiver>
+        <!-- Reached only by explicit intents from this app's own process; never exported. -->
         <receiver
             android:name=".receivers.MmsReceivedReceiverImpl"
-            android:exported="true"
+            android:exported="false"
             android:taskAffinity="com.klinker.android.messaging.MMS_RECEIVED" />
         <receiver
             android:name=".receivers.MmsSentReceiverImpl"
-            android:exported="true"
+            android:exported="false"
             android:taskAffinity="com.klinker.android.messaging.MMS_SENT" />
+        <receiver
+            android:name=".receivers.ExactAlarmReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".receivers.BootCompletedReceiver"
@@ -93,8 +104,9 @@
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>

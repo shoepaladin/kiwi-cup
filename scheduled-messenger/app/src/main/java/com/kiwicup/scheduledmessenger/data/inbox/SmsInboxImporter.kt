@@ -40,10 +40,17 @@ class SmsInboxImporter @Inject constructor(
         if (!hasPermission()) return@withContext Result(0, skipped = true)
         val rows = readSmsSince(smsMessageDao.maxSystemId() ?: 0L) + readMmsSince(smsMessageDao.maxMmsSystemId() ?: 0L)
         if (rows.isEmpty()) return@withContext Result(0, skipped = false)
-        val inserted = smsMessageDao.insertIgnoring(rows).count { it != -1L }
+        // Texts this app sent or received while NOT the default already exist locally without
+        // system ids; adopt the phone's row instead of showing the message twice.
+        val (reconciled, fresh) = rows.partition { row ->
+            val local = threads.findUnsynced(row.address, row.body, row.timestamp) ?: return@partition false
+            smsMessageDao.update(local.copy(systemId = row.systemId, mmsSystemId = row.mmsSystemId, threadId = row.threadId, timestamp = row.timestamp, status = row.status))
+            true
+        }
+        val inserted = if (fresh.isEmpty()) 0 else smsMessageDao.insertIgnoring(fresh).count { it != -1L }
         // Conversations that existed only locally now have a real thread on the phone: fold them in.
         rows.distinctBy { it.threadId }.forEach { threads.mergeLocalInto(it.address, it.threadId) }
-        Result(inserted, skipped = false)
+        Result(inserted + reconciled.size, skipped = false)
     }
 
     // ---- SMS ----

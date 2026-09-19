@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
@@ -26,7 +28,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
     val viewModel: PermissionsViewModel = hiltViewModel()
     var missing by remember { mutableStateOf(AppPermissions.missingRequired(context)) }
     var permanentlyDenied by remember { mutableStateOf(false) }
-    var asked by remember { mutableStateOf(false) }
+    var asked by rememberSaveable { mutableStateOf(false) }
+
+    // Coming back from Settings (or the default-app dialog) must refresh without a tap.
+    LifecycleResumeEffect(Unit) {
+        missing = AppPermissions.missingRequired(context)
+        onPauseOrDispose { }
+    }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
         missing = AppPermissions.missingRequired(context)
@@ -45,7 +53,11 @@ fun PermissionGate(content: @Composable () -> Unit) {
     }
 
     if (missing.isEmpty()) {
-        LaunchedEffect(Unit) { viewModel.importInbox() }
+        // Import on every return to the foreground; the import is incremental and cheap.
+        LifecycleResumeEffect(Unit) {
+            viewModel.importInbox()
+            onPauseOrDispose { }
+        }
         content()
     } else {
         PermissionsScreen(

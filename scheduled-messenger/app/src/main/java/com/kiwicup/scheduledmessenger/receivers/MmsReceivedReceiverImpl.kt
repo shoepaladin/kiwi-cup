@@ -11,16 +11,14 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * Called by the MMS library once an incoming MMS has been downloaded into the phone's store.
  *
- * The library's base class makes `onReceive` final, so Hilt cannot subclass it; dependencies
- * are looked up through an entry point instead of field injection.
+ * The library's `onReceive` is final, already holds the broadcast open and invokes this on its own
+ * background thread, so the work runs inline (no second goAsync) and Hilt dependencies come from
+ * an entry point rather than field injection.
  */
 class MmsReceivedReceiverImpl : MmsReceivedReceiver() {
 
@@ -34,17 +32,13 @@ class MmsReceivedReceiverImpl : MmsReceivedReceiver() {
 
     override fun onMessageReceived(context: Context, messageUri: Uri?) {
         val deps = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java)
-        val pending = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try {
-                val mmsId = messageUri?.lastPathSegment?.toLongOrNull()
+        runCatching {
+            runBlocking {
                 deps.importer().importNew()
-                val row = mmsId?.let { id -> deps.smsMessageDao().findByMmsSystemId(id) }
-                if (row != null) deps.notifier().notifyNewMessage(row)
-            } finally {
-                pending.finish()
+                val mmsId = messageUri?.lastPathSegment?.toLongOrNull() ?: return@runBlocking
+                deps.smsMessageDao().findByMmsSystemId(mmsId)?.let { deps.notifier().notifyNewMessage(it) }
             }
-        }
+        }.onFailure { Log.w("MmsReceived", "post-receive work failed", it) }
     }
 
     override fun onError(context: Context, error: String?) {

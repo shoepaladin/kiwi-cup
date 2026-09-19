@@ -1,6 +1,7 @@
 package com.kiwicup.scheduledmessenger.ui.compose
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kiwicup.scheduledmessenger.core.Attachment
@@ -30,12 +31,18 @@ data class ComposeUiState(
 
 @HiltViewModel
 class ComposeViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val scheduledMessages: ScheduledMessageRepository,
     private val attachmentStore: AttachmentStore,
     private val timeSource: TimeSource
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ComposeUiState())
+    private val _state = MutableStateFlow(
+        ComposeUiState(
+            recipient = savedStateHandle.get<String>("to").orEmpty(),
+            body = savedStateHandle.get<String>("body").orEmpty()
+        )
+    )
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
 
     fun now(): Long = timeSource.now()

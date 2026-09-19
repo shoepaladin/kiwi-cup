@@ -57,10 +57,13 @@ interface ScheduledMessageDao {
     @Query("UPDATE scheduled_messages SET workRequestId = :workRequestId, updatedAt = :nowMillis WHERE id = :id")
     suspend fun setWorkRequestId(id: Long, workRequestId: String?, nowMillis: Long = System.currentTimeMillis()): Int
 
-    /** PENDING -> SENDING. Returns 1 when this caller now owns the dispatch, 0 otherwise. */
+    /**
+     * PENDING -> SENDING. Returns 1 when this caller now owns the dispatch, 0 otherwise.
+     * A claim older than [STALE_CLAIM_MILLIS] belongs to a process that died mid-send and may be taken over.
+     */
     @Query(
         "UPDATE scheduled_messages SET status = 'SENDING', updatedAt = :nowMillis " +
-            "WHERE id = :id AND status = 'PENDING'"
+            "WHERE id = :id AND (status = 'PENDING' OR (status = 'SENDING' AND updatedAt < :nowMillis - $STALE_CLAIM_MILLIS))"
     )
     suspend fun claimForSending(id: Long, nowMillis: Long = System.currentTimeMillis()): Int
 
@@ -118,4 +121,8 @@ interface ScheduledMessageDao {
 
     @Query("DELETE FROM scheduled_messages WHERE status IN ('SENT', 'FAILED', 'CANCELLED')")
     suspend fun clearHistory(): Int
+
+    companion object {
+        const val STALE_CLAIM_MILLIS = 10L * 60L * 1000L
+    }
 }

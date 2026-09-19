@@ -39,7 +39,14 @@ class ThreadResolver @Inject constructor(private val dao: SmsMessageDao) {
             .forEach { dao.reassignThread(it.threadId, systemThreadId) }
     }
 
-    private fun sameNumber(a: String, b: String): Boolean {
+    /** A local row (no system ids) matching this message, if the app already stored it itself. */
+    suspend fun findUnsynced(address: String, body: String, timestamp: Long): com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage? {
+        val wanted = RecipientValidator.normalize(address)
+        val tail = wanted.takeLast(TAIL_DIGITS)
+        return dao.findUnsyncedCandidates("%$tail", body, timestamp).firstOrNull { sameNumber(it.address, wanted) }
+    }
+
+    fun sameNumber(a: String, b: String): Boolean {
         val x = RecipientValidator.normalize(a).trimStart('+')
         val y = b.trimStart('+')
         if (x == y) return true
