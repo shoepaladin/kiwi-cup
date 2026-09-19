@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
+import com.kiwicup.scheduledmessenger.core.RestrictedCause
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissionHelp
 import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 import com.kiwicup.scheduledmessenger.ui.permissions.PermissionsScreen
@@ -32,6 +33,7 @@ class PermissionsScreenTest {
         onRecheck: () -> Unit = {},
         onRequestRole: () -> Unit = {},
         roleStatus: SmsRoleStatus = SmsRoleStatus.OFFERABLE,
+        cause: RestrictedCause = RestrictedCause.UNKNOWN,
         onCopyDiagnostics: () -> Unit = {},
         onSaveDiagnostics: () -> Unit = {},
         diagnosticsStatus: String? = null
@@ -46,6 +48,7 @@ class PermissionsScreenTest {
                     onRecheck = onRecheck,
                     onRequestRole = onRequestRole,
                     roleStatus = roleStatus,
+                    cause = cause,
                     onCopyDiagnostics = onCopyDiagnostics,
                     onSaveDiagnostics = onSaveDiagnostics,
                     diagnosticsStatus = diagnosticsStatus
@@ -96,10 +99,27 @@ class PermissionsScreenTest {
     @Test
     fun restrictedStateListsEveryStepIncludingTheOverflowMenuItem() {
         show(state = PermissionGateState.RESTRICTED)
-        RestrictedPermissionHelp.steps.indices.forEach { index ->
+        RestrictedPermissionHelp.steps().indices.forEach { index ->
             compose.onNodeWithTag("restricted_step_$index").performScrollTo().assertIsDisplayed()
         }
         compose.onNodeWithText(RestrictedPermissionHelp.OVERFLOW_ITEM, substring = true).assertExists()
+    }
+
+    @Test
+    fun aSystemRefusalDoesNotDangleARoleButtonAboveTheFixItNeeds() {
+        // Tapping the role again before the restriction is lifted just repeats a refusal the user
+        // cannot act on, so it must not be the first thing under the explanation.
+        show(state = PermissionGateState.RESTRICTED, cause = RestrictedCause.ROLE_REFUSED_BY_SYSTEM)
+        compose.onNodeWithText(RestrictedPermissionHelp.OVERFLOW_ITEM, substring = true).assertExists()
+        // Still reachable, just after the step that makes it work.
+        compose.onNodeWithTag("role_button").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun aSystemRefusalSaysAndroidNeverShowedThePrompt() {
+        // The user reported no dialog at all; copy that says they were "asked" would be false.
+        show(state = PermissionGateState.RESTRICTED, cause = RestrictedCause.ROLE_REFUSED_BY_SYSTEM)
+        compose.onNodeWithText("without ever showing it", substring = true).assertExists()
     }
 
     @Test

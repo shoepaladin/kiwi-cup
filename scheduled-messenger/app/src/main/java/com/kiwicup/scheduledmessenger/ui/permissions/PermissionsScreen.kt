@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
+import com.kiwicup.scheduledmessenger.core.RestrictedCause
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissionHelp
 import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
 
@@ -36,6 +37,7 @@ fun PermissionsScreen(
     onRecheck: () -> Unit = onRequest,
     onRequestRole: () -> Unit = {},
     roleStatus: SmsRoleStatus = SmsRoleStatus.OFFERABLE,
+    cause: RestrictedCause = RestrictedCause.UNKNOWN,
     onCopyDiagnostics: () -> Unit = {},
     onSaveDiagnostics: () -> Unit = {},
     diagnosticsStatus: String? = null
@@ -59,7 +61,8 @@ fun PermissionsScreen(
                 onRecheck = onRecheck,
                 onRequest = onRequest,
                 onRequestRole = onRequestRole,
-                roleStatus = roleStatus
+                roleStatus = roleStatus,
+                cause = cause
             )
 
             else -> OrdinaryContent(
@@ -190,26 +193,35 @@ private fun RestrictedContent(
     onRecheck: () -> Unit,
     onRequest: () -> Unit,
     onRequestRole: () -> Unit,
-    roleStatus: SmsRoleStatus
+    roleStatus: SmsRoleStatus,
+    cause: RestrictedCause
 ) {
     Text("Android is blocking SMS access", style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Text(
-        "Because this app was installed outside the Play Store, Android treats SMS as a " +
-            "restricted permission and refused it without asking you. Nothing is wrong with the " +
-            "app, but it takes a few taps to unblock.",
+        if (cause == RestrictedCause.ROLE_REFUSED_BY_SYSTEM) {
+            "Android rejected the default-SMS prompt without ever showing it to you, because " +
+                "this app was installed outside the Play Store. That restriction has to come off " +
+                "before the prompt can appear."
+        } else {
+            "Because this app was installed outside the Play Store, Android treats SMS as a " +
+                "restricted permission and refused it without asking you. Nothing is wrong with " +
+                "the app, but it takes a few taps to unblock."
+        },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag("restricted_hint")
     )
-    if (roleStatus != SmsRoleStatus.HELD) {
+    // Offering the role again above the steps would invite a tap that repeats a refusal the user
+    // cannot act on, so when the system was the one that said no the button follows the fix.
+    if (roleStatus != SmsRoleStatus.HELD && cause != RestrictedCause.ROLE_REFUSED_BY_SYSTEM) {
         Spacer(Modifier.height(20.dp))
         Button(onClick = onRequestRole, modifier = Modifier.testTag("role_button")) {
             Text(RestrictedPermissionHelp.ROLE_ACTION)
         }
     }
     Spacer(Modifier.height(20.dp))
-    RestrictedPermissionHelp.steps.forEachIndexed { index, step ->
+    RestrictedPermissionHelp.steps(cause).forEachIndexed { index, step ->
         Text(
             text = "${index + 1}. $step",
             style = MaterialTheme.typography.bodyLarge,
@@ -221,6 +233,13 @@ private fun RestrictedContent(
     }
     Spacer(Modifier.height(20.dp))
     Button(onClick = onOpenSettings, modifier = Modifier.testTag("open_app_info")) { Text("Open App info") }
+    if (roleStatus != SmsRoleStatus.HELD && cause == RestrictedCause.ROLE_REFUSED_BY_SYSTEM) {
+        // Below the fix rather than above it, because the step above has to be done first for
+        // this to do anything — but it must still be here, since that step tells them to use it.
+        TextButton(onClick = onRequestRole, modifier = Modifier.testTag("role_button")) {
+            Text(RestrictedPermissionHelp.ROLE_ACTION)
+        }
+    }
     TextButton(onClick = onRecheck, modifier = Modifier.testTag("restricted_recheck")) { Text("Check again") }
     TextButton(onClick = onRequest, modifier = Modifier.testTag("restricted_try_prompt")) {
         Text("Try the permission prompt anyway")

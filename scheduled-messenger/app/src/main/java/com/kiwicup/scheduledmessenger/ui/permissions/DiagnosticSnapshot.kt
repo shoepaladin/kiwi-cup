@@ -12,6 +12,7 @@ import com.kiwicup.scheduledmessenger.core.DiagnosticReport
 import com.kiwicup.scheduledmessenger.core.DiagnosticSection
 import com.kiwicup.scheduledmessenger.core.PermissionDiagnostics
 import com.kiwicup.scheduledmessenger.core.RestrictedPermissions
+import com.kiwicup.scheduledmessenger.core.classify
 import com.kiwicup.scheduledmessenger.core.gateState
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 
@@ -23,14 +24,21 @@ import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
  */
 object DiagnosticSnapshot {
 
-    fun collect(context: Context, activity: Activity?, log: PermissionAskLog): DiagnosticReport =
+    fun collect(
+        context: Context,
+        activity: Activity?,
+        log: PermissionAskLog,
+        roleLog: RoleAttemptLog = RoleAttemptLog(context),
+        /** The gate's real value, not a recomputation. See [verdict]. */
+        roleOffered: Boolean = false
+    ): DiagnosticReport =
         DiagnosticReport(
             listOf(
                 device(),
                 app(context),
                 install(context),
-                verdict(context, activity, log),
-                role(context),
+                verdict(context, activity, log, roleLog, roleOffered),
+                role(context, roleLog),
                 permissions(context, activity, log)
             )
         )
@@ -96,26 +104,46 @@ object DiagnosticSnapshot {
         return DiagnosticSection("Install source", entries)
     }
 
-    private fun verdict(context: Context, activity: Activity?, log: PermissionAskLog) = DiagnosticSection(
+    /**
+     * [roleOffered] is threaded in from the gate rather than assumed. A previous version hardcoded
+     * it to false here, so the "gate state" line printed REQUEST_ROLE whenever the role was
+     * offerable, whether or not it had already been offered and refused — which is precisely the
+     * distinction the report was being read for.
+     */
+    private fun verdict(
+        context: Context,
+        activity: Activity?,
+        log: PermissionAskLog,
+        roleLog: RoleAttemptLog,
+        roleOffered: Boolean
+    ) = DiagnosticSection(
         "Verdict",
         listOf(
             "sms likely restricted" to reading { AppPermissions.smsRestrictedByInstaller(context) },
             "role status" to reading { DefaultSmsApp.status(context) },
+            "role offered already" to reading { roleOffered },
+            "restricted cause" to reading { classify(roleLog.last()) },
             "gate state" to reading {
                 gateState(
                     AppPermissions.states(context, activity, log),
                     AppPermissions.requiredSet,
                     DefaultSmsApp.status(context),
-                    roleOffered = false,
+                    roleOffered = roleOffered,
                     restrictedByInstaller = AppPermissions.smsRestrictedByInstaller(context)
                 )
             }
         )
     )
 
-    private fun role(context: Context) = DiagnosticSection(
+    private fun role(context: Context, roleLog: RoleAttemptLog) = DiagnosticSection(
         "Default SMS role",
         listOf(
+            // What actually happened when we asked. Every reading below this line describes what
+            // the platform says it *would* do, and on this device those disagreed with the result.
+            "attempt: launched" to reading { roleLog.last().launched },
+            "attempt: failed to launch" to reading { roleLog.last().failedToLaunch },
+            "attempt: accepted" to reading { roleLog.last().accepted },
+            "attempt: elapsed ms" to reading { roleLog.last().elapsedMs },
             "current default app" to reading { Telephony.Sms.getDefaultSmsPackage(context) },
             "we hold the role" to reading { DefaultSmsApp.isDefault(context) },
             "role available" to reading {

@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.ui.permissions
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,7 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.kiwicup.scheduledmessenger.core.PermissionGateState
-import com.kiwicup.scheduledmessenger.core.SmsRoleStatus
+import com.kiwicup.scheduledmessenger.core.RoleAttempt
+import com.kiwicup.scheduledmessenger.core.classify
 import com.kiwicup.scheduledmessenger.core.gateState
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 
@@ -45,8 +47,11 @@ fun PermissionGate(content: @Composable () -> Unit) {
     // to choose what to say once the role has been offered and not taken — never to skip asking.
     val restrictedByInstaller = remember { AppPermissions.smsRestrictedByInstaller(context) }
 
+    val roleLog = remember { RoleAttemptLog(context) }
+
     var states by remember { mutableStateOf(AppPermissions.states(context, activity, log)) }
     var roleStatus by remember { mutableStateOf(DefaultSmsApp.status(context)) }
+    var roleAttempt by remember { mutableStateOf(roleLog.last()) }
     var roleOffered by rememberSaveable { mutableStateOf(false) }
     var permissionsRequested by rememberSaveable { mutableStateOf(false) }
     var diagnosticsStatus by remember { mutableStateOf<String?>(null) }
@@ -61,7 +66,8 @@ fun PermissionGate(content: @Composable () -> Unit) {
         roleStatus = DefaultSmsApp.status(context)
     }
 
-    fun diagnosticText() = DiagnosticSnapshot.collect(context, activity, log).render()
+    fun diagnosticText() =
+        DiagnosticSnapshot.collect(context, activity, log, roleLog, roleOffered).render()
 
     fun currentState() = gateState(
         states,
@@ -84,13 +90,40 @@ fun PermissionGate(content: @Composable () -> Unit) {
     // The role dialog is a plain activity, so its result arrives here rather than as a grant. The
     // grant itself lands asynchronously, so this only refreshes; whether a permission request is
     // still needed is decided by the gate on the next pass.
+    //
+    // The elapsed time is the point of the bookkeeping. A result that arrives faster than a person
+    // could produce one means the dialog never drew, which is the difference between telling the
+    // user to lift a restriction and telling them to accept a prompt they were never shown.
+    var roleLaunchedAt by remember { mutableStateOf(0L) }
     val roleLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { refresh() }
+    ) { result ->
+        val attempt = RoleAttempt(
+            launched = true,
+            failedToLaunch = false,
+            accepted = result.resultCode == Activity.RESULT_OK,
+            elapsedMs = SystemClock.elapsedRealtime() - roleLaunchedAt
+        )
+        roleLog.record(attempt)
+        roleAttempt = attempt
+        refresh()
+    }
 
     fun requestRole() {
         roleOffered = true
-        DefaultSmsApp.requestIntent(context)?.let { roleLauncher.launch(it) }
+        val intent = DefaultSmsApp.requestIntent(context)
+        if (intent == null) {
+            val attempt = RoleAttempt(launched = true, failedToLaunch = true)
+            roleLog.record(attempt)
+            roleAttempt = attempt
+            return
+        }
+        roleLaunchedAt = SystemClock.elapsedRealtime()
+        runCatching { roleLauncher.launch(intent) }.onFailure {
+            val attempt = RoleAttempt(launched = true, failedToLaunch = true)
+            roleLog.record(attempt)
+            roleAttempt = attempt
+        }
     }
 
     LifecycleResumeEffect(Unit) {
@@ -134,6 +167,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
                 requestRole()
             },
             roleStatus = roleStatus,
+            cause = classify(roleAttempt),
             onOpenSettings = {
                 context.startActivity(
                     Intent(

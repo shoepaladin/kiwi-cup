@@ -65,6 +65,57 @@ object InstallSource {
         sdkInt >= 29 && !allowlistsRestrictedPermissions(installerPackage)
 }
 
+/**
+ * What came back from launching the default-SMS-app role dialog.
+ *
+ * Recorded because `isRoleAvailable` does not answer the question that matters. It reports whether
+ * the SMS role exists on the device, not whether this app may take it, and `createRequestRoleIntent`
+ * merely builds an intent without consulting eligibility. Both read positive on a device that then
+ * refuses to draw the dialog, so the only honest source of truth is what happened when we asked.
+ */
+data class RoleAttempt(
+    val launched: Boolean = false,
+    /** The launch itself threw — no activity to handle the intent. */
+    val failedToLaunch: Boolean = false,
+    /** The result came back RESULT_OK. */
+    val accepted: Boolean = false,
+    /** Milliseconds between launching and the result arriving. */
+    val elapsedMs: Long = 0
+)
+
+/** Why the gate is showing instructions, which decides what those instructions put first. */
+enum class RestrictedCause {
+    /** The dialog never drew: the system rejected the request rather than the user. */
+    ROLE_REFUSED_BY_SYSTEM,
+
+    /** The dialog drew and the user said no. */
+    ROLE_DECLINED_BY_USER,
+
+    /** No role dialog could be launched at all. */
+    ROLE_UNAVAILABLE,
+
+    /** We have not asked yet, so nothing is known. */
+    UNKNOWN
+}
+
+/**
+ * A result that returns faster than a person could act on it did not involve a person.
+ *
+ * The dialog animates in before it can be read, so even an immediate, decisive "don't allow" costs
+ * the best part of a second. A refusal the system makes on the app's behalf returns in the tens of
+ * milliseconds. The gap between those is wide enough to read reliably, and it is the only signal
+ * available: the app-op that would state this directly needs MANAGE_APPOPS and throws for us.
+ */
+const val HUMAN_REACTION_FLOOR_MS = 1000L
+
+fun classify(attempt: RoleAttempt): RestrictedCause = when {
+    !attempt.launched -> RestrictedCause.UNKNOWN
+    attempt.failedToLaunch -> RestrictedCause.ROLE_UNAVAILABLE
+    attempt.accepted -> RestrictedCause.UNKNOWN
+    attempt.elapsedMs < HUMAN_REACTION_FLOOR_MS -> RestrictedCause.ROLE_REFUSED_BY_SYSTEM
+    else -> RestrictedCause.ROLE_DECLINED_BY_USER
+}
+
 /** Whether the default-SMS-app role can be asked for, as the platform currently reports it. */
 enum class SmsRoleStatus {
     /** We are the default SMS app, so the SMS group came with it. */
@@ -221,26 +272,43 @@ object RestrictedPermissionHelp {
     const val OVERFLOW_ITEM = "Allow restricted settings"
     const val ROLE_ACTION = "Make this your default SMS app"
 
-    /**
-     * Order matters and an earlier version had it exactly backwards. It put the overflow item
-     * first on the theory that the role was restricted until restricted settings were allowed. A
-     * device report disproved that: on a sideloaded Pixel 8a running API 37 the role was
-     * available and offerable while every SMS permission sat denied.
-     *
-     * The role leads because it is the remedy, not another thing the restriction blocks: the role
-     * controller grants the SMS group to its holder, which is the only reason a sideloaded SMS
-     * app can work at all. The settings route below is the fallback for when the role dialog does
-     * not appear or is declined.
-     */
-    val steps: List<String> = listOf(
+    private const val UNBLOCK_STEP =
+        "Open this app's App info page, tap the three-dot menu in the top corner, then " +
+            "\"$OVERFLOW_ITEM\". On Android 15 and newer this sits at the bottom of the page, so " +
+            "scroll down."
+
+    private const val ROLE_STEP =
         "Tap \"$ROLE_ACTION\" below and accept. Holding that role is what grants SMS access, and " +
-            "on a sideloaded install it is the only thing that can.",
-        "Only if no dialog appeared, or you declined it: open this app's App info page, tap the " +
-            "three-dot menu in the top corner, then \"$OVERFLOW_ITEM\". On Android 15 and newer " +
-            "this sits at the bottom of the page, so scroll down.",
-        "Still in App info, open Permissions, tap SMS, and choose Allow.",
-        "Return here and tap Check again."
-    )
+            "on a sideloaded install it is the only thing that can."
+
+    /**
+     * The order depends on why we are here, because two device reports have now ruled out both
+     * fixed orderings.
+     *
+     * Putting the overflow item first unconditionally was wrong: it is a detour whenever the role
+     * dialog would have worked. Putting the role first unconditionally was also wrong: on a
+     * sideloaded Pixel 8a running API 37 the role read available and offerable, and the system
+     * still refused to draw the dialog. So when the evidence says the system rejected the request
+     * rather than the user, the restriction has to be lifted before the role is worth offering
+     * again — and only then.
+     */
+    fun steps(cause: RestrictedCause = RestrictedCause.UNKNOWN): List<String> =
+        if (cause == RestrictedCause.ROLE_REFUSED_BY_SYSTEM) {
+            listOf(
+                "Android refused the default-SMS prompt without showing it, so that restriction " +
+                    "has to come off first. $UNBLOCK_STEP",
+                "Still in App info, open Permissions, tap SMS, and choose Allow.",
+                "Come back and tap \"$ROLE_ACTION\". The prompt should appear this time.",
+                "If it still does not, the install itself has to change — see below."
+            )
+        } else {
+            listOf(
+                ROLE_STEP,
+                "Only if no dialog appeared, or you declined it: $UNBLOCK_STEP",
+                "Still in App info, open Permissions, tap SMS, and choose Allow.",
+                "Return here and tap Check again."
+            )
+        }
 
     /** The alternative for anyone with a computer to hand: the shell installer allowlists. */
     const val ADB_ALTERNATIVE =

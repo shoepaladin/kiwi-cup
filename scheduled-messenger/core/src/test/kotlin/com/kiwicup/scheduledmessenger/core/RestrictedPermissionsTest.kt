@@ -454,42 +454,107 @@ class RestrictedByInstallerGateTest {
     }
 }
 
+class RoleAttemptTest {
+
+    @Test
+    fun `an unlaunched attempt says nothing`() {
+        assertEquals(RestrictedCause.UNKNOWN, classify(RoleAttempt()))
+    }
+
+    @Test
+    fun `a result faster than a person could produce is the system refusing`() {
+        // The device case: the dialog never drew, so the result came straight back. Tens of
+        // milliseconds is not a decision, it is a rejection.
+        val attempt = RoleAttempt(launched = true, accepted = false, elapsedMs = 40)
+        assertEquals(RestrictedCause.ROLE_REFUSED_BY_SYSTEM, classify(attempt))
+    }
+
+    @Test
+    fun `a considered no is read as the user declining`() {
+        val attempt = RoleAttempt(launched = true, accepted = false, elapsedMs = 4_000)
+        assertEquals(RestrictedCause.ROLE_DECLINED_BY_USER, classify(attempt))
+    }
+
+    @Test
+    fun `the boundary belongs to the user rather than the system`() {
+        // Exactly at the floor is attributed to a person: calling a real decline a system refusal
+        // would send the user off to change a setting that was never the problem.
+        val atFloor = RoleAttempt(launched = true, elapsedMs = HUMAN_REACTION_FLOOR_MS)
+        assertEquals(RestrictedCause.ROLE_DECLINED_BY_USER, classify(atFloor))
+
+        val justUnder = RoleAttempt(launched = true, elapsedMs = HUMAN_REACTION_FLOOR_MS - 1)
+        assertEquals(RestrictedCause.ROLE_REFUSED_BY_SYSTEM, classify(justUnder))
+    }
+
+    @Test
+    fun `a launch that threw means no dialog exists to draw`() {
+        val attempt = RoleAttempt(launched = true, failedToLaunch = true, elapsedMs = 5)
+        assertEquals(RestrictedCause.ROLE_UNAVAILABLE, classify(attempt))
+    }
+
+    @Test
+    fun `an accepted role is not a restriction to explain`() {
+        // Accepting fast is still accepting; the timing rule must not apply to a success.
+        val attempt = RoleAttempt(launched = true, accepted = true, elapsedMs = 10)
+        assertEquals(RestrictedCause.UNKNOWN, classify(attempt))
+    }
+}
+
 class RestrictedPermissionHelpTest {
 
     @Test
     fun `the instructions name the overflow menu item that actually unblocks it`() {
         // Without this exact phrase the instructions send the user in a circle, because the SMS
         // toggle in settings keeps refusing until the overflow item is tapped first.
-        assertTrue(RestrictedPermissionHelp.steps.any { it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM) })
+        assertTrue(RestrictedPermissionHelp.steps().any { it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM) })
     }
 
     @Test
     fun `the steps are ordered app info first then permissions`() {
-        val appInfo = RestrictedPermissionHelp.steps.indexOfFirst { it.contains("App info") }
-        val permissions = RestrictedPermissionHelp.steps.indexOfFirst { it.contains("Permissions") }
-        assertTrue(appInfo >= 0 && permissions >= 0)
-        assertTrue("App info must come before the Permissions step", appInfo < permissions)
+        RestrictedCause.entries.forEach { cause ->
+            val steps = RestrictedPermissionHelp.steps(cause)
+            val appInfo = steps.indexOfFirst { it.contains("App info") }
+            val permissions = steps.indexOfFirst { it.contains("open Permissions") }
+            assertTrue("$cause names both", appInfo >= 0 && permissions >= 0)
+            assertTrue("$cause: App info must come before the Permissions step", appInfo < permissions)
+        }
+    }
+
+    private fun roleIndex(cause: RestrictedCause) =
+        RestrictedPermissionHelp.steps(cause).indexOfFirst { it.contains(RestrictedPermissionHelp.ROLE_ACTION) }
+
+    private fun overflowIndex(cause: RestrictedCause) =
+        RestrictedPermissionHelp.steps(cause).indexOfFirst { it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM) }
+
+    @Test
+    fun `by default the role is offered before the settings detour`() {
+        // Sending the user through App info first is wasted taps whenever the dialog would have
+        // worked, so the role leads unless we have evidence the system refused it.
+        assertTrue(roleIndex(RestrictedCause.UNKNOWN) < overflowIndex(RestrictedCause.UNKNOWN))
     }
 
     @Test
-    fun `the role step comes before the overflow step`() {
-        // The inverse of this test used to pass, encoding the belief that the role was blocked
-        // until restricted settings were allowed. A device on API 37 reported the role offerable
-        // on a sideload, so the role leads: it is the remedy, not another thing to unblock.
-        val role = RestrictedPermissionHelp.steps.indexOfFirst {
-            it.contains(RestrictedPermissionHelp.ROLE_ACTION)
-        }
-        val overflow = RestrictedPermissionHelp.steps.indexOfFirst {
-            it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM)
-        }
-        assertTrue(role >= 0 && overflow >= 0)
-        assertTrue("the role must be offered before the settings fallback", role < overflow)
+    fun `a user who declined the role is offered it again before the detour`() {
+        assertTrue(
+            roleIndex(RestrictedCause.ROLE_DECLINED_BY_USER) <
+                overflowIndex(RestrictedCause.ROLE_DECLINED_BY_USER)
+        )
     }
 
     @Test
-    fun `the settings route is marked as the fallback rather than the first thing to try`() {
-        val fallback = RestrictedPermissionHelp.steps.first { it.contains(RestrictedPermissionHelp.OVERFLOW_ITEM) }
-        assertTrue("the fallback must be conditional", fallback.contains("Only if"))
+    fun `a system refusal puts the restriction first because the role cannot work yet`() {
+        // The case a Pixel 8a on API 37 produced: role available, intent created, no dialog drawn.
+        // Offering the role again first would just repeat a refusal the user cannot act on.
+        val cause = RestrictedCause.ROLE_REFUSED_BY_SYSTEM
+        assertTrue("the restriction must be lifted first", overflowIndex(cause) < roleIndex(cause))
+    }
+
+    @Test
+    fun `every ordering still names the overflow item and the role action`() {
+        RestrictedCause.entries.forEach { cause ->
+            assertTrue("$cause must name the overflow item", overflowIndex(cause) >= 0)
+            assertTrue("$cause must name the role action", roleIndex(cause) >= 0)
+        }
     }
 
     @Test
