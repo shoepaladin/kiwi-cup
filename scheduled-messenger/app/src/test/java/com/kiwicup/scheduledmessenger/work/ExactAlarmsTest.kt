@@ -18,6 +18,11 @@ class ExactAlarmsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val shadowAlarms get() = Shadows.shadowOf(context.getSystemService(AlarmManager::class.java))
 
+    @org.junit.Before
+    fun allowExactAlarms() {
+        shadowAlarms.setCanScheduleExactAlarms(true)
+    }
+
     @Test
     fun schedulesAndCancelsDistinctAlarmsPerMessageAndReminder() {
         val alarms = ExactAlarms(context)
@@ -30,7 +35,7 @@ class ExactAlarmsTest {
 
         alarms.cancelSms(1)
         assertEquals(2, shadowAlarms.scheduledAlarms.size)
-        assertEquals(listOf(6_000L, 7_000L), shadowAlarms.scheduledAlarms.map { it.triggerAtMs }.sorted())
+        assertEquals(listOf(6_000L, 7_000L), shadowAlarms.scheduledAlarms.map { it.triggerAtTime }.sorted())
     }
 
     @Test

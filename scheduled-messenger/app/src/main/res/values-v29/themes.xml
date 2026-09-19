@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.ScheduledMessenger" parent="android:Theme.DeviceDefault.NoActionBar">
+    <style name="Theme.ScheduledMessenger" parent="android:Theme.DeviceDefault.DayNight.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 </resources>

@@ -22,9 +22,6 @@ data class ThreadSummary(
     /** Filled in by the view model from contacts; ignored by Room. */
     @Ignore val displayName: String? = null
 ) {
-    constructor(threadId: Long, address: String, body: String, timestamp: Long, messageCount: Int, recipients: String?, attachments: String?) :
-        this(threadId, address, body, timestamp, messageCount, recipients, attachments, null)
-
     /** Group conversations list every participant; one-to-one shows the other party. */
     val title: String
         get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: displayName ?: address
