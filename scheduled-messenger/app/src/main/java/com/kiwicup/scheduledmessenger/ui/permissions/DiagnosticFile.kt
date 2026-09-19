@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -33,7 +34,11 @@ object DiagnosticFile {
      * MediaStore rather than a raw path: scoped storage blocks writing to Downloads directly on
      * API 29+, and this route needs no storage permission at all — which matters when the whole
      * problem being diagnosed is a permission that will not grant.
+     *
+     * Annotated as well as guarded at the call site, because lint checks the version guard per
+     * function and cannot see the caller's.
      */
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun saveToDownloads(context: Context, name: String, text: String): String {
         val resolver = context.contentResolver
         val pending = ContentValues().apply {
