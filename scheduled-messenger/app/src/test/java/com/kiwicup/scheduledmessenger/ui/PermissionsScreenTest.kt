@@ -28,7 +28,10 @@ class PermissionsScreenTest {
         missing: List<String> = listOf(Manifest.permission.READ_SMS),
         onRequest: () -> Unit = {},
         onOpenSettings: () -> Unit = {},
-        onRecheck: () -> Unit = {}
+        onRecheck: () -> Unit = {},
+        onCopyDiagnostics: () -> Unit = {},
+        onSaveDiagnostics: () -> Unit = {},
+        diagnosticsStatus: String? = null
     ) {
         compose.setContent {
             ScheduledMessengerTheme(dynamicColor = false) {
@@ -37,7 +40,10 @@ class PermissionsScreenTest {
                     state = state,
                     onRequest = onRequest,
                     onOpenSettings = onOpenSettings,
-                    onRecheck = onRecheck
+                    onRecheck = onRecheck,
+                    onCopyDiagnostics = onCopyDiagnostics,
+                    onSaveDiagnostics = onSaveDiagnostics,
+                    diagnosticsStatus = diagnosticsStatus
                 )
             }
         }
@@ -129,5 +135,57 @@ class PermissionsScreenTest {
     fun restrictedStateMentionsTheAdbAlternative() {
         show(state = PermissionGateState.RESTRICTED)
         compose.onNodeWithTag("adb_hint").performScrollTo().assertIsDisplayed()
+    }
+
+    // The reading that matters most is whichever one contradicts the state we think we are in, so
+    // the report must not be reachable only from the state we already suspect. One test per state
+    // rather than a loop: the compose rule allows setContent only once per test.
+    private fun assertDiagnosticsOffered(state: PermissionGateState) {
+        show(state = state)
+        compose.onNodeWithTag("copy_diagnostics").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun askStateOffersTheDiagnosticReport() = assertDiagnosticsOffered(PermissionGateState.ASK)
+
+    @Test
+    fun retryableDenialOffersTheDiagnosticReport() =
+        assertDiagnosticsOffered(PermissionGateState.EXPLAIN_AND_ASK)
+
+    @Test
+    fun permanentDenialOffersTheDiagnosticReport() =
+        assertDiagnosticsOffered(PermissionGateState.OPEN_SETTINGS)
+
+    @Test
+    fun restrictedStateOffersTheDiagnosticReport() =
+        assertDiagnosticsOffered(PermissionGateState.RESTRICTED)
+
+    @Test
+    fun copyingTheReportIsOneTap() {
+        var copies = 0
+        show(state = PermissionGateState.RESTRICTED, onCopyDiagnostics = { copies++ })
+        compose.onNodeWithTag("copy_diagnostics").performScrollTo().performClick()
+        assertEquals(1, copies)
+    }
+
+    @Test
+    fun theReportCanBeSavedAgainAfterTheUserChangesASetting() {
+        var saves = 0
+        show(state = PermissionGateState.RESTRICTED, onSaveDiagnostics = { saves++ })
+        compose.onNodeWithTag("save_diagnostics").performScrollTo().performClick()
+        assertEquals(1, saves)
+    }
+
+    @Test
+    fun whereTheReportLandedIsShownRatherThanLeftToBeGuessed() {
+        show(state = PermissionGateState.RESTRICTED, diagnosticsStatus = "Saved to Downloads/report.txt")
+        compose.onNodeWithTag("diagnostics_status").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Saved to Downloads/report.txt", substring = true).assertExists()
+    }
+
+    @Test
+    fun noStatusIsShownBeforeAnythingHasBeenSaved() {
+        show(state = PermissionGateState.RESTRICTED, diagnosticsStatus = null)
+        compose.onNodeWithTag("diagnostics_status").assertDoesNotExist()
     }
 }

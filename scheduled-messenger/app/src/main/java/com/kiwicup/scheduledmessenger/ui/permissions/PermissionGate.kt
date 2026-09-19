@@ -42,10 +42,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
     var states by remember { mutableStateOf(AppPermissions.states(context, activity, log)) }
     var roleRequested by rememberSaveable { mutableStateOf(false) }
     var permissionsRequested by rememberSaveable { mutableStateOf(false) }
+    var diagnosticsStatus by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         states = AppPermissions.states(context, activity, log)
     }
+
+    fun diagnosticText() = DiagnosticSnapshot.collect(context, activity, log).render()
 
     fun currentState() = gateState(states, AppPermissions.requiredSet, restrictedByInstaller)
 
@@ -102,6 +105,11 @@ fun PermissionGate(content: @Composable () -> Unit) {
         }
         content()
     } else {
+        // Keyed on the state so the report reflects where the gate actually settled, rather than
+        // the moment before a request was fired and answered.
+        LaunchedEffect(state) {
+            diagnosticsStatus = DiagnosticFile.save(context, diagnosticText())
+        }
         PermissionsScreen(
             missing = AppPermissions.missingRequired(context),
             state = state,
@@ -114,7 +122,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
                     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
             },
-            onRecheck = ::refresh
+            onRecheck = ::refresh,
+            onCopyDiagnostics = {
+                DiagnosticFile.copyToClipboard(context, diagnosticText())
+                diagnosticsStatus = "Copied to clipboard."
+            },
+            onSaveDiagnostics = { diagnosticsStatus = DiagnosticFile.save(context, diagnosticText()) },
+            diagnosticsStatus = diagnosticsStatus
         )
     }
 }

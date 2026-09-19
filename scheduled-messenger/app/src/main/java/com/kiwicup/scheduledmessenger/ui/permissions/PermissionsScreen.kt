@@ -2,6 +2,7 @@ package com.kiwicup.scheduledmessenger.ui.permissions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +32,10 @@ fun PermissionsScreen(
     state: PermissionGateState,
     onRequest: () -> Unit,
     onOpenSettings: () -> Unit,
-    onRecheck: () -> Unit = onRequest
+    onRecheck: () -> Unit = onRequest,
+    onCopyDiagnostics: () -> Unit = {},
+    onSaveDiagnostics: () -> Unit = {},
+    diagnosticsStatus: String? = null
 ) {
     Column(
         modifier = Modifier
@@ -56,6 +60,45 @@ fun PermissionsScreen(
                 onRecheck = onRecheck
             )
         }
+        DiagnosticsBlock(
+            status = diagnosticsStatus,
+            onCopy = onCopyDiagnostics,
+            onSave = onSaveDiagnostics
+        )
+    }
+}
+
+/**
+ * Sits below every gate state, not just the restricted one, because the reading that matters most
+ * is whichever one contradicts the state we think we are in. Shown unconditionally so a user with
+ * no access to adb always has something conclusive to send back.
+ */
+@Composable
+private fun DiagnosticsBlock(status: String?, onCopy: () -> Unit, onSave: () -> Unit) {
+    Spacer(Modifier.height(32.dp))
+    Text(
+        "Diagnostics",
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.testTag("diagnostics_heading")
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "A report of what Android reports about this install is saved automatically. Copy it if " +
+            "you need to send it on.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Row(horizontalArrangement = Arrangement.Center) {
+        TextButton(onClick = onCopy, modifier = Modifier.testTag("copy_diagnostics")) { Text("Copy report") }
+        TextButton(onClick = onSave, modifier = Modifier.testTag("save_diagnostics")) { Text("Save again") }
+    }
+    if (status != null) {
+        Text(
+            status,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("diagnostics_status")
+        )
     }
 }
 
