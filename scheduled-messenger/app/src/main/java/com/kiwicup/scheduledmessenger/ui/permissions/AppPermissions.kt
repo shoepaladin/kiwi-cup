@@ -1,10 +1,13 @@
 package com.kiwicup.scheduledmessenger.ui.permissions
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.kiwicup.scheduledmessenger.core.PermissionState
 
 /** Which runtime permissions the app asks for, and which of them block the main UI. */
 object AppPermissions {
@@ -28,6 +31,24 @@ object AppPermissions {
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     fun missingRequired(context: Context): List<String> = required.filterNot { isGranted(context, it) }
+
+    val requiredSet: Set<String> get() = required.toSet()
+
+    /**
+     * Snapshots the whole batch, optional permissions included: the optional ones are what prove
+     * the permission dialog is being drawn at all, which is how a system refusal is told apart
+     * from a user's. [activity] is needed for the rationale flag and may be absent in previews.
+     */
+    fun states(context: Context, activity: Activity?, log: PermissionAskLog): List<PermissionState> =
+        all.map { permission ->
+            PermissionState(
+                permission = permission,
+                granted = isGranted(context, permission),
+                canShowRationale = activity != null &&
+                    ActivityCompat.shouldShowRequestPermissionRationale(activity, permission),
+                timesAsked = log.timesAsked(permission)
+            )
+        }
 
     fun label(permission: String): String = when (permission) {
         Manifest.permission.READ_SMS -> "Read your text messages (to show conversations)"
