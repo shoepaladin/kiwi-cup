@@ -1,3 +1,7 @@
+// Imported rather than written inline: in a Kotlin build script `java` resolves to the Java
+// plugin extension, so java.time.Duration does not parse as the JDK class.
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -77,7 +81,7 @@ android {
                 }
                 // A hung test otherwise burns the job's whole 40-minute budget before CI says
                 // anything. The suite runs in well under two minutes when healthy.
-                test.timeout.set(java.time.Duration.ofMinutes(12))
+                test.timeout.set(Duration.ofMinutes(12))
             }
         }
     }
