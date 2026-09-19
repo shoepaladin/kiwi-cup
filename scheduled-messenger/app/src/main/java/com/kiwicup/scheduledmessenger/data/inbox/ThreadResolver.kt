@@ -48,6 +48,7 @@ class ThreadResolver @Inject constructor(private val dao: SmsMessageDao) {
     }
 
     companion object {
-        const val TAIL_DIGITS = 7
+        /** Short enough that formatting characters never sit inside the tail; exact match happens in Kotlin. */
+        const val TAIL_DIGITS = 4
     }
 }

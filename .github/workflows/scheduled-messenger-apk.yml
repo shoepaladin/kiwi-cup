@@ -31,20 +31,28 @@ jobs:
       # A stable signing key makes later builds installable over earlier ones. Provide it as
       # repository secrets (SIDELOAD_KEYSTORE_BASE64, SIDELOAD_KEYSTORE_PASSWORD, SIDELOAD_KEY_ALIAS,
       # SIDELOAD_KEY_PASSWORD). Without them the APK is signed with a throwaway debug key.
-      - name: Restore signing key
-        if: ${{ env.SIDELOAD_KEYSTORE_BASE64 != '' }}
+      - name: Prepare signing key
         env:
           SIDELOAD_KEYSTORE_BASE64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
-        run: echo "$SIDELOAD_KEYSTORE_BASE64" | base64 -d > sideload.keystore
+        run: |
+          if [ -n "$SIDELOAD_KEYSTORE_BASE64" ]; then
+            echo "$SIDELOAD_KEYSTORE_BASE64" | base64 -d > sideload.keystore
+            echo "Using the repository's sideload signing key."
+          else
+            keytool -genkeypair -v -keystore sideload.keystore -storepass sideload -keypass sideload \
+              -alias sideload -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Scheduled Messenger sideload, OU=dev, O=kiwi-cup, C=US"
+            echo "::warning::No SIDELOAD_KEYSTORE_BASE64 secret: signed with a throwaway key. Installing a later build over this one will require uninstalling first."
+          fi
 
       - name: Lint
         run: ./gradlew :app:lintDebug --no-daemon
 
       - name: Build installable APK
         env:
-          SIDELOAD_KEYSTORE_PASSWORD: ${{ secrets.SIDELOAD_KEYSTORE_PASSWORD }}
-          SIDELOAD_KEY_ALIAS: ${{ secrets.SIDELOAD_KEY_ALIAS }}
-          SIDELOAD_KEY_PASSWORD: ${{ secrets.SIDELOAD_KEY_PASSWORD }}
+          SIDELOAD_KEYSTORE_PASSWORD: ${{ secrets.SIDELOAD_KEYSTORE_PASSWORD || 'sideload' }}
+          SIDELOAD_KEY_ALIAS: ${{ secrets.SIDELOAD_KEY_ALIAS || 'sideload' }}
+          SIDELOAD_KEY_PASSWORD: ${{ secrets.SIDELOAD_KEY_PASSWORD || 'sideload' }}
         run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Name the APK
