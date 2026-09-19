@@ -69,9 +69,15 @@ android {
             isReturnDefaultValues = true
             all { test ->
                 test.testLogging {
-                    events("passed", "failed", "skipped")
+                    // "started" matters as much as the rest: when a test hangs, the completion
+                    // events never arrive and the log ends on the last test that finished, which
+                    // names the one before the culprit. Logging starts makes the log name it.
+                    events("started", "passed", "failed", "skipped")
                     exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
                 }
+                // A hung test otherwise burns the job's whole 40-minute budget before CI says
+                // anything. The suite runs in well under two minutes when healthy.
+                test.timeout.set(java.time.Duration.ofMinutes(12))
             }
         }
     }
