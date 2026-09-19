@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.Attachment
+import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.ui.components.MessageInputBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +36,7 @@ fun ComposeScreen(
     onSendNow: () -> Unit,
     onSchedule: (Long) -> Unit,
     validateTarget: (Long) -> String?,
-    onDone: (String) -> Unit,
+    onDone: (SendOutcome) -> Unit,
     onBack: () -> Unit,
     onAttach: (() -> Unit)? = null,
     onRemoveAttachment: (Attachment) -> Unit = {},

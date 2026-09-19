@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -125,7 +126,9 @@ fun ThreadScreen(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHost) },
+        // No snackbarHost slot: Scaffold anchors it to the bottom, directly over the newest
+        // messages and the input bar. It is placed at the top of the content instead, where it
+        // covers the app bar rather than the conversation.
         bottomBar = {
             MessageInputBar(
                 text = state.draft,
@@ -195,6 +198,12 @@ fun ThreadScreen(
                     }
                 }
             }
+            SnackbarHost(
+                hostState = snackbarHost,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .testTag("thread_snackbar")
+            )
         }
     }
 

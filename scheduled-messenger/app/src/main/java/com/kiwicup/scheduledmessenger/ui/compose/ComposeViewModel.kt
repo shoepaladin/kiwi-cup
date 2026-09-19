@@ -6,10 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kiwicup.scheduledmessenger.core.Attachment
 import com.kiwicup.scheduledmessenger.core.Recipients
+import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
-import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +24,8 @@ data class ComposeUiState(
     val body: String = "",
     val attachments: List<Attachment> = emptyList(),
     val error: String? = null,
-    val done: String? = null
+    /** Set once the message is accepted; which value decides where the user is taken next. */
+    val done: SendOutcome? = null
 ) {
     val isGroup: Boolean get() = Recipients.isGroup(recipient)
 }
@@ -65,14 +66,19 @@ class ComposeViewModel @Inject constructor(
         attachmentStore.delete(listOf(attachment))
     }
 
-    fun sendNow() = schedule(timeSource.now(), "Sending…")
-    fun scheduleAt(millis: Long) = schedule(millis, "Scheduled for ${TimeFormat.dateTime(millis)}")
+    fun sendNow() = submit(timeSource.now(), SendOutcome.SENT_NOW)
+    fun scheduleAt(millis: Long) = submit(millis, SendOutcome.SCHEDULED)
 
-    private fun schedule(target: Long, doneMessage: String) {
+    /**
+     * Both outcomes share the scheduling machinery, which is what carries the claim-once
+     * guarantee and the retry policy, but they are reported back distinctly so the caller can
+     * send the user to the conversation rather than to the schedule.
+     */
+    private fun submit(target: Long, outcome: SendOutcome) {
         val s = _state.value
         viewModelScope.launch {
             scheduledMessages.schedule(s.recipient, s.body, target, attachments = s.attachments)
-                .onSuccess { _state.update { it.copy(done = doneMessage) } }
+                .onSuccess { _state.update { it.copy(done = outcome) } }
                 .onFailure { e -> _state.update { it.copy(error = e.message) } }
         }
     }

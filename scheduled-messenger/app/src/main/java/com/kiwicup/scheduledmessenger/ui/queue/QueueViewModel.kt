@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kiwicup.scheduledmessenger.core.MessageStatus
 import com.kiwicup.scheduledmessenger.core.TimeSource
+import com.kiwicup.scheduledmessenger.core.belongsInSchedule
 import com.kiwicup.scheduledmessenger.data.local.entity.Reminder
 import com.kiwicup.scheduledmessenger.data.local.entity.ScheduledMessage
 import com.kiwicup.scheduledmessenger.data.repository.ReminderRepository
@@ -53,7 +54,13 @@ class QueueViewModel @Inject constructor(
         reminders.observeAll(),
         snackbar
     ) { messages, notes, message ->
-        val items = messages.map { QueueItem.Message(it) } + notes.map { QueueItem.Note(it) }
+        // Send-now shares this table, so filter it out: a text sent immediately belongs in its
+        // conversation, not in the schedule, and listing it here made an ordinary message look
+        // like a queued one. A failed one still shows, since nothing else surfaces it yet.
+        val scheduled = messages.filter {
+            belongsInSchedule(it.targetTimestamp, it.createdAt, it.status == MessageStatus.FAILED)
+        }
+        val items = scheduled.map { QueueItem.Message(it) } + notes.map { QueueItem.Note(it) }
         val (upcoming, history) = items.partition { it.isOpen() }
         QueueUiState(
             upcoming = upcoming.sortedBy { it.whenMillis },

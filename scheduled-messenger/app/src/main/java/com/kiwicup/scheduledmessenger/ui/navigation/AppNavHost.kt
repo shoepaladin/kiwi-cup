@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.notifications.ComposeRequest
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
@@ -170,9 +171,16 @@ fun AppNavHost(
                 onSendNow = vm::sendNow,
                 onSchedule = vm::scheduleAt,
                 validateTarget = vm::validateTarget,
-                onDone = {
-                    navController.navigate(Routes.QUEUE) {
-                        popUpTo(Routes.CONVERSATIONS)
+                onDone = { outcome ->
+                    when (outcome) {
+                        // A sent text is an ordinary conversation, so go back to the list where it
+                        // will appear. Sending used to land the user on the schedule, which made a
+                        // normal message look like a queued one.
+                        SendOutcome.SENT_NOW ->
+                            navController.popBackStack(Routes.CONVERSATIONS, inclusive = false)
+
+                        SendOutcome.SCHEDULED ->
+                            navController.navigate(Routes.QUEUE) { popUpTo(Routes.CONVERSATIONS) }
                     }
                 },
                 onBack = { navController.popBackStack() },
