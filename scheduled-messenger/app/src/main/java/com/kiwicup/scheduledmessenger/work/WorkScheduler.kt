@@ -4,6 +4,7 @@ import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.kiwicup.scheduledmessenger.core.RecoveryAction
@@ -49,9 +50,8 @@ class WorkScheduler @Inject constructor(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, RETRY_BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(WorkNames.TAG_SCHEDULED_SMS)
             .build()
-        val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
         val name = WorkNames.scheduledSms(messageId)
-        workManager.enqueueUniqueWork(name, policyForExisting, request)
+        workManager.enqueueUniqueWork(name, existingPolicy(name, replace, delay), request)
         // WorkManager alone may run minutes late in Doze; an exact alarm (when allowed) fires the
         // worker at the chosen minute and the delayed job above stays as the safety net.
         if (delay > 0) exactAlarms.scheduleSms(messageId, targetTimestamp)
@@ -84,9 +84,8 @@ class WorkScheduler @Inject constructor(
             .setBackoffCriteria(BackoffPolicy.LINEAR, RETRY_BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(WorkNames.TAG_REMINDER)
             .build()
-        val policyForExisting = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
         val name = WorkNames.reminder(reminderId)
-        workManager.enqueueUniqueWork(name, policyForExisting, request)
+        workManager.enqueueUniqueWork(name, existingPolicy(name, replace, delay), request)
         if (delay > 0) exactAlarms.scheduleReminder(reminderId, triggerTimestamp)
         return currentWorkId(name, request.id)
     }
@@ -108,6 +107,20 @@ class WorkScheduler @Inject constructor(
      *  enqueued for [uniqueName]; look up which job is actually live so callers store the right id. */
     private fun currentWorkId(uniqueName: String, fallback: UUID): UUID =
         workManager.getWorkInfosForUniqueWork(uniqueName).get().firstOrNull()?.id ?: fallback
+
+    /**
+     * [requestedReplace] = false asks to keep an existing job (re-arm on reboot/app start), so an
+     * in-flight send is never cancelled and restarted. But when the freshly computed [delayMillis]
+     * is zero, the message is due now: keeping a stale job that's still counting down its old,
+     * pre-reboot delay would leave it un-sent, so REPLACE unless that stale job is already RUNNING
+     * (a send actually in progress, which must not be interrupted).
+     */
+    private fun existingPolicy(uniqueName: String, requestedReplace: Boolean, delayMillis: Long): ExistingWorkPolicy {
+        if (requestedReplace) return ExistingWorkPolicy.REPLACE
+        if (delayMillis > 0) return ExistingWorkPolicy.KEEP
+        val running = workManager.getWorkInfosForUniqueWork(uniqueName).get().any { it.state == WorkInfo.State.RUNNING }
+        return if (running) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE
+    }
 
     companion object {
         const val RETRY_BACKOFF_SECONDS = 30L
