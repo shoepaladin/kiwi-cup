@@ -2,7 +2,6 @@ package com.kiwicup.scheduledmessenger.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
-import androidx.room.Ignore
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -18,13 +17,11 @@ data class ThreadSummary(
     val timestamp: Long,
     val messageCount: Int,
     val recipients: String? = null,
-    val attachments: String? = null,
-    /** Filled in by the view model from contacts; ignored by Room. */
-    @Ignore val displayName: String? = null
+    val attachments: String? = null
 ) {
     /** Group conversations list every participant; one-to-one shows the other party. */
     val title: String
-        get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: displayName ?: address
+        get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: address
 
     val preview: String
         get() = body.ifBlank { if (attachments.isNullOrBlank()) "" else "\uD83D\uDCF7 Picture" }
