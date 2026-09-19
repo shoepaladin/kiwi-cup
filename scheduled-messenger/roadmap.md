@@ -74,9 +74,42 @@
 - [x] Task 5 (theming): `ThemeColors` (core), `SettingsRepository` (DataStore), `ConversationStyle` table (DB v3), `ConversationStyleRepository` (wallpaper copied into app storage), `SettingsScreen`, `ConversationStyleDialog`, theme wiring in `MainActivity`. Runs #14-#15 failed on test-side off-screen taps (small Robolectric display); run #16 green with 99 tests.
 - [x] Task 6 (default SMS app + MMS): `DefaultSmsApp` role request, `SystemMessageStore` (writes to the phone's store when default), `SmsReceiver` handles SMS_DELIVER, `MmsReceivedReceiverImpl`/`MmsSentReceiverImpl` on Fossify's `mmslib` fork (JitPack), `AndroidMmsSender` awaits the library receipt, importer reads the MMS store, `HeadlessSmsSendService` quick reply, `IncomingMessageNotifier`, attachments via photo picker (`AttachmentStore` copies into app storage), group recipients, pictures in bubbles (Coil). DB v4. Runs #18-#19 failed on a test assertion and on Hilt vs the library's final `onReceive` (solved with an entry point); run #20 green with 113 tests.
 - [x] Task 7 (expert hardening review + release APK): review findings applied in `34bbf3d` (crash fixes, duplicate guards, exact alarms). Getting both workflows green then took five more commits, four of which were real defects rather than test wiring — see the run #31 entry below. Release APK built and signed on CI (run #10 of the APK workflow); awaiting the user's device smoke test.
+- [x] Task 8 (sideload permission block): the first device install hit Android's hard-restricted SMS permissions. Diagnosis and remedy in `9503b7b`; see the section below.
+
+## Android's Restricted Permissions (found on the first real device install)
+
+The APK installed, then the very first permission request came back with "App was denied access to
+SMS" and no dialog ever appeared. This is not a bug in the app and not a user denial. Since Android
+10, tightened in 13 and again in 15, the SMS and call-log permission groups are **hard restricted**:
+they can only be granted if the *installer* allowlisted them. The Play Store does; a file manager,
+a browser download, or an F-Droid-style sideload does not. Every sideloaded SMS app hits this.
+
+What the app was doing wrong:
+
+1. **Wrong order.** It asked for the SMS permissions first and only offered the default-SMS-app role
+   afterwards. Android's own documentation is explicit — "an app must request to become the default
+   SMS handler before it requests the `READ_SMS` permission" — and holding the role is what makes the
+   system grant the group. Asking first threw away the one route that works. Fixed: `PermissionGate`
+   now launches the role request before the permission request.
+2. **Advice that led in a circle.** It treated the refusal as an ordinary permanent denial and offered
+   "Open settings", but the SMS toggle on that page repeats the same refusal. The real remedy is the
+   **"Allow restricted settings"** item in the App info overflow menu (on Android 15+ it sits at the
+   bottom of the page), or reinstalling with `adb install`, which allowlists automatically.
+
+Telling a system refusal apart from a user's, from inside an ordinary app, rests on one observation:
+a genuine denial leaves `shouldShowRequestPermissionRationale` **true** after the first "Don't allow",
+so a permission that comes back denied with *no* rationale on the very first ask can only have been
+refused by the system. Later asks need corroboration, which is why the diagnosis is handed the whole
+request batch: an unrestricted permission that was granted or still offers a rationale proves the
+dialog is being drawn at all. `PermissionAskLog` supplies the ask count, since the platform exposes
+no such counter and without it "never asked" and "denied for good" are the same observation.
+
+The one case the heuristic cannot resolve — a repeatedly-refused restricted permission with no
+unrestricted sibling in the batch — is covered by a test that documents it rather than papering over
+it. It does not arise here because the app always requests contacts alongside SMS.
 
 ## Remaining Work Before Daily Use (not in the four phases)
-- **Device smoke test** (user, next step): install the release APK from the APK workflow's artifact, grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives. This is the only remaining gate before daily use — everything below is a known limitation, not a blocker.
+- **Device smoke test** (user, next step): install the release APK from the APK workflow's artifact, clear the restricted-permission block (App info → ⋮ → "Allow restricted settings"), grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives. This is the only remaining gate before daily use — everything below is a known limitation, not a blocker.
 - ~~**Exact alarms**~~ done in `34bbf3d`: `ExactAlarms` + `ExactAlarmReceiver` fire at the chosen minute via `setExactAndAllowWhileIdle`, gated on `canScheduleExactAlarms()`, with the WorkManager job kept as the safety net.
 - **Schema export + migrations** before the first shared release (`exportSchema = true`, drop `fallbackToDestructiveMigration`). The database is at v4; today an upgrade wipes local history.
 - **Contact names in the conversation list** — names already resolve inside an open thread (`ThreadViewModel` via `ContactNames`), but the list still shows raw numbers. The first attempt put a `displayName` field on `ThreadSummary`, which is the Room POJO that broke the build in `ab65b9f`; the right shape is a separate UI type mapped outside Room.
@@ -84,6 +117,24 @@
 - **Instrumented tests**: everything so far is JVM/Robolectric. Nothing has run on a real device or emulator, and the MMS send path in particular depends on carrier behaviour that no host-side test can reproduce.
 
 ## CI Evidence Log
+### Run #33, commit 9503b7b, 2026-09-19 — restricted-permission handling (https://github.com/shoepaladin/kiwi-cup/actions/runs/35449623993)
+```
+./gradlew :core:test --no-daemon --stacktrace             -> 68 PASSED  (33 existing + 35 new)
+./gradlew :app:testDebugUnitTest --no-daemon --stacktrace -> PASSED, first attempt, no fixes needed
+```
+New coverage: `RestrictedPermissionsTest` (the restricted permission sets), `PermissionDiagnosticsTest`
+(the full denial-vs-refusal matrix, including the sibling-corroboration rules and the one ambiguous
+case), `GateStateTest` (screen precedence — `RESTRICTED` outranks every other state), plus Robolectric
+`PermissionAskLogTest` (counts survive process death; a duplicate in one batch is still one ask) and
+`AppPermissionsStatesTest`, which drives the real permission list through the real diagnosis and
+asserts the sideload scenario lands on the restricted screen.
+
+**Local verification loop.** `:core:test` cannot run in the dev sandbox because the *root* build
+script declares the Android Gradle plugin, which needs `dl.google.com`. Copying `core/src` into a
+throwaway single-module Kotlin/JVM project (Maven Central only, no Android plugin) runs the same
+tests in about six seconds. That is why every core rule above was verified before pushing and the
+app module needed only one CI round-trip instead of the six the previous task took.
+
 ### Run #31, commit 8b6731b, 2026-09-19 — first fully green run (https://github.com/shoepaladin/kiwi-cup/actions/runs/35448309626)
 ```
 ./gradlew :core:test --no-daemon --stacktrace            -> 33 PASSED, BUILD SUCCESSFUL in 1m 17s
