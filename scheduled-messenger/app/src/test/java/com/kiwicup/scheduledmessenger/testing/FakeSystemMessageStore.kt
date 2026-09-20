@@ -18,6 +18,9 @@ class FakeSystemMessageStore(var isDefault: Boolean = false) : SystemMessageStor
     override fun insertSentSms(address: String, body: String, timestamp: Long): StoredSms? = insert(address, body, timestamp, true)
     override fun markThreadRead(threadId: Long) { readThreads += threadId }
 
+    override fun threadIdFor(address: String): Long? =
+        if (isDefault) threads.getOrPut(address) { 500L + threads.size } else null
+
     private fun insert(address: String, body: String, timestamp: Long, sent: Boolean): StoredSms? {
         if (!isDefault) return null
         rows += Row(address, body, timestamp, sent)

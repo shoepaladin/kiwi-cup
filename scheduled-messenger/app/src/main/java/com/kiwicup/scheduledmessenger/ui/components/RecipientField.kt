@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.ContactSuggestion
+import com.kiwicup.scheduledmessenger.core.PersonSuggestion
+import com.kiwicup.scheduledmessenger.core.RecentSuggestion
 import com.kiwicup.scheduledmessenger.ui.compose.RecipientChip
 
 /**
@@ -89,20 +92,51 @@ fun RecipientField(
                     .heightIn(max = 240.dp)
                     .testTag("recipient_suggestions")
             ) {
+                val recents = suggestions.filterIsInstance<RecentSuggestion>()
+                val rest = suggestions.filter { it !is RecentSuggestion }
                 LazyColumn {
-                    items(suggestions, key = { it.address }) { suggestion ->
-                        Text(
-                            text = suggestion.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPickSuggestion(suggestion) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                                .testTag("suggestion_${suggestion.address}")
-                        )
+                    // Headers only appear on the untouched field, where the list is two lists;
+                    // a search result is one list and labelling it would be noise.
+                    if (recents.isNotEmpty()) {
+                        item(key = "header_recent") { SectionHeader("Recent") }
+                        items(recents, key = { it.address }) { SuggestionRow(it, onPickSuggestion) }
+                        if (rest.isNotEmpty()) item(key = "header_contacts") { SectionHeader("Contacts") }
                     }
+                    items(rest, key = { it.address }) { SuggestionRow(it, onPickSuggestion) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun SuggestionRow(suggestion: ContactSuggestion, onPick: (ContactSuggestion) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPick(suggestion) }
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("suggestion_${suggestion.address}")
+    ) {
+        Text(text = suggestion.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (suggestion is PersonSuggestion && suggestion.starred) {
+            Icon(
+                Icons.Default.Star,
+                contentDescription = "Favourite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

@@ -15,11 +15,14 @@ object RecipientSelections {
     /** Adding a suggestion already present is a no-op rather than a duplicate chip. */
     fun add(selection: RecipientSelection, suggestion: ContactSuggestion): RecipientSelection {
         if (suggestion.address in selection.addresses) return selection
-        val names = if (suggestion is PersonSuggestion) {
-            selection.recipientNames + (suggestion.address to suggestion.displayName)
-        } else {
-            selection.recipientNames
+        // A recent conversation carries a name too when the address book knows the number, and
+        // a chip reading "John Smith" beats one reading "5551112222" either way it was picked.
+        val name = when (suggestion) {
+            is PersonSuggestion -> suggestion.displayName
+            is RecentSuggestion -> suggestion.displayName
+            is NewNumberSuggestion -> null
         }
+        val names = if (name != null) selection.recipientNames + (suggestion.address to name) else selection.recipientNames
         return selection.copy(recipient = Recipients.encode(selection.addresses + suggestion.address), recipientNames = names)
     }
 

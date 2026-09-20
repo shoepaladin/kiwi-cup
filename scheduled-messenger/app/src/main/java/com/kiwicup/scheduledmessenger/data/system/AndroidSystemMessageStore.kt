@@ -20,6 +20,11 @@ class AndroidSystemMessageStore @Inject constructor(
     override fun insertSentSms(address: String, body: String, timestamp: Long): StoredSms? =
         insert(address, body, timestamp, Telephony.Sms.MESSAGE_TYPE_SENT, read = 1)
 
+    override fun threadIdFor(address: String): Long? {
+        if (!isDefaultSmsApp()) return null
+        return runCatching { Telephony.Threads.getOrCreateThreadId(context, address) }.getOrNull()
+    }
+
     override fun markThreadRead(threadId: Long) {
         if (!isDefaultSmsApp()) return
         runCatching {

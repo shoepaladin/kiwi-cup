@@ -36,13 +36,14 @@ fun ComposeScreen(
     onSendNow: () -> Unit,
     onSchedule: (Long) -> Unit,
     validateTarget: (Long) -> String?,
-    onDone: (SendOutcome) -> Unit,
+    /** Called once the message is accepted, with the conversation it landed in when known. */
+    onDone: (SendOutcome, Long?) -> Unit,
     onBack: () -> Unit,
     onAttach: (() -> Unit)? = null,
     onRemoveAttachment: (Attachment) -> Unit = {},
     isDefaultSmsApp: Boolean = true
 ) {
-    LaunchedEffect(state.done) { state.done?.let(onDone) }
+    LaunchedEffect(state.done) { state.done?.let { onDone(it, state.doneThreadId) } }
 
     Scaffold(
         // See ThreadScreen: under enableEdgeToEdge() the window no longer resizes for the

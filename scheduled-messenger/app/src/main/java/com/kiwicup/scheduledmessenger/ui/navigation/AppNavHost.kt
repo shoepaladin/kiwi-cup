@@ -173,13 +173,19 @@ fun AppNavHost(
                 onSendNow = vm::sendNow,
                 onSchedule = vm::scheduleAt,
                 validateTarget = vm::validateTarget,
-                onDone = { outcome ->
+                onDone = { outcome, threadId ->
                     when (outcome) {
-                        // A sent text is an ordinary conversation, so go back to the list where it
-                        // will appear. Sending used to land the user on the schedule, which made a
-                        // normal message look like a queued one.
-                        SendOutcome.SENT_NOW ->
+                        // Sending leaves you in the conversation you just sent to, which is what
+                        // both QKSMS and Fossify do — neither returns you to the conversation
+                        // list. A group message goes out as MMS and its thread id is only known
+                        // once imported, so that one still falls back to the list.
+                        SendOutcome.SENT_NOW -> if (threadId != null) {
+                            navController.navigate(Routes.thread(threadId)) {
+                                popUpTo(Routes.CONVERSATIONS)
+                            }
+                        } else {
                             navController.popBackStack(Routes.CONVERSATIONS, inclusive = false)
+                        }
 
                         SendOutcome.SCHEDULED ->
                             navController.navigate(Routes.QUEUE) { popUpTo(Routes.CONVERSATIONS) }

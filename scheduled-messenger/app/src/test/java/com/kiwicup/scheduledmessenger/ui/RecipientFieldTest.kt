@@ -2,6 +2,7 @@ package com.kiwicup.scheduledmessenger.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -10,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kiwicup.scheduledmessenger.core.ContactSuggestion
 import com.kiwicup.scheduledmessenger.core.NewNumberSuggestion
 import com.kiwicup.scheduledmessenger.core.PersonSuggestion
+import com.kiwicup.scheduledmessenger.core.RecentSuggestion
 import com.kiwicup.scheduledmessenger.ui.components.RecipientField
 import com.kiwicup.scheduledmessenger.ui.compose.RecipientChip
 import com.kiwicup.scheduledmessenger.ui.theme.ScheduledMessengerTheme
@@ -93,6 +95,49 @@ class RecipientFieldTest {
         show(query = "5551234567", suggestions = listOf(suggestion), onPickSuggestion = { picked = it })
         compose.onNodeWithText("New number: (555) 123-4567").performClick()
         assertEquals(suggestion, picked)
+    }
+
+    @Test
+    fun anUntouchedFieldSeparatesRecentsFromTheAddressBook() {
+        // Both sections are one list to the caller; the headers are what make it readable, the
+        // way Fossify labels its recent-contacts row above the full list.
+        show(
+            suggestions = listOf(
+                RecentSuggestion("5559998888", "Dana Lee · 5559998888", "Dana Lee"),
+                PersonSuggestion("5551234567", "John Smith · 5551234567", "John Smith", "lookup-1")
+            )
+        )
+        compose.onNodeWithText("Recent").assertIsDisplayed()
+        compose.onNodeWithText("Contacts").assertIsDisplayed()
+    }
+
+    @Test
+    fun aSearchResultGetsNoSectionHeaders() {
+        show(
+            query = "john",
+            suggestions = listOf(PersonSuggestion("5551234567", "John Smith · 5551234567", "John Smith", "lookup-1"))
+        )
+        compose.onNodeWithText("Contacts").assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingARecentFiresTheCallback() {
+        var picked: ContactSuggestion? = null
+        val suggestion = RecentSuggestion("5559998888", "Dana Lee · 5559998888", "Dana Lee")
+        show(suggestions = listOf(suggestion), onPickSuggestion = { picked = it })
+        compose.onNodeWithTag("suggestion_5559998888").performClick()
+        assertEquals(suggestion, picked)
+    }
+
+    @Test
+    fun aFavouriteIsMarked() {
+        show(
+            query = "john",
+            suggestions = listOf(
+                PersonSuggestion("5551234567", "John Smith · 5551234567", "John Smith", "lookup-1", starred = true)
+            )
+        )
+        compose.onNodeWithContentDescription("Favourite").assertIsDisplayed()
     }
 
     @Test

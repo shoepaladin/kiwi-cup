@@ -1,7 +1,16 @@
 package com.kiwicup.scheduledmessenger.core
 
 /** One (contact, number) pair, matching how the system contacts provider naturally returns rows. */
-data class Contact(val lookupKey: String, val displayName: String, val phoneNumber: String)
+data class Contact(
+    val lookupKey: String,
+    val displayName: String,
+    val phoneNumber: String,
+    /** Contacts the phone's own list marks as favourites; offered first on an empty field. */
+    val starred: Boolean = false
+)
+
+/** A conversation this phone has already had, newest first, used to fill an empty field. */
+data class RecentConversation(val address: String, val displayName: String?)
 
 /** One row offered under the recipient search field. */
 sealed class ContactSuggestion {
@@ -13,7 +22,15 @@ data class PersonSuggestion(
     override val address: String,
     override val label: String,
     val displayName: String,
-    val lookupKey: String
+    val lookupKey: String,
+    val starred: Boolean = false
+) : ContactSuggestion()
+
+/** Someone already texted from this phone, shown before the address book on an empty field. */
+data class RecentSuggestion(
+    override val address: String,
+    override val label: String,
+    val displayName: String?
 ) : ContactSuggestion()
 
 /** The query itself, offered as a destination when it looks like a number but matches no contact. */
@@ -22,16 +39,60 @@ data class NewNumberSuggestion(override val address: String, override val label:
 /**
  * Builds the dropdown for the recipient search field.
  *
- * No provider query happens here: [contacts] is expected to be loaded once and held in memory,
- * the same "bulk-load then filter locally" strategy QKSMS and Fossify both use rather than
- * hitting the ContentProvider per keystroke.
+ * No provider query happens here: the index is expected to be built once and held in memory, the
+ * same "bulk-load then filter locally" strategy QKSMS and Fossify both use rather than hitting the
+ * ContentProvider per keystroke.
  */
 object ContactSuggestions {
 
     private const val MAX_RESULTS = 20
+    private const val MAX_RECENTS = 5
+
+    /**
+     * What an untouched recipient field offers before anything is typed.
+     *
+     * An empty field used to offer nothing, which is not what either reference app does: QKSMS
+     * lists recent conversations, then starred contacts, then everyone; Fossify shows a row of
+     * recent contacts above the full address book. Recents lead because the person you are most
+     * likely to text is the one you texted last.
+     */
+    fun forEmptyField(
+        recents: List<RecentConversation>,
+        index: ContactIndex,
+        alreadySelected: Set<String>
+    ): List<ContactSuggestion> {
+        val recentRows = recents
+            .asSequence()
+            .map { it.copy(address = RecipientValidator.normalize(it.address)) }
+            .filter { it.address.isNotEmpty() && it.address !in alreadySelected }
+            .distinctBy { it.address }
+            .take(MAX_RECENTS)
+            .map { recent ->
+                val name = recent.displayName ?: index.nameFor(recent.address)
+                RecentSuggestion(
+                    address = recent.address,
+                    label = if (name != null) "$name · ${recent.address}" else recent.address,
+                    displayName = name
+                )
+            }
+            .toList()
+
+        val taken = recentRows.map { it.address }.toSet() + alreadySelected
+        val contactRows = index.entries
+            .asSequence()
+            .filter { it.address !in taken }
+            .distinctBy { it.contact.lookupKey to it.contact.phoneNumber }
+            // Favourites first, then alphabetical, the order QKSMS builds its empty-query list in.
+            .sortedWith(compareByDescending<IndexedContact> { it.contact.starred }.thenBy { it.searchKey })
+            .take(MAX_RESULTS)
+            .map { it.toSuggestion() }
+            .toList()
+
+        return recentRows + contactRows
+    }
 
     fun forQuery(
-        contacts: List<Contact>,
+        index: ContactIndex,
         recognizer: PhoneNumberRecognizer,
         query: String,
         alreadySelected: Set<String>,
@@ -39,33 +100,41 @@ object ContactSuggestions {
     ): List<ContactSuggestion> {
         if (query.isBlank()) return emptyList()
 
-        val matches = contacts
+        val nameNeedle = ContactMatching.searchKey(query)
+        val digitNeedle = ContactMatching.digitsOf(query)
+
+        val matches = index.entries
             .asSequence()
-            .filter { RecipientValidator.normalize(it.phoneNumber) !in alreadySelected }
-            .filter { ContactMatching.matchesContactName(it.displayName, query) || ContactMatching.matchesPhoneNumber(it.phoneNumber, query) }
-            .distinctBy { it.lookupKey to it.phoneNumber }
+            .filter { it.address !in alreadySelected }
+            .filter { it.searchKey.contains(nameNeedle) || (digitNeedle.isNotEmpty() && it.digits.contains(digitNeedle)) }
+            .distinctBy { it.contact.lookupKey to it.contact.phoneNumber }
+            // Fossify sorts new-conversation results the same way: name-prefix matches first,
+            // then alphabetical. Favourites break the tie within each group.
             .sortedWith(
-                compareByDescending<Contact> { it.displayName.startsWith(query, ignoreCase = true) }
-                    .thenBy { it.displayName }
+                compareByDescending<IndexedContact> { it.searchKey.startsWith(nameNeedle) }
+                    .thenByDescending { it.contact.starred }
+                    .thenBy { it.searchKey }
             )
             .take(MAX_RESULTS)
-            .map {
-                PersonSuggestion(
-                    address = RecipientValidator.normalize(it.phoneNumber),
-                    label = "${it.displayName} · ${it.phoneNumber}",
-                    displayName = it.displayName,
-                    lookupKey = it.lookupKey
-                )
-            }
+            .map { it.toSuggestion() }
             .toList()
 
         // Leads rather than trails: someone typing a number they intend to text is looking for
         // confirmation that it will go through, not scrolling past name matches to find it.
-        // Dropped entirely if a match already carries the same address: offering "New number:
-        // 555-111-2222" beside "John Smith · 5551112222" for the identical number is not a second
-        // option, and duplicate addresses in the same list would collide as a UI list key besides.
+        // QKSMS puts its equivalent row first for the same reason. Dropped entirely if a match
+        // already carries the same address: offering "New number: 555-111-2222" beside "John
+        // Smith · 5551112222" for the identical number is not a second option, and duplicate
+        // addresses in the same list would collide as a UI list key besides.
         val newNumber = PossibleNumbers.suggestionFor(recognizer, query, defaultRegion, alreadySelected)
             ?.takeIf { candidate -> matches.none { it.address == candidate.address } }
         return if (newNumber != null) listOf(newNumber) + matches else matches
     }
+
+    private fun IndexedContact.toSuggestion() = PersonSuggestion(
+        address = address,
+        label = "${contact.displayName} · ${contact.phoneNumber}",
+        displayName = contact.displayName,
+        lookupKey = contact.lookupKey,
+        starred = contact.starred
+    )
 }

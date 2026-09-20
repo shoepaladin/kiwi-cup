@@ -5,14 +5,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kiwicup.scheduledmessenger.core.Attachment
-import com.kiwicup.scheduledmessenger.core.Contact
+import com.kiwicup.scheduledmessenger.core.ContactIndex
 import com.kiwicup.scheduledmessenger.core.ContactSuggestion
 import com.kiwicup.scheduledmessenger.core.ContactSuggestions
 import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.RecipientSelection
+import com.kiwicup.scheduledmessenger.core.RecentConversation
 import com.kiwicup.scheduledmessenger.core.RecipientSelections
 import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.core.TimeSource
+import com.kiwicup.scheduledmessenger.data.inbox.ThreadTargets
+import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
 import com.kiwicup.scheduledmessenger.data.system.AndroidPhoneNumberRecognizer
@@ -22,8 +25,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** A confirmed recipient, rendered as a removable chip. */
 data class RecipientChip(val address: String, val displayName: String?) {
@@ -43,7 +49,9 @@ data class ComposeUiState(
     val attachments: List<Attachment> = emptyList(),
     val error: String? = null,
     /** Set once the message is accepted; which value decides where the user is taken next. */
-    val done: SendOutcome? = null
+    val done: SendOutcome? = null,
+    /** The conversation a sent message landed in, when one could be resolved; see [ThreadTargets]. */
+    val doneThreadId: Long? = null
 ) {
     val isGroup: Boolean get() = Recipients.isGroup(recipient)
     val recipientChips: List<RecipientChip> get() = Recipients.decode(recipient).map { RecipientChip(it, recipientNames[it]) }
@@ -59,7 +67,9 @@ class ComposeViewModel @Inject constructor(
     private val attachmentStore: AttachmentStore,
     private val timeSource: TimeSource,
     private val contactsRepository: ContactsRepository,
-    private val phoneNumbers: AndroidPhoneNumberRecognizer
+    private val phoneNumbers: AndroidPhoneNumberRecognizer,
+    private val threadTargets: ThreadTargets,
+    private val smsMessageDao: SmsMessageDao
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -72,16 +82,26 @@ class ComposeViewModel @Inject constructor(
 
     // Loaded once and held for the life of the screen; see ContactsRepository for why a bulk
     // load beats querying the provider on every keystroke.
-    private var contacts: List<Contact> = emptyList()
-    private var defaultRegion: String = "US"
+    @Volatile private var contacts: ContactIndex = ContactIndex.EMPTY
+    @Volatile private var recents: List<RecentConversation> = emptyList()
+    @Volatile private var defaultRegion: String = "US"
 
     init {
         viewModelScope.launch {
             contacts = contactsRepository.contacts()
             defaultRegion = contactsRepository.defaultRegion()
+            recents = loadRecents()
             refreshSuggestions()
         }
     }
+
+    /** The conversations this phone has had most recently, to fill an empty recipient field. */
+    private suspend fun loadRecents(): List<RecentConversation> =
+        runCatching {
+            smsMessageDao.observeThreadSummaries().first()
+                .filter { !it.title.contains(',') }
+                .map { RecentConversation(address = it.address, displayName = null) }
+        }.getOrDefault(emptyList())
 
     fun now(): Long = timeSource.now()
 
@@ -101,6 +121,7 @@ class ComposeViewModel @Inject constructor(
                 error = null
             )
         }
+        refreshSuggestions()
     }
 
     fun onRemoveChip(address: String) {
@@ -113,15 +134,29 @@ class ComposeViewModel @Inject constructor(
         refreshSuggestions()
     }
 
+    /**
+     * Rebuilds the dropdown off the main thread.
+     *
+     * Filtering scans every contact, and picking a suggestion is a touch event away, so a few
+     * thousand entries is enough to drop frames while someone types. QKSMS does this work on its
+     * computation scheduler for the same reason. The result is discarded if the query moved on
+     * while it ran, so a slow pass can never overwrite a newer one.
+     */
     private fun refreshSuggestions() {
-        val s = _state.value
-        val selected = Recipients.decode(s.recipient).toSet()
-        val suggestions = if (s.recipientQuery.isBlank()) {
-            emptyList()
-        } else {
-            ContactSuggestions.forQuery(contacts, phoneNumbers, s.recipientQuery, selected, defaultRegion)
+        val query = _state.value.recipientQuery
+        val selected = Recipients.decode(_state.value.recipient).toSet()
+        viewModelScope.launch {
+            val suggestions = withContext(Dispatchers.Default) {
+                if (query.isBlank()) {
+                    // Only while the field is still empty-handed. Once a recipient is chosen the
+                    // screen's job is the message, and a standing list would sit on top of it.
+                    if (selected.isEmpty()) ContactSuggestions.forEmptyField(recents, contacts, selected) else emptyList()
+                } else {
+                    ContactSuggestions.forQuery(contacts, phoneNumbers, query, selected, defaultRegion)
+                }
+            }
+            _state.update { if (it.recipientQuery == query) it.copy(suggestions = suggestions) else it }
         }
-        _state.update { it.copy(suggestions = suggestions) }
     }
 
     fun onBodyChange(value: String) = _state.update { it.copy(body = value, error = null) }
@@ -159,8 +194,11 @@ class ComposeViewModel @Inject constructor(
         val recipient = effectiveRecipient()
         val s = _state.value
         viewModelScope.launch {
-            scheduledMessages.schedule(recipient, s.body, target, attachments = s.attachments)
-                .onSuccess { _state.update { it.copy(done = outcome) } }
+            // Resolved before sending, not after: the send itself is handed to WorkManager and
+            // the user should not be left waiting on it to find out where they are going.
+            val threadId = runCatching { threadTargets.forRecipients(recipient) }.getOrNull()
+            scheduledMessages.schedule(recipient, s.body, target, threadId = threadId, attachments = s.attachments)
+                .onSuccess { _state.update { it.copy(done = outcome, doneThreadId = threadId) } }
                 .onFailure { e -> _state.update { it.copy(error = e.message) } }
         }
     }

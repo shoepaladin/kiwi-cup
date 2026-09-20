@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.kiwicup.scheduledmessenger.core.Contact
+import com.kiwicup.scheduledmessenger.core.ContactIndex
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -25,7 +26,7 @@ import kotlinx.coroutines.withContext
 class ContactsRepository @Inject constructor(@ApplicationContext private val context: Context) {
 
     private val loaded = AtomicBoolean(false)
-    private val cache = AtomicReference<List<Contact>>(emptyList())
+    private val cache = AtomicReference(ContactIndex.EMPTY)
 
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
@@ -34,13 +35,13 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
     fun defaultRegion(): String = DefaultRegion.forDevice(context)
 
     /**
-     * Returns the cached list, loading it first if this is the first call. Safe to call
-     * repeatedly; only the first caller pays for the query.
+     * Returns the cached index, loading it first if this is the first call. Safe to call
+     * repeatedly; only the first caller pays for the query and for the accent folding.
      */
-    suspend fun contacts(): List<Contact> {
+    suspend fun contacts(): ContactIndex {
         if (loaded.get()) return cache.get()
         return withContext(Dispatchers.IO) {
-            val result = query()
+            val result = ContactIndex(query())
             cache.set(result)
             loaded.set(true)
             result
@@ -55,7 +56,8 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
         val projection = arrayOf(
             ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+            ContactsContract.CommonDataKinds.Phone.STARRED
         )
         val results = mutableListOf<Contact>()
         runCatching {
@@ -69,11 +71,12 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
                 val lookupIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
                 val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val starredIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.STARRED)
                 while (cursor.moveToNext()) {
                     val lookupKey = cursor.getString(lookupIndex) ?: continue
                     val name = cursor.getString(nameIndex)?.takeIf { it.isNotBlank() } ?: continue
                     val number = cursor.getString(numberIndex)?.takeIf { it.isNotBlank() } ?: continue
-                    results += Contact(lookupKey, name, number)
+                    results += Contact(lookupKey, name, number, starred = cursor.getInt(starredIndex) != 0)
                 }
             }
         }
