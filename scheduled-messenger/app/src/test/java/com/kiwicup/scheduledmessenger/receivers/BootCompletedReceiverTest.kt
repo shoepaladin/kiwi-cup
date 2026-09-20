@@ -24,6 +24,7 @@ import com.kiwicup.scheduledmessenger.testing.TestWorkerFactory
 import com.kiwicup.scheduledmessenger.work.ExactAlarms
 import com.kiwicup.scheduledmessenger.work.RearmWorker
 import com.kiwicup.scheduledmessenger.work.WorkScheduler
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -67,9 +68,20 @@ class BootCompletedReceiverTest {
         scheduler = WorkScheduler(workManager, policy, clock, ExactAlarms(context))
     }
 
+    /**
+     * Every WorkManager query here is bounded.
+     *
+     * `ListenableFuture.get()` with no bound blocks the calling thread, and a blocked thread is
+     * not a coroutine suspension point, so an enclosing `withTimeout` cannot interrupt it: the
+     * test hangs until the Gradle task's own timeout kills the whole run. That is what CI hit.
+     * A bounded get turns the same condition into a fast, readable failure.
+     */
+    private fun infosFor(name: String): List<WorkInfo> =
+        workManager.getWorkInfosForUniqueWork(name).get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+
     private suspend fun awaitRearmFinished() {
         withTimeout(10_000) {
-            while (workManager.getWorkInfosForUniqueWork(RearmWorker.UNIQUE_NAME).get().firstOrNull()?.state != WorkInfo.State.SUCCEEDED) {
+            while (infosFor(RearmWorker.UNIQUE_NAME).firstOrNull()?.state != WorkInfo.State.SUCCEEDED) {
                 delay(20)
             }
         }
@@ -85,19 +97,24 @@ class BootCompletedReceiverTest {
         BootCompletedReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
         awaitRearmFinished()
 
-        val info = workManager.getWorkInfosForUniqueWork(RearmWorker.UNIQUE_NAME).get().first()
+        val info = infosFor(RearmWorker.UNIQUE_NAME).first()
         assertEquals(1, info.outputData.getInt(RearmWorker.KEY_MESSAGES, -1))
         assertEquals(1, info.outputData.getInt(RearmWorker.KEY_REMINDERS, -1))
         assertNotNull(dao.getById(pending)!!.workRequestId)
-        assertEquals(WorkInfo.State.ENQUEUED, workManager.getWorkInfosForUniqueWork(WorkNames.scheduledSms(pending)).get().first().state)
-        assertTrue(workManager.getWorkInfosForUniqueWork(WorkNames.scheduledSms(sent)).get().isEmpty())
-        assertEquals(WorkInfo.State.ENQUEUED, workManager.getWorkInfosForUniqueWork(WorkNames.reminder(reminder)).get().first().state)
+        assertEquals(WorkInfo.State.ENQUEUED, infosFor(WorkNames.scheduledSms(pending)).first().state)
+        assertTrue(infosFor(WorkNames.scheduledSms(sent)).isEmpty())
+        assertEquals(WorkInfo.State.ENQUEUED, infosFor(WorkNames.reminder(reminder)).first().state)
     }
 
     @Test
     fun unrelatedBroadcastIsIgnored() {
         BootCompletedReceiver().onReceive(context, Intent(Intent.ACTION_BATTERY_LOW))
-        assertTrue(workManager.getWorkInfosForUniqueWork(RearmWorker.UNIQUE_NAME).get().isEmpty())
+        assertTrue(infosFor(RearmWorker.UNIQUE_NAME).isEmpty())
+    }
+
+    private companion object {
+        /** Generous for a passing run, short enough that a stuck query fails rather than stalls. */
+        const val QUERY_TIMEOUT_SECONDS = 20L
     }
 }
 
