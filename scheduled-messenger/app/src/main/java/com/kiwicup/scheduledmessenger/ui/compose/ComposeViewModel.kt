@@ -15,6 +15,7 @@ import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
+import com.kiwicup.scheduledmessenger.data.system.AndroidPhoneNumberRecognizer
 import com.kiwicup.scheduledmessenger.data.system.ContactsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -57,7 +58,8 @@ class ComposeViewModel @Inject constructor(
     private val scheduledMessages: ScheduledMessageRepository,
     private val attachmentStore: AttachmentStore,
     private val timeSource: TimeSource,
-    private val contactsRepository: ContactsRepository
+    private val contactsRepository: ContactsRepository,
+    private val phoneNumbers: AndroidPhoneNumberRecognizer
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -117,7 +119,7 @@ class ComposeViewModel @Inject constructor(
         val suggestions = if (s.recipientQuery.isBlank()) {
             emptyList()
         } else {
-            ContactSuggestions.forQuery(contacts, s.recipientQuery, selected, defaultRegion)
+            ContactSuggestions.forQuery(contacts, phoneNumbers, s.recipientQuery, selected, defaultRegion)
         }
         _state.update { it.copy(suggestions = suggestions) }
     }

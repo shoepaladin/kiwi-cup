@@ -32,6 +32,7 @@ object ContactSuggestions {
 
     fun forQuery(
         contacts: List<Contact>,
+        recognizer: PhoneNumberRecognizer,
         query: String,
         alreadySelected: Set<String>,
         defaultRegion: String
@@ -63,7 +64,7 @@ object ContactSuggestions {
         // Dropped entirely if a match already carries the same address: offering "New number:
         // 555-111-2222" beside "John Smith · 5551112222" for the identical number is not a second
         // option, and duplicate addresses in the same list would collide as a UI list key besides.
-        val newNumber = PossibleNumbers.suggestionFor(query, defaultRegion, alreadySelected)
+        val newNumber = PossibleNumbers.suggestionFor(recognizer, query, defaultRegion, alreadySelected)
             ?.takeIf { candidate -> matches.none { it.address == candidate.address } }
         return if (newNumber != null) listOf(newNumber) + matches else matches
     }
