@@ -23,11 +23,6 @@ datastore = "1.1.7"
 mmslib = "1.0.0"
 coil = "2.7.0"
 libphonenumber = "9.0.39"
-# The Android port lags the upstream release by a patch or two; it is the same metadata.
-# Held at 9.0.29 deliberately: from 9.0.30 the port's AAR declares minCompileSdk=36, and this app
-# compiles against 35 on purpose. Ten patch releases of phone-number metadata is not worth
-# changing the SDK the app is built against.
-libphonenumberAndroid = "9.0.29"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -72,7 +67,6 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumber", version.ref = "libphonenumber" }
-libphonenumber-android = { group = "io.michaelrocks", name = "libphonenumber-android", version.ref = "libphonenumberAndroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

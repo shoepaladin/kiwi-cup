@@ -7,6 +7,7 @@ import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.kiwicup.scheduledmessenger.core.Contact
 import com.kiwicup.scheduledmessenger.core.ContactIndex
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -31,7 +32,7 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    /** The region libphonenumber should assume for a number typed with no country code. */
+    /** The region a typed number with no country code should be assumed to belong to. */
     fun defaultRegion(): String = DefaultRegion.forDevice(context)
 
     /**
@@ -61,6 +62,7 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
         )
         val results = mutableListOf<Contact>()
         runCatching {
+            AppLog.d(TAG, "querying contacts provider")
             context.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 projection,
@@ -79,7 +81,12 @@ class ContactsRepository @Inject constructor(@ApplicationContext private val con
                     results += Contact(lookupKey, name, number, starred = cursor.getInt(starredIndex) != 0)
                 }
             }
-        }
+        }.onFailure { e -> AppLog.e(TAG, "contacts query failed, falling back to no contacts", e) }
+        AppLog.d(TAG, "loaded ${results.size} contact rows")
         return results
+    }
+
+    private companion object {
+        const val TAG = "ContactsRepository"
     }
 }

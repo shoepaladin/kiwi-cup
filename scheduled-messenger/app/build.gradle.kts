@@ -120,11 +120,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.mmslib)
     implementation(libs.coil.compose)
-    // The Android port of libphonenumber, the same one QKSMS ships. Google's plain Java build
-    // loads its metadata via Class#getResourceAsStream, which its README tells Android apps not
-    // to rely on; this port loads it through AssetManager instead, which is why it needs a
-    // Context to construct. See AndroidPhoneNumberRecognizer.
-    implementation(libs.libphonenumber.android)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

@@ -24,13 +24,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.ThemeMode
 import com.kiwicup.scheduledmessenger.data.settings.AppSettings
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
+import com.kiwicup.scheduledmessenger.diagnostics.CrashHandler
 import com.kiwicup.scheduledmessenger.ui.components.ColorSwatches
+import com.kiwicup.scheduledmessenger.ui.permissions.DiagnosticFile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,6 +130,44 @@ fun SettingsScreen(
                 tag = "outgoing",
                 allowNone = true
             )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+            DiagnosticsSection()
         }
+    }
+}
+
+/**
+ * Lets the user pull a log off the phone without a computer: an app-log export and, when one
+ * exists, the report from the last crash. Both write through [DiagnosticFile], the same
+ * Downloads/clipboard route the permission screen's diagnostics already use, so there is one
+ * place the user needs to know to look regardless of which screen sent them there.
+ */
+@Composable
+private fun DiagnosticsSection() {
+    val context = LocalContext.current
+    var status by rememberSaveable { mutableStateOf<String?>(null) }
+    val lastCrash = remember { CrashHandler.lastReport(context) }
+
+    Text("Diagnostics", style = MaterialTheme.typography.titleMedium)
+    Text(
+        "If something crashes, this is what to send along.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(8.dp))
+    Row {
+        TextButton(
+            onClick = { status = DiagnosticFile.save(context, AppLog.fileContents()) },
+            modifier = Modifier.testTag("save_app_log")
+        ) { Text("Save app log") }
+        if (lastCrash != null) {
+            TextButton(
+                onClick = { status = DiagnosticFile.save(context, lastCrash) },
+                modifier = Modifier.testTag("save_last_crash")
+            ) { Text("Save last crash report") }
+        }
+    }
+    status?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp).testTag("diagnostics_status"))
     }
 }

@@ -3,14 +3,13 @@ package com.kiwicup.scheduledmessenger.core
 /**
  * Recognises and formats phone numbers, without committing to any particular library.
  *
- * This exists because there is no single library that is both testable outside Android and safe
- * to run on it. Google's own libphonenumber loads its metadata via `Class#getResourceAsStream`,
- * which Google's own documentation says Android apps should not rely on directly — the Android
- * port (`io.michaelrocks:libphonenumber-android`, what QKSMS uses) exists specifically to load
- * that metadata the way Android expects, but it needs a `Context` to construct, which a pure
- * Kotlin/JVM module cannot provide. So `core` depends only on this interface; the app module
- * supplies the Android-safe implementation, and tests supply one backed by the plain library,
- * which is perfectly fine off-device.
+ * `core` depends only on this interface, not on how a query is actually judged to be number-shaped.
+ * The app module currently supplies `PlatformPhoneNumberRecognizer`, backed by the platform's
+ * `android.telephony.PhoneNumberUtils` rather than a bundled library — see that class's own doc
+ * comment for why. Tests supply one backed by the plain (non-Android) Google libphonenumber build,
+ * which is perfectly fine off-device and gives these tests a stricter, independent check of the
+ * same behaviour. Keeping this as an interface is what made swapping the app's implementation a
+ * one-file change rather than a `core` change.
  */
 interface PhoneNumberRecognizer {
     /** True once the query has enough of a real number in it to be worth suggesting. */

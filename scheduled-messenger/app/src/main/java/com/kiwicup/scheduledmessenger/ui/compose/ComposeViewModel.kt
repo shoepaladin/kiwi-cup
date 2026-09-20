@@ -18,8 +18,9 @@ import com.kiwicup.scheduledmessenger.data.inbox.ThreadTargets
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.data.repository.ScheduledMessageRepository
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
-import com.kiwicup.scheduledmessenger.data.system.AndroidPhoneNumberRecognizer
+import com.kiwicup.scheduledmessenger.data.system.PlatformPhoneNumberRecognizer
 import com.kiwicup.scheduledmessenger.data.system.ContactsRepository
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +68,7 @@ class ComposeViewModel @Inject constructor(
     private val attachmentStore: AttachmentStore,
     private val timeSource: TimeSource,
     private val contactsRepository: ContactsRepository,
-    private val phoneNumbers: AndroidPhoneNumberRecognizer,
+    private val phoneNumbers: PlatformPhoneNumberRecognizer,
     private val threadTargets: ThreadTargets,
     private val smsMessageDao: SmsMessageDao
 ) : ViewModel() {
@@ -87,11 +88,20 @@ class ComposeViewModel @Inject constructor(
     @Volatile private var defaultRegion: String = "US"
 
     init {
+        AppLog.d(TAG, "init: opening compose screen")
         viewModelScope.launch {
-            contacts = contactsRepository.contacts()
-            defaultRegion = contactsRepository.defaultRegion()
-            recents = loadRecents()
-            refreshSuggestions()
+            // Contact search is a convenience on top of composing a message, not a precondition
+            // for it — a failure loading contacts should degrade to "no suggestions," never take
+            // the whole screen down with it, which a bare (uncaught) exception here would do.
+            try {
+                contacts = contactsRepository.contacts()
+                defaultRegion = contactsRepository.defaultRegion()
+                recents = loadRecents()
+                AppLog.d(TAG, "init: loaded ${contacts.entries.size} contacts, ${recents.size} recents, region=$defaultRegion")
+                refreshSuggestions()
+            } catch (e: Exception) {
+                AppLog.e(TAG, "init: contact/recents load failed, continuing with no suggestions", e)
+            }
         }
     }
 
@@ -146,14 +156,21 @@ class ComposeViewModel @Inject constructor(
         val query = _state.value.recipientQuery
         val selected = Recipients.decode(_state.value.recipient).toSet()
         viewModelScope.launch {
-            val suggestions = withContext(Dispatchers.Default) {
-                if (query.isBlank()) {
-                    // Only while the field is still empty-handed. Once a recipient is chosen the
-                    // screen's job is the message, and a standing list would sit on top of it.
-                    if (selected.isEmpty()) ContactSuggestions.forEmptyField(recents, contacts, selected) else emptyList()
-                } else {
-                    ContactSuggestions.forQuery(contacts, phoneNumbers, query, selected, defaultRegion)
+            val suggestions = try {
+                withContext(Dispatchers.Default) {
+                    if (query.isBlank()) {
+                        // Only while the field is still empty-handed. Once a recipient is chosen the
+                        // screen's job is the message, and a standing list would sit on top of it.
+                        if (selected.isEmpty()) ContactSuggestions.forEmptyField(recents, contacts, selected) else emptyList()
+                    } else {
+                        ContactSuggestions.forQuery(contacts, phoneNumbers, query, selected, defaultRegion)
+                    }
                 }
+            } catch (e: Exception) {
+                // The dropdown is a convenience; a bug in it must never take the compose screen
+                // down with it. This is the same trade as the try/catch around the initial load.
+                AppLog.e(TAG, "refreshSuggestions failed for a query of length ${query.length}", e)
+                emptyList()
             }
             _state.update { if (it.recipientQuery == query) it.copy(suggestions = suggestions) else it }
         }
@@ -201,5 +218,9 @@ class ComposeViewModel @Inject constructor(
                 .onSuccess { _state.update { it.copy(done = outcome, doneThreadId = threadId) } }
                 .onFailure { e -> _state.update { it.copy(error = e.message) } }
         }
+    }
+
+    private companion object {
+        const val TAG = "ComposeViewModel"
     }
 }
