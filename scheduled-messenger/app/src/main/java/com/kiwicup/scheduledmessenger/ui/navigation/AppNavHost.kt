@@ -166,7 +166,9 @@ fun AppNavHost(
             ComposeScreen(
                 state = state,
                 nowMillis = vm::now,
-                onRecipientChange = vm::onRecipientChange,
+                onRecipientQueryChange = vm::onRecipientQueryChange,
+                onPickSuggestion = vm::onPickSuggestion,
+                onRemoveChip = vm::onRemoveChip,
                 onBodyChange = vm::onBodyChange,
                 onSendNow = vm::sendNow,
                 onSchedule = vm::scheduleAt,

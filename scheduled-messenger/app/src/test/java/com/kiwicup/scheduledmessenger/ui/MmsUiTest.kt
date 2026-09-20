@@ -90,7 +90,8 @@ class MmsUiTest {
             ScheduledMessengerTheme(dynamicColor = false) {
                 ComposeScreen(
                     state = ComposeUiState(recipient = "+15550001111, +15550002222"),
-                    nowMillis = { 0L }, onRecipientChange = {}, onBodyChange = {}, onSendNow = {}, onSchedule = {},
+                    nowMillis = { 0L }, onRecipientQueryChange = {}, onPickSuggestion = {}, onRemoveChip = {},
+                    onBodyChange = {}, onSendNow = {}, onSchedule = {},
                     validateTarget = { null }, onDone = {}, onBack = {}
                 )
             }

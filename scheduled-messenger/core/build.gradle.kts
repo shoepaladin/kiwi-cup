@@ -15,6 +15,10 @@ kotlin {
 
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
+    // Pure Java, no Android dependency, unlike the Android-trimmed port other SMS apps use — the
+    // point of this module is that its logic can be unit tested outside an Android runtime, and
+    // this is what makes the recipient-matching code that uses it testable here too.
+    implementation(libs.libphonenumber)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }

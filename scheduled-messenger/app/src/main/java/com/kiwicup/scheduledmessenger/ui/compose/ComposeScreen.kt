@@ -2,17 +2,14 @@ package com.kiwicup.scheduledmessenger.ui.compose
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -20,18 +17,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.Attachment
+import com.kiwicup.scheduledmessenger.core.ContactSuggestion
 import com.kiwicup.scheduledmessenger.core.SendOutcome
 import com.kiwicup.scheduledmessenger.ui.components.MessageInputBar
+import com.kiwicup.scheduledmessenger.ui.components.RecipientField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComposeScreen(
     state: ComposeUiState,
     nowMillis: () -> Long,
-    onRecipientChange: (String) -> Unit,
+    onRecipientQueryChange: (String) -> Unit,
+    onPickSuggestion: (ContactSuggestion) -> Unit,
+    onRemoveChip: (String) -> Unit,
     onBodyChange: (String) -> Unit,
     onSendNow: () -> Unit,
     onSchedule: (Long) -> Unit,
@@ -64,7 +64,9 @@ fun ComposeScreen(
                 onSchedule = onSchedule,
                 nowMillis = nowMillis,
                 validateTarget = validateTarget,
-                enabled = state.recipient.isNotBlank(),
+                // A still-typed, unconfirmed number counts too — otherwise the button stays
+                // disabled until the user explicitly picks a suggestion instead of just typing.
+                enabled = state.recipient.isNotBlank() || state.recipientQuery.isNotBlank(),
                 attachments = state.attachments,
                 onAttach = onAttach,
                 onRemoveAttachment = onRemoveAttachment
@@ -75,16 +77,14 @@ fun ComposeScreen(
             .fillMaxSize()
             .padding(padding)
             .padding(16.dp)) {
-            OutlinedTextField(
-                value = state.recipient,
-                onValueChange = onRecipientChange,
-                label = { Text("To (phone numbers, comma separated for a group)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                isError = state.error != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("recipient_input")
+            RecipientField(
+                chips = state.recipientChips,
+                query = state.recipientQuery,
+                onQueryChange = onRecipientQueryChange,
+                suggestions = state.suggestions,
+                onPickSuggestion = onPickSuggestion,
+                onRemoveChip = onRemoveChip,
+                isError = state.error != null
             )
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp).testTag("compose_error"))
