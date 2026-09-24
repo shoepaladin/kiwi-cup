@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.di
 import android.content.Context
 import androidx.room.Room
 import com.kiwicup.scheduledmessenger.data.local.AppDatabase
+import com.kiwicup.scheduledmessenger.data.local.Migrations
 import com.kiwicup.scheduledmessenger.data.local.dao.ConversationStyleDao
 import com.kiwicup.scheduledmessenger.data.local.dao.ReminderDao
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
@@ -22,8 +23,11 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
-            // No migrations exist yet; a schema bump during development should not brick the app.
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(*Migrations.ALL)
+            // Only for downgrades (sideloading an older build over a newer one). An upgrade with a
+            // missing migration now crashes on open instead of silently deleting every scheduled
+            // message — loud and fixable beats quiet and unrecoverable.
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
     @Provides

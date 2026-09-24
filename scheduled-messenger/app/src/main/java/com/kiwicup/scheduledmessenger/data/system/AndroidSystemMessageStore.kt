@@ -25,6 +25,21 @@ class AndroidSystemMessageStore @Inject constructor(
         return runCatching { Telephony.Threads.getOrCreateThreadId(context, address) }.getOrNull()
     }
 
+    override fun setMessageRead(systemId: Long?, mmsSystemId: Long?, read: Boolean) {
+        if (!isDefaultSmsApp()) return
+        val flag = if (read) 1 else 0
+        runCatching {
+            if (systemId != null) {
+                val values = ContentValues().apply { put(Telephony.Sms.READ, flag); if (read) put(Telephony.Sms.SEEN, 1) }
+                context.contentResolver.update(Telephony.Sms.CONTENT_URI, values, "${Telephony.Sms._ID} = ?", arrayOf(systemId.toString()))
+            }
+            if (mmsSystemId != null) {
+                val values = ContentValues().apply { put(Telephony.Mms.READ, flag); if (read) put(Telephony.Mms.SEEN, 1) }
+                context.contentResolver.update(Telephony.Mms.CONTENT_URI, values, "${Telephony.Mms._ID} = ?", arrayOf(mmsSystemId.toString()))
+            }
+        }
+    }
+
     override fun markThreadRead(threadId: Long) {
         if (!isDefaultSmsApp()) return
         runCatching {

@@ -20,4 +20,11 @@ interface SystemMessageStore {
     fun threadIdFor(address: String): Long?
     /** Best-effort: marks a conversation read in the system store. */
     fun markThreadRead(threadId: Long)
+
+    /**
+     * Best-effort: sets one message's read flag in the system store, so the launcher badge and
+     * other messaging apps agree with this one. A message with neither id exists only locally
+     * (this app was not the default when it arrived) and has nothing to update.
+     */
+    fun setMessageRead(systemId: Long?, mmsSystemId: Long?, read: Boolean)
 }

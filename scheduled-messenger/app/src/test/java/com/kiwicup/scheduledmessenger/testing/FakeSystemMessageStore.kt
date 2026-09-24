@@ -18,6 +18,12 @@ class FakeSystemMessageStore(var isDefault: Boolean = false) : SystemMessageStor
     override fun insertSentSms(address: String, body: String, timestamp: Long): StoredSms? = insert(address, body, timestamp, true)
     override fun markThreadRead(threadId: Long) { readThreads += threadId }
 
+    data class ReadChange(val systemId: Long?, val mmsSystemId: Long?, val read: Boolean)
+    val readChanges = mutableListOf<ReadChange>()
+    override fun setMessageRead(systemId: Long?, mmsSystemId: Long?, read: Boolean) {
+        if (isDefault) readChanges += ReadChange(systemId, mmsSystemId, read)
+    }
+
     override fun threadIdFor(address: String): Long? =
         if (isDefault) threads.getOrPut(address) { 500L + threads.size } else null
 

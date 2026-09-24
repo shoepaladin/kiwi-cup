@@ -163,6 +163,22 @@ class SmsInboxImporterTest {
         assertTrue(result.skipped)
         assertEquals(0, dbRule.db.smsMessageDao().countInThread(3L))
     }
+
+    @Test
+    fun importsReadStateForIncomingTextsOnly() = runBlocking {
+        stubProvider(
+            arrayOf(20L, 3L, "+15550001111", "unread one", 1_000L, Telephony.Sms.MESSAGE_TYPE_INBOX, 0),
+            arrayOf(21L, 3L, "+15550001111", "read one", 2_000L, Telephony.Sms.MESSAGE_TYPE_INBOX, 1),
+            // The phone's store can leave READ at 0 on sent rows; a text you sent is never unread.
+            arrayOf(22L, 3L, "+15550001111", "sent one", 3_000L, Telephony.Sms.MESSAGE_TYPE_SENT, 0)
+        )
+        importer.importNew()
+
+        val byBody = dbRule.db.smsMessageDao().getThread(3L).associateBy { it.body }
+        assertEquals(false, byBody.getValue("unread one").isRead)
+        assertEquals(true, byBody.getValue("read one").isRead)
+        assertEquals(true, byBody.getValue("sent one").isRead)
+    }
 }
 
 /** Minimal stand-in for the phone's SMS store. Honours the `_id > ?` selection the importer uses. */
@@ -172,11 +188,14 @@ class FakeSmsProvider : ContentProvider() {
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor {
         val columns = arrayOf(
             SmsInboxImporter.COL_ID, SmsInboxImporter.COL_THREAD, SmsInboxImporter.COL_ADDRESS,
-            SmsInboxImporter.COL_BODY, SmsInboxImporter.COL_DATE, SmsInboxImporter.COL_TYPE
+            SmsInboxImporter.COL_BODY, SmsInboxImporter.COL_DATE, SmsInboxImporter.COL_TYPE,
+            SmsInboxImporter.COL_READ
         )
         val minExclusive = if (selection == "${SmsInboxImporter.COL_ID} > ?") selectionArgs!![0].toLong() else Long.MIN_VALUE
         val cursor = MatrixCursor(columns)
-        rows.filter { (it[0] as Long) > minExclusive }.sortedBy { it[0] as Long }.forEach { cursor.addRow(it) }
+        // Rows written before the read column existed get read = 1, as the real store's would.
+        rows.filter { (it[0] as Long) > minExclusive }.sortedBy { it[0] as Long }
+            .forEach { cursor.addRow(if (it.size == 6) it + arrayOf<Any?>(1) else it) }
         return cursor
     }
 

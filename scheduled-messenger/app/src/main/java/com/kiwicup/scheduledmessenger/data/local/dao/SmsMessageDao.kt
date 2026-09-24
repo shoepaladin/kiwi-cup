@@ -17,8 +17,12 @@ data class ThreadSummary(
     val timestamp: Long,
     val messageCount: Int,
     val recipients: String? = null,
-    val attachments: String? = null
+    val attachments: String? = null,
+    /** Messages in the conversation not yet read; drives the bold row and the count badge. */
+    val unreadCount: Int = 0
 ) {
+    val isUnread: Boolean get() = unreadCount > 0
+
     /** Group conversations list every participant; one-to-one shows the other party. */
     val title: String
         get() = recipients?.takeIf { it.contains(',') }?.replace(",", ", ") ?: address
@@ -81,7 +85,8 @@ interface SmsMessageDao {
         """
         SELECT m.threadId AS threadId, m.address AS address, m.body AS body, m.timestamp AS timestamp,
                (SELECT COUNT(*) FROM sms_messages c WHERE c.threadId = m.threadId) AS messageCount,
-               m.recipients AS recipients, m.attachments AS attachments
+               m.recipients AS recipients, m.attachments AS attachments,
+               (SELECT COUNT(*) FROM sms_messages u WHERE u.threadId = m.threadId AND u.isRead = 0) AS unreadCount
         FROM sms_messages m
         WHERE m.id = (
             SELECT x.id FROM sms_messages x
@@ -96,6 +101,28 @@ interface SmsMessageDao {
 
     @Query("SELECT COUNT(*) FROM sms_messages WHERE threadId = :threadId")
     suspend fun countInThread(threadId: Long): Int
+
+    // ---- read state ----
+
+    /** The oldest unread message, which is where the thread screen draws its "New" line. */
+    @Query("SELECT id FROM sms_messages WHERE threadId = :threadId AND isRead = 0 ORDER BY timestamp ASC, id ASC LIMIT 1")
+    suspend fun firstUnreadId(threadId: Long): Long?
+
+    @Query("SELECT id FROM sms_messages WHERE threadId = :threadId AND isRead = 0")
+    suspend fun unreadIds(threadId: Long): List<Long>
+
+    @Query("SELECT MAX(id) FROM sms_messages WHERE threadId = :threadId")
+    suspend fun maxIdInThread(threadId: Long): Long?
+
+    @Query("UPDATE sms_messages SET isRead = 1 WHERE threadId = :threadId AND isRead = 0")
+    suspend fun markThreadRead(threadId: Long): Int
+
+    @Query("UPDATE sms_messages SET isRead = :isRead WHERE id = :id")
+    suspend fun setRead(id: Long, isRead: Boolean): Int
+
+    /** Callers must not pass an empty list; see ThreadViewModel. */
+    @Query("UPDATE sms_messages SET isRead = 1 WHERE id IN (:ids)")
+    suspend fun markRead(ids: List<Long>): Int
 
     @Query("SELECT threadId FROM sms_messages WHERE address = :address ORDER BY timestamp DESC LIMIT 1")
     suspend fun findThreadIdByAddress(address: String): Long?

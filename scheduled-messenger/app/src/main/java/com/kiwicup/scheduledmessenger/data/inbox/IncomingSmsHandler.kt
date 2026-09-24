@@ -41,7 +41,11 @@ class IncomingSmsHandler @Inject constructor(
                 timestamp = sms.timestamp,
                 status = SmsStatus.RECEIVED,
                 isIncoming = true,
-                systemId = stored?.systemId
+                systemId = stored?.systemId,
+                // Always unread on arrival. If the conversation is open on screen, ThreadViewModel
+                // marks it read as it lands; deciding that here would tie the data layer to what
+                // the UI happens to be showing.
+                isRead = false
             )
         )
     }

@@ -55,7 +55,7 @@ class SmsInboxImporter @Inject constructor(
 
     // ---- SMS ----
     private fun readSmsSince(minExclusiveId: Long): List<SmsMessage> {
-        val projection = arrayOf(COL_ID, COL_THREAD, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
+        val projection = arrayOf(COL_ID, COL_THREAD, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE, COL_READ)
         val cursor = runCatching {
             context.contentResolver.query(Telephony.Sms.CONTENT_URI, projection, "$COL_ID > ?", arrayOf(minExclusiveId.toString()), "$COL_ID ASC")
         }.getOrNull() ?: return emptyList()
@@ -67,8 +67,10 @@ class SmsInboxImporter @Inject constructor(
             val iBody = c.getColumnIndexOrThrow(COL_BODY)
             val iDate = c.getColumnIndexOrThrow(COL_DATE)
             val iType = c.getColumnIndexOrThrow(COL_TYPE)
+            val iRead = c.getColumnIndex(COL_READ)
             while (c.moveToNext()) {
                 val type = c.getInt(iType)
+                val incoming = type == Telephony.Sms.MESSAGE_TYPE_INBOX
                 val address = c.getString(iAddress) ?: continue
                 out += SmsMessage(
                     threadId = c.getLong(iThread),
@@ -76,13 +78,23 @@ class SmsInboxImporter @Inject constructor(
                     body = c.getString(iBody) ?: "",
                     timestamp = c.getLong(iDate),
                     status = smsStatusFor(type),
-                    isIncoming = type == Telephony.Sms.MESSAGE_TYPE_INBOX,
-                    systemId = c.getLong(iId)
+                    isIncoming = incoming,
+                    systemId = c.getLong(iId),
+                    isRead = isReadRow(incoming, c, iRead)
                 )
             }
         }
         return out
     }
+
+    /**
+     * Only incoming messages can be unread; the phone's store leaves READ at 0 on some sent rows,
+     * and those must not light up the conversation. A provider that does not return the column at
+     * all (some OEM stores, and this project's test fakes) is treated as read — importing a whole
+     * history as unread is worse than missing an unread flag.
+     */
+    private fun isReadRow(incoming: Boolean, c: android.database.Cursor, readIndex: Int): Boolean =
+        !incoming || readIndex < 0 || c.getInt(readIndex) != 0
 
     private fun smsStatusFor(type: Int): SmsStatus = when (type) {
         Telephony.Sms.MESSAGE_TYPE_INBOX -> SmsStatus.RECEIVED
@@ -92,7 +104,7 @@ class SmsInboxImporter @Inject constructor(
 
     // ---- MMS ----
     private fun readMmsSince(minExclusiveId: Long): List<SmsMessage> {
-        val projection = arrayOf(COL_ID, COL_THREAD, MMS_DATE, MMS_BOX)
+        val projection = arrayOf(COL_ID, COL_THREAD, MMS_DATE, MMS_BOX, MMS_READ)
         val cursor = runCatching {
             context.contentResolver.query(Telephony.Mms.CONTENT_URI, projection, "$COL_ID > ?", arrayOf(minExclusiveId.toString()), "$COL_ID ASC")
         }.getOrNull() ?: return emptyList()
@@ -102,6 +114,7 @@ class SmsInboxImporter @Inject constructor(
             val iThread = c.getColumnIndexOrThrow(COL_THREAD)
             val iDate = c.getColumnIndexOrThrow(MMS_DATE)
             val iBox = c.getColumnIndexOrThrow(MMS_BOX)
+            val iRead = c.getColumnIndex(MMS_READ)
             while (c.moveToNext()) {
                 val id = c.getLong(iId)
                 val box = c.getInt(iBox)
@@ -127,7 +140,8 @@ class SmsInboxImporter @Inject constructor(
                     isMms = true,
                     mmsSystemId = id,
                     attachments = AttachmentCodec.encode(attachments),
-                    recipients = if (others.size > 1) Recipients.encode(others) else null
+                    recipients = if (others.size > 1) Recipients.encode(others) else null,
+                    isRead = isReadRow(incoming, c, iRead)
                 )
             }
         }
@@ -204,6 +218,8 @@ class SmsInboxImporter @Inject constructor(
         const val COL_TYPE = Telephony.Sms.TYPE
         const val MMS_DATE = Telephony.Mms.DATE
         const val MMS_BOX = Telephony.Mms.MESSAGE_BOX
+        const val COL_READ = Telephony.Sms.READ
+        const val MMS_READ = Telephony.Mms.READ
         const val ADDR_ADDRESS = "address"
         const val ADDR_TYPE = "type"
         const val ADDR_TYPE_FROM = 137

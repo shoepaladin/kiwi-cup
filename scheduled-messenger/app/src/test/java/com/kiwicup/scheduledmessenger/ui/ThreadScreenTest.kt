@@ -32,7 +32,11 @@ class ThreadScreenTest {
     private val incoming = SmsMessage(id = 1, threadId = 5, address = "+15550009999", body = "Dinner Friday?", timestamp = now - 60_000, status = SmsStatus.RECEIVED)
     private val outgoing = SmsMessage(id = 2, threadId = 5, address = "+15550009999", body = "Let me check", timestamp = now, status = SmsStatus.SENT, isIncoming = false)
 
-    private fun render(state: ThreadUiState, onRemind: (SmsMessage, String, Long) -> Unit = { _, _, _ -> }) {
+    private fun render(
+        state: ThreadUiState,
+        onRemind: (SmsMessage, String, Long) -> Unit = { _, _, _ -> },
+        onToggleRead: ((SmsMessage) -> Unit)? = null
+    ) {
         compose.setContent {
             ScheduledMessengerTheme(dynamicColor = false) {
                 ThreadScreen(
@@ -44,7 +48,8 @@ class ThreadScreenTest {
                     validateTarget = { null },
                     onRemind = onRemind,
                     onSnackbarShown = {},
-                    onBack = {}
+                    onBack = {},
+                    onToggleRead = onToggleRead
                 )
             }
         }
@@ -85,5 +90,39 @@ class ThreadScreenTest {
         assertEquals(1L, created[0].first)
         assertEquals("Say yes to dinner", created[0].second)
         assertTrue(created[0].third > now)
+    }
+
+    @Test
+    fun theNewLineSitsAtTheFirstUnreadMessage() {
+        render(ThreadUiState(threadId = 5, address = "+15550009999", messages = listOf(incoming, outgoing), firstUnreadId = 1))
+        compose.onNodeWithTag("new_messages_divider").assertIsDisplayed()
+    }
+
+    @Test
+    fun noUnreadMeansNoNewLine() {
+        render(ThreadUiState(threadId = 5, address = "+15550009999", messages = listOf(incoming, outgoing)))
+        compose.onNodeWithTag("new_messages_divider").assertDoesNotExist()
+    }
+
+    @Test
+    fun longPressMarkUnreadHandsBackThatMessage() {
+        val toggled = mutableListOf<Long>()
+        render(ThreadUiState(threadId = 5, address = "+15550009999", messages = listOf(incoming)), onToggleRead = { toggled += it.id })
+
+        compose.onNodeWithTag("bubble_1").performTouchInput { longClick() }
+        compose.onNodeWithTag("menu_mark_unread").assertIsDisplayed().performClick()
+
+        assertEquals(listOf(1L), toggled)
+    }
+
+    @Test
+    fun anUnreadMessageOffersMarkReadAndSaysItIsUnread() {
+        render(
+            ThreadUiState(threadId = 5, address = "+15550009999", messages = listOf(incoming.copy(isRead = false))),
+            onToggleRead = {}
+        )
+        compose.onNodeWithText("Unread", substring = true).assertIsDisplayed()
+        compose.onNodeWithTag("bubble_1").performTouchInput { longClick() }
+        compose.onNodeWithTag("menu_mark_read").assertIsDisplayed()
     }
 }

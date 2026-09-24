@@ -34,6 +34,16 @@ class IncomingSmsHandlerTest {
     }
 
     @Test
+    fun anIncomingTextArrivesUnread() = runBlocking {
+        val dao = dbRule.db.smsMessageDao()
+        val handler = IncomingSmsHandler(dao, FakeSystemMessageStore(), ThreadResolver(dao))
+
+        val id = handler.handle(IncomingSms("+15550004444", "are you there?", 3_000))
+
+        assertEquals(false, dao.getById(id)!!.isRead)
+    }
+
+    @Test
     fun asDefaultAppWritesToSystemStoreAndReusesItsIds() = runBlocking {
         val dao = dbRule.db.smsMessageDao()
         val store = FakeSystemMessageStore(isDefault = true)

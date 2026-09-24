@@ -17,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Badge
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.data.local.dao.ThreadSummary
 import com.kiwicup.scheduledmessenger.ui.components.TimeFormat
@@ -106,10 +108,30 @@ fun ConversationsScreen(
                 .fillMaxSize()
                 .testTag("thread_list")) {
                 items(threads, key = { it.threadId }) { thread ->
+                    // Unread: bold title and preview plus a count, the convention every messaging
+                    // app shares, so the list reads at a glance.
+                    val weight = if (thread.isUnread) FontWeight.Bold else FontWeight.Normal
                     ListItem(
-                        headlineContent = { Text(thread.title) },
-                        supportingContent = { Text(thread.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        trailingContent = { Text(TimeFormat.date(thread.timestamp), style = MaterialTheme.typography.labelSmall) },
+                        headlineContent = { Text(thread.title, fontWeight = weight) },
+                        supportingContent = {
+                            Text(
+                                thread.preview,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = weight,
+                                color = if (thread.isUnread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        trailingContent = {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(TimeFormat.date(thread.timestamp), style = MaterialTheme.typography.labelSmall, fontWeight = weight)
+                                if (thread.isUnread) {
+                                    Badge(modifier = Modifier.padding(top = 4.dp).testTag("unread_badge_${thread.threadId}")) {
+                                        Text(if (thread.unreadCount > 99) "99+" else thread.unreadCount.toString())
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .clickable { onOpenThread(thread.threadId) }
                             .testTag("thread_${thread.threadId}")

@@ -101,6 +101,11 @@ fun AppNavHost(
         ) {
             val vm: ThreadViewModel = hiltViewModel()
             val state by vm.state.collectAsState()
+            // "Looking at the conversation" means resumed on screen, not merely on the back stack.
+            LifecycleResumeEffect(vm) {
+                vm.onScreenResumed()
+                onPauseOrDispose { vm.onScreenPaused() }
+            }
             val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                 if (uri != null) vm.setWallpaper(uri)
             }
@@ -127,7 +132,8 @@ fun AppNavHost(
                     onReset = vm::resetStyle
                 ),
                 onAttach = { pickAttachment.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
-                onRemoveAttachment = vm::removeAttachment
+                onRemoveAttachment = vm::removeAttachment,
+                onToggleRead = vm::toggleRead
             )
         }
         composable(Routes.SETTINGS) {

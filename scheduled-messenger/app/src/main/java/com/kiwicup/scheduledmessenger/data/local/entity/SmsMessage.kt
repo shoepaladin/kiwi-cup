@@ -34,5 +34,11 @@ data class SmsMessage(
     /** Encoded with [com.kiwicup.scheduledmessenger.core.AttachmentCodec]. */
     val attachments: String? = null,
     /** Every other party in a group conversation, comma separated; null for one-to-one. */
-    val recipients: String? = null
+    val recipients: String? = null,
+    /**
+     * False while the user has not seen it: incoming texts arrive unread, and any message can be
+     * put back to unread from its long-press menu. Defaults to read so messages this app sends,
+     * and every row that existed before this column did, never show up as unread.
+     */
+    @ColumnInfo(defaultValue = "1") val isRead: Boolean = true
 )

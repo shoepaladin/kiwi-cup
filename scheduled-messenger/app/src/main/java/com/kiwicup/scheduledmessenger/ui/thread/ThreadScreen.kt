@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,7 +77,8 @@ fun ThreadScreen(
     onBack: () -> Unit,
     styleActions: ThreadStyleActions = ThreadStyleActions.None,
     onAttach: (() -> Unit)? = null,
-    onRemoveAttachment: (Attachment) -> Unit = {}
+    onRemoveAttachment: (Attachment) -> Unit = {},
+    onToggleRead: ((SmsMessage) -> Unit)? = null
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     var remindTarget by remember { mutableStateOf<SmsMessage?>(null) }
@@ -189,12 +192,18 @@ fun ThreadScreen(
                         .testTag("message_list")
                 ) {
                     items(state.messages.asReversed(), key = { it.id }) { message ->
-                        MessageBubble(
-                            message = message,
-                            onRemind = { remindTarget = it },
-                            incomingColor = state.look.incomingBubbleColor,
-                            outgoingColor = state.look.outgoingBubbleColor
-                        )
+                        // Within an item, content still lays out top-down even though the list is
+                        // reversed, so the divider placed first sits above the message it marks.
+                        Column {
+                            if (message.id == state.firstUnreadId) NewMessagesDivider()
+                            MessageBubble(
+                                message = message,
+                                onRemind = { remindTarget = it },
+                                incomingColor = state.look.incomingBubbleColor,
+                                outgoingColor = state.look.outgoingBubbleColor,
+                                onToggleRead = onToggleRead
+                            )
+                        }
                     }
                 }
             }
@@ -230,6 +239,26 @@ fun ThreadScreen(
             onDim = styleActions.onDim,
             onReset = styleActions.onReset,
             onDismiss = { styleOpen = false }
+        )
+    }
+}
+
+/** Slack's "New" line: where the unread messages started when this conversation was opened. */
+@Composable
+private fun NewMessagesDivider() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag("new_messages_divider")
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+        Text(
+            "New",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }

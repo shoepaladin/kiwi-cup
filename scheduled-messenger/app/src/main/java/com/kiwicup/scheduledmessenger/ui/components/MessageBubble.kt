@@ -28,7 +28,7 @@ import com.kiwicup.scheduledmessenger.core.SmsStatus
 import com.kiwicup.scheduledmessenger.core.ThemeColors
 import com.kiwicup.scheduledmessenger.data.local.entity.SmsMessage
 
-/** One chat bubble. Long-press opens the context menu with "Remind me about this later". */
+/** One chat bubble. Long-press opens the context menu: reminders, and marking read or unread. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
@@ -37,7 +37,9 @@ fun MessageBubble(
     modifier: Modifier = Modifier,
     /** Custom bubble colors (ARGB); null falls back to the theme. */
     incomingColor: Int? = null,
-    outgoingColor: Int? = null
+    outgoingColor: Int? = null,
+    /** Flips this one message between read and unread; null hides the menu entry. */
+    onToggleRead: ((SmsMessage) -> Unit)? = null
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val outgoing = !message.isIncoming
@@ -94,7 +96,11 @@ fun MessageBubble(
                 )
             }
             Text(
-                text = TimeFormat.time(message.timestamp) + if (message.status == SmsStatus.FAILED) " · Not sent" else "",
+                text = TimeFormat.time(message.timestamp) +
+                    (if (message.status == SmsStatus.FAILED) " · Not sent" else "") +
+                    // Visible confirmation that "Mark unread" took, since the "New" line only
+                    // reflects what was unread when the conversation was opened.
+                    (if (!message.isRead) " · Unread" else ""),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (message.status == SmsStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -108,6 +114,16 @@ fun MessageBubble(
                     },
                     modifier = Modifier.testTag("menu_remind")
                 )
+                if (onToggleRead != null) {
+                    DropdownMenuItem(
+                        text = { Text(if (message.isRead) "Mark unread" else "Mark read") },
+                        onClick = {
+                            menuOpen = false
+                            onToggleRead(message)
+                        },
+                        modifier = Modifier.testTag(if (message.isRead) "menu_mark_unread" else "menu_mark_read")
+                    )
+                }
             }
         }
     }
