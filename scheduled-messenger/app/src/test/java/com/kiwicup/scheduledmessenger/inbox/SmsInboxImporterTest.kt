@@ -195,7 +195,7 @@ class FakeSmsProvider : ContentProvider() {
         val cursor = MatrixCursor(columns)
         // Rows written before the read column existed get read = 1, as the real store's would.
         rows.filter { (it[0] as Long) > minExclusive }.sortedBy { it[0] as Long }
-            .forEach { cursor.addRow(if (it.size == 6) it + arrayOf<Any?>(1) else it) }
+            .forEach { cursor.addRow(if (it.size == 6) arrayOf<Any?>(*it, 1) else it) }
         return cursor
     }
 
