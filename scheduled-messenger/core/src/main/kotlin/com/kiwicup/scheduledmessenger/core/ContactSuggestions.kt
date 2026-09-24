@@ -81,7 +81,13 @@ object ContactSuggestions {
         val contactRows = index.entries
             .asSequence()
             .filter { it.address !in taken }
-            .distinctBy { it.contact.lookupKey to it.contact.phoneNumber }
+            // By address, not (lookupKey, phoneNumber): a contact synced from two accounts, or
+            // stored with the same number typed two different ways, produces two IndexedContact
+            // rows with different lookup keys or raw numbers but the identical normalized
+            // address — deduping on the raw fields let both through as separate PersonSuggestions
+            // sharing one address, which crashed the dropdown's LazyColumn the first time this
+            // path (an unfiltered list, not a narrowed search) put two of them in the same top 20.
+            .distinctBy { it.address }
             // Favourites first, then alphabetical, the order QKSMS builds its empty-query list in.
             .sortedWith(compareByDescending<IndexedContact> { it.contact.starred }.thenBy { it.searchKey })
             .take(MAX_RESULTS)
@@ -107,7 +113,10 @@ object ContactSuggestions {
             .asSequence()
             .filter { it.address !in alreadySelected }
             .filter { it.searchKey.contains(nameNeedle) || (digitNeedle.isNotEmpty() && it.digits.contains(digitNeedle)) }
-            .distinctBy { it.contact.lookupKey to it.contact.phoneNumber }
+            // Same reasoning as forEmptyField above: dedupe on the address the UI actually keys
+            // its list by, not on the raw (lookupKey, phoneNumber) pair, or a contact synced twice
+            // can surface as two suggestions sharing one address.
+            .distinctBy { it.address }
             // Fossify sorts new-conversation results the same way: name-prefix matches first,
             // then alphabetical. Favourites break the tie within each group.
             .sortedWith(

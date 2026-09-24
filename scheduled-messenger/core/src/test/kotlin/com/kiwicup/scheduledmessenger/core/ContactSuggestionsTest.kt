@@ -78,6 +78,21 @@ class ContactSuggestionsTest {
     fun `no match and no possible number returns an empty list`() {
         assertEquals(emptyList<ContactSuggestion>(), ContactSuggestions.forQuery(ContactIndex(contacts), recognizer, "xyz", emptySet(), "US"))
     }
+
+    @Test
+    fun `a contact synced from two accounts is offered once, not twice with the same address`() {
+        // The crash this reproduces: two rows for the one person — different lookup keys, and
+        // the number typed two different ways — that normalize to the identical address. Real
+        // devices produce exactly this when a contact exists in more than one account. A LazyColumn
+        // keyed by address crashes outright on the duplicate; distinctBy on the raw fields let
+        // both through because neither the lookup key nor the raw string was actually equal.
+        val duplicated = listOf(
+            Contact(lookupKey = "google-1", displayName = "Sam Lee", phoneNumber = "(908) 670-1435"),
+            Contact(lookupKey = "whatsapp-1", displayName = "Sam Lee", phoneNumber = "908-670-1435")
+        )
+        val results = ContactSuggestions.forQuery(ContactIndex(duplicated), recognizer, "sam", emptySet(), "US")
+        assertEquals(listOf("9086701435"), results.map { it.address })
+    }
 }
 
 class EmptyRecipientFieldTest {
@@ -132,6 +147,23 @@ class EmptyRecipientFieldTest {
         val recents = listOf(RecentConversation("5551112222", "John Smith"))
         val results = ContactSuggestions.forEmptyField(recents, index, setOf("5551112222"))
         assertTrue(results.none { it.address == "5551112222" })
+    }
+
+    @Test
+    fun `a contact synced from two accounts appears once in the untouched field`() {
+        // This is the exact crash a real device hit: an untouched field lists the whole address
+        // book (not a narrowed search), so a contact stored under two lookup keys with slightly
+        // different number formatting was far more likely to land twice in the same page and
+        // collide as a LazyColumn key than it ever was while typing a query.
+        val withDuplicate = ContactIndex(
+            contacts + listOf(
+                Contact(lookupKey = "google-1", displayName = "Sam Lee", phoneNumber = "(908) 670-1435"),
+                Contact(lookupKey = "whatsapp-1", displayName = "Sam Lee", phoneNumber = "908-670-1435")
+            )
+        )
+        val results = ContactSuggestions.forEmptyField(emptyList(), withDuplicate, emptySet())
+        assertEquals(results.map { it.address }.size, results.map { it.address }.toSet().size)
+        assertEquals(1, results.count { it.address == "9086701435" })
     }
 
     @Test
