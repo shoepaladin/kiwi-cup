@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.data.system
 import android.content.ContentValues
 import android.content.Context
 import android.provider.Telephony
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +41,10 @@ class AndroidSystemMessageStore @Inject constructor(
         }
     }
 
+    private companion object {
+        const val TAG = "SystemMessageStore"
+    }
+
     override fun markThreadRead(threadId: Long) {
         if (!isDefaultSmsApp()) return
         runCatching {
@@ -65,8 +70,16 @@ class AndroidSystemMessageStore @Inject constructor(
                 put(Telephony.Sms.TYPE, type)
                 put(Telephony.Sms.THREAD_ID, threadId)
             }
-            val uri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values) ?: return null
+            val uri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values)
+            if (uri == null) {
+                AppLog.w(TAG, "phone store refused a ${if (type == Telephony.Sms.MESSAGE_TYPE_SENT) "sent" else "received"} text")
+                return null
+            }
             StoredSms(systemId = uri.lastPathSegment!!.toLong(), threadId = threadId)
+        }.onFailure {
+            // Until now these writes never ran on the user's phone (the app wrongly believed it
+            // was not the default), so a failure here is new territory: record it, never hide it.
+            AppLog.e(TAG, "writing a text to the phone store failed", it)
         }.getOrNull()
     }
 }

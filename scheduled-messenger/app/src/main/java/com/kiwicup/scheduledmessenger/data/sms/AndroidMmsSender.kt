@@ -12,6 +12,7 @@ import com.klinker.android.send_message.Transaction
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.receivers.MmsSentReceiverImpl
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
@@ -30,7 +31,23 @@ class AndroidMmsSender @Inject constructor(
     private val attachmentStore: AttachmentStore
 ) : MmsSender {
 
+    /**
+     * Every outcome is logged. Picture sending has never actually run on the user's phone — the
+     * default check refused it first — so the first real attempts are the ones worth a record.
+     * Only counts and types are logged, never the message text or the recipients.
+     */
     override suspend fun send(message: OutgoingMms): SendResult {
+        AppLog.d(TAG, "sending MMS: ${message.recipients.size} recipient(s), ${message.attachments.size} attachment(s)")
+        val result = sendChecked(message)
+        when (result) {
+            SendResult.Sent -> AppLog.d(TAG, "MMS sent")
+            is SendResult.PermanentFailure -> AppLog.e(TAG, "MMS failed permanently: ${result.reason}")
+            is SendResult.TransientFailure -> AppLog.w(TAG, "MMS failed, will retry: ${result.reason}")
+        }
+        return result
+    }
+
+    private suspend fun sendChecked(message: OutgoingMms): SendResult {
         if (!DefaultSmsApp.isDefault(context)) {
             return SendResult.PermanentFailure("Pictures and group texts need this app to be the default SMS app")
         }
@@ -78,5 +95,6 @@ class AndroidMmsSender @Inject constructor(
 
     companion object {
         const val SEND_TIMEOUT_MILLIS = 3L * 60L * 1000L
+        private const val TAG = "MmsSender"
     }
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kiwicup.scheduledmessenger.core.ThemeMode
 import com.kiwicup.scheduledmessenger.data.settings.AppSettings
+import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import com.kiwicup.scheduledmessenger.diagnostics.CrashHandler
 import com.kiwicup.scheduledmessenger.ui.components.ColorSwatches
@@ -147,12 +148,21 @@ private fun DiagnosticsSection() {
     val context = LocalContext.current
     var status by rememberSaveable { mutableStateOf<String?>(null) }
     val lastCrash = remember { CrashHandler.lastReport(context) }
+    val defaultSms = remember { DefaultSmsApp.readings(context) }
 
     Text("Diagnostics", style = MaterialTheme.typography.titleMedium)
     Text(
         "If something crashes, this is what to send along.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    // Both of Android's answers to "is this the default SMS app?", readable on the phone itself.
+    // If pictures ever fail with "needs to be the default" again, this line says which one lied.
+    Text(
+        "Default SMS app: ${if (defaultSms.isDefault) "yes" else "no"} (${defaultSms.describe()})",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (defaultSms.disagree) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp).testTag("default_sms_readings")
     )
     Spacer(Modifier.height(8.dp))
     Row {
