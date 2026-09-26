@@ -2,8 +2,9 @@ package com.kiwicup.scheduledmessenger.receivers
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.klinker.android.send_message.MmsSentReceiver
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
+import com.kiwicup.scheduledmessenger.diagnostics.MmsStoreProbe
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -25,6 +26,7 @@ class MmsSentReceiverImpl : MmsSentReceiver() {
     }
 
     override fun onMessageStatusUpdated(context: Context, intent: Intent, resultCode: Int) {
+        AppLog.d(TAG, "sent-MMS receipt: resultCode=$resultCode (-1 is success)")
         intent.getStringExtra(EXTRA_TOKEN)?.let { token ->
             context.sendBroadcast(
                 Intent(ACTION_LOCAL_RESULT)
@@ -35,11 +37,14 @@ class MmsSentReceiverImpl : MmsSentReceiver() {
         }
         runCatching {
             val importer = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java).importer()
-            runBlocking { importer.importNew() }
-        }.onFailure { Log.w("MmsSent", "import after send failed", it) }
+            val imported = runBlocking { importer.importNew() }
+            AppLog.d(TAG, "after sent receipt: imported ${imported.imported} row(s)")
+        }.onFailure { AppLog.e(TAG, "import after send failed", it) }
+        AppLog.d(TAG, MmsStoreProbe.snapshot(context))
     }
 
     companion object {
+        private const val TAG = "MmsSent"
         const val ACTION_LOCAL_RESULT = "com.kiwicup.scheduledmessenger.MMS_RESULT"
         const val EXTRA_TOKEN = "token"
         const val EXTRA_RESULT_CODE = "result_code"

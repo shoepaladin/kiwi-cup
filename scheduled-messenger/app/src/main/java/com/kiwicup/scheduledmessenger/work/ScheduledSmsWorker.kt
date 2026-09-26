@@ -11,6 +11,8 @@ import com.kiwicup.scheduledmessenger.core.AttachmentCodec
 import com.kiwicup.scheduledmessenger.core.Recipients
 import com.kiwicup.scheduledmessenger.core.TimeSource
 import com.kiwicup.scheduledmessenger.data.inbox.SentMessageRecorder
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
+import com.kiwicup.scheduledmessenger.diagnostics.MmsStoreProbe
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import com.kiwicup.scheduledmessenger.data.local.dao.ScheduledMessageDao
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
@@ -81,7 +83,12 @@ class ScheduledSmsWorker @AssistedInject constructor(
                 scheduledMessageDao.markSent(id, sentAt)
                 if (useMms) {
                     // The library wrote the MMS into the phone's store; pull it into the inbox now.
+                    // Logged because "sent but never shows in the conversation" is only
+                    // distinguishable from "never sent" by whether this import finds it.
                     runCatching { importer.importNew() }
+                        .onSuccess { AppLog.d(TAG, "MMS $id sent; import found ${it.imported} new row(s)") }
+                        .onFailure { AppLog.e(TAG, "MMS $id sent; import failed", it) }
+                    AppLog.d(TAG, MmsStoreProbe.snapshot(applicationContext))
                 } else {
                     sentRecorder.record(message.recipientAddress, message.messageBody, message.threadId, sentAt)
                 }
@@ -111,5 +118,6 @@ class ScheduledSmsWorker @AssistedInject constructor(
         const val KEY_MESSAGE_ID = "messageId"
         const val MAX_ATTEMPTS = 3
         const val REASON_NO_PERMISSION = "SEND_SMS permission not granted"
+        private const val TAG = "ScheduledSmsWorker"
     }
 }

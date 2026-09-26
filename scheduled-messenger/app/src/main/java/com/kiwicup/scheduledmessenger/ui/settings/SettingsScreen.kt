@@ -39,6 +39,7 @@ import com.kiwicup.scheduledmessenger.data.settings.AppSettings
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.diagnostics.AppLog
 import com.kiwicup.scheduledmessenger.diagnostics.CrashHandler
+import com.kiwicup.scheduledmessenger.diagnostics.MmsStoreProbe
 import com.kiwicup.scheduledmessenger.ui.components.ColorSwatches
 import com.kiwicup.scheduledmessenger.ui.permissions.DiagnosticFile
 
@@ -167,7 +168,9 @@ private fun DiagnosticsSection() {
     Spacer(Modifier.height(8.dp))
     Row {
         TextButton(
-            onClick = { status = DiagnosticFile.save(context, AppLog.fileContents()) },
+            // A fresh MMS-store snapshot rides along: an incoming picture that never reached the
+            // app triggers no log line of its own, and only the store shows it never arrived.
+            onClick = { status = DiagnosticFile.save(context, AppLog.fileContents() + "\n--- at save time ---\n" + MmsStoreProbe.snapshot(context) + "\n") },
             modifier = Modifier.testTag("save_app_log")
         ) { Text("Save app log") }
         if (lastCrash != null) {

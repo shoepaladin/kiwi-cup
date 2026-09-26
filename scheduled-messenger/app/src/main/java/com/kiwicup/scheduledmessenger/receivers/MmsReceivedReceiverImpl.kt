@@ -2,8 +2,9 @@ package com.kiwicup.scheduledmessenger.receivers
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import com.klinker.android.send_message.MmsReceivedReceiver
+import com.kiwicup.scheduledmessenger.diagnostics.AppLog
+import com.kiwicup.scheduledmessenger.diagnostics.MmsStoreProbe
 import com.kiwicup.scheduledmessenger.data.inbox.SmsInboxImporter
 import com.kiwicup.scheduledmessenger.data.local.dao.SmsMessageDao
 import com.kiwicup.scheduledmessenger.notifications.IncomingMessageNotifier
@@ -31,17 +32,27 @@ class MmsReceivedReceiverImpl : MmsReceivedReceiver() {
     }
 
     override fun onMessageReceived(context: Context, messageUri: Uri?) {
+        val mmsId = messageUri?.lastPathSegment?.toLongOrNull()
+        AppLog.d(TAG, "incoming MMS downloaded: id=$mmsId")
         val deps = EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java)
         runCatching {
             runBlocking {
-                deps.importer().importNew()
-                val mmsId = messageUri?.lastPathSegment?.toLongOrNull() ?: return@runBlocking
-                deps.smsMessageDao().findByMmsSystemId(mmsId)?.let { deps.notifier().notifyNewMessage(it) }
+                val imported = deps.importer().importNew()
+                val row = mmsId?.let { deps.smsMessageDao().findByMmsSystemId(it) }
+                AppLog.d(TAG, "after download: imported ${imported.imported} row(s); message in conversation list=${row != null}")
+                row?.let { deps.notifier().notifyNewMessage(it) }
             }
-        }.onFailure { Log.w("MmsReceived", "post-receive work failed", it) }
+        }.onFailure { AppLog.e(TAG, "post-receive work failed", it) }
+        AppLog.d(TAG, MmsStoreProbe.snapshot(context))
     }
 
     override fun onError(context: Context, error: String?) {
-        Log.w("MmsReceived", "MMS download failed: $error")
+        // The download itself failed: the phone was told a picture exists but could not fetch it.
+        AppLog.e(TAG, "incoming MMS download failed: $error")
+        AppLog.d(TAG, MmsStoreProbe.snapshot(context))
+    }
+
+    private companion object {
+        const val TAG = "MmsReceived"
     }
 }
