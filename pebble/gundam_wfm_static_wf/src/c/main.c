@@ -34,8 +34,11 @@ typedef enum {
   SPRITE_SET_SAZABI    = 6,
   SPRITE_SET_ZETA      = 7,
   SPRITE_SET_CROSSBONE = 8,
+  SPRITE_SET_RX78      = 9,
+  SPRITE_SET_VICTORY2  = 10,
+  SPRITE_SET_ZAKU2     = 11,
 
-  SPRITE_SET_LAST      = SPRITE_SET_CROSSBONE,  // clamp bound; bump with the list
+  SPRITE_SET_LAST      = SPRITE_SET_ZAKU2,  // clamp bound; bump with the list
 } SpriteSet;
 
 typedef struct {
@@ -142,6 +145,9 @@ static void load_sprite(void) {
     case SPRITE_SET_SAZABI:    res = RESOURCE_ID_SAZABI_IDLE;    break;
     case SPRITE_SET_ZETA:      res = RESOURCE_ID_ZETA_IDLE;      break;
     case SPRITE_SET_CROSSBONE: res = RESOURCE_ID_CROSSBONE_IDLE; break;
+    case SPRITE_SET_RX78:      res = RESOURCE_ID_RX78_IDLE;      break;
+    case SPRITE_SET_VICTORY2:  res = RESOURCE_ID_VICTORY2_IDLE;  break;
+    case SPRITE_SET_ZAKU2:     res = RESOURCE_ID_ZAKU2_IDLE;     break;
     case SPRITE_SET_AERIAL:
     default:                   res = RESOURCE_ID_AE_IDLE;        break;
   }
