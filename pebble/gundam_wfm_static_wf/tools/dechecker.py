@@ -60,6 +60,15 @@ side by side in places), so nothing can be read off the grid's geometry.
 islands) and drops the close entirely. With no close the fill cannot cross
 any outline pixel, so a suit whose outline is unbroken keeps all of its
 white. Use it only when the outline is unbroken: one gap and the fill gets in.
+
+--pockets, for art with sealed gaps (e.g. between a wing and a funnel trail)
+---------------------------------------------------------------------------
+Implies --range. A checker pocket fully enclosed by the suit is not
+connected to the border, so no fill reaches it. A pocket still contains whole
+checker cells, which a suit never does: a solid, perfectly neutral block of
+the darker checker tone, 120+ px. Any neutral light region touching such a
+block is cleared. Check the result by eye -- a suit whose armour is itself a
+large exactly-neutral block of that tone would lose it.
 """
 
 import os
@@ -107,12 +116,13 @@ def checker_tones(value, is_neutral):
 
 
 def dechecker(path, tol=10, neutral=24, close_r=7, peel=2, min_part=0.01,
-              span=False):
+              span=False, pockets=False):
     rgb = np.asarray(Image.open(path).convert('RGB')).astype(np.int16)
     is_neutral = (rgb.max(2) - rgb.min(2)) <= neutral
     value = rgb.mean(2)
 
     lo, hi = checker_tones(value, is_neutral)
+    span = span or pockets
     if span:
         # --range: everything between the tones, no close (see docstring).
         seed = is_neutral & (value >= lo - tol) & (value <= hi + tol)
@@ -146,6 +156,26 @@ def dechecker(path, tol=10, neutral=24, close_r=7, peel=2, min_part=0.01,
         print("  parts: kept %d of %d (dropped %d specks under %.2f%% of body)"
               % (kept, count, count - kept, 100 * min_part))
 
+    if pockets:
+        # Sealed checker pockets: neutral light regions touching a solid block
+        # of the darker checker tone (see docstring).
+        light = ~background & is_neutral & (value >= lo - 12)
+        tone = (~background & ((rgb.max(2) - rgb.min(2)) <= 3) &
+                (np.abs(value - lo) <= 4))
+        blk, nb = ndimage.label(tone)
+        if nb:
+            bs = ndimage.sum(tone, blk, range(1, nb + 1))
+            solid = np.isin(blk, np.flatnonzero(bs >= 120) + 1)
+            reg, _ = ndimage.label(light)
+            hit = np.unique(reg[solid])
+            background |= np.isin(reg, hit[hit > 0])
+            opaque = ~background
+            parts, count = ndimage.label(opaque)
+            if count > 1:
+                sizes = ndimage.sum(opaque, parts, range(1, count + 1))
+                background |= ~np.isin(parts, np.flatnonzero(
+                    sizes >= sizes.max() * min_part) + 1)
+
     alpha = np.where(background, 0, 255).astype(np.uint8)
     out = Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), 'RGBA')
     box = out.getbbox()
@@ -169,7 +199,8 @@ def main(argv):
         min_part = float(argv[argv.index('--min-part') + 1])
     print("%s" % os.path.basename(src))
     img = dechecker(src, tol=tol, min_part=min_part,
-                    span='--range' in argv)
+                    span='--range' in argv,
+                    pockets='--pockets' in argv)
     out_dir = os.path.dirname(os.path.abspath(dst))
     if out_dir and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
