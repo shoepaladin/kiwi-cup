@@ -83,6 +83,36 @@
                     "type": "bitmap"
                 },
                 {
+                    "file": "images/rx78_idle.png",
+                    "name": "RX78_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/victory2_idle.png",
+                    "name": "VICTORY2_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/zaku2_idle.png",
+                    "name": "ZAKU2_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/gmsniper2_idle.png",
+                    "name": "GMSNIPER2_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/kshatriya_idle.png",
+                    "name": "KSHATRIYA_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
                     "file": "fonts/BlackOpsOne-Regular-emery.ttf",
                     "name": "FONT_BLACKOPS_42",
                     "targetPlatforms": null,

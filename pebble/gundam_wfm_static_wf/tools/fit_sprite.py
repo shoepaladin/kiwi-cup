@@ -15,6 +15,7 @@ Usage
   python fit_sprite.py SOURCE.png NAME --no-trim          # keep source padding
   python fit_sprite.py SOURCE.png NAME --no-round-safe    # allow round clipping
   python fit_sprite.py SOURCE.png NAME --no-quantize      # keep full colour
+  python fit_sprite.py SOURCE.png NAME --upscale          # grow small art to fill the band
 
 What it does, in order
 ----------------------
@@ -90,9 +91,16 @@ def trim(w, h, px):
     return nw, nh, out
 
 
+UPSCALE = False   # set by --upscale: let small art grow to fill the band
+
+
 def fit(w, h, max_w, max_h):
-    """Largest size within (max_w, max_h) preserving aspect. Never upscales."""
-    scale = min(float(max_w) / w, float(max_h) / h, 1.0)
+    """Largest size within (max_w, max_h) preserving aspect.
+
+    Never upscales unless --upscale is given (a suit already inside the band
+    is normally left alone).
+    """
+    scale = min(float(max_w) / w, float(max_h) / h, 1e9 if UPSCALE else 1.0)
     return max(1, int(round(w * scale))), max(1, int(round(h * scale)))
 
 
@@ -216,6 +224,8 @@ def main(argv):
         return 2
     src, name = args
     outdir = os.path.normpath(outdir)
+    global UPSCALE
+    UPSCALE = '--upscale' in argv
 
     w, h, px = read_rgba(src)
     print("%s: source %dx%d" % (os.path.basename(src), w, h))

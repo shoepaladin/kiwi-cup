@@ -28,7 +28,12 @@ module.exports = [
           { "label": "Byarlant",             "value": "5" },
           { "label": "Sazabi",               "value": "6" },
           { "label": "Zeta Gundam",          "value": "7" },
-          { "label": "Crossbone Full Cloth", "value": "8" }
+          { "label": "Crossbone Full Cloth", "value": "8" },
+          { "label": "RX78",                 "value": "9" },
+          { "label": "Victory 2",            "value": "10" },
+          { "label": "Zaku II",              "value": "11" },
+          { "label": "GM Sniper II",         "value": "12" },
+          { "label": "Kshatriya",            "value": "13" }
         ]
       }
     ]
