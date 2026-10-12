@@ -5,10 +5,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
+import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import com.klinker.android.send_message.Message
 import com.klinker.android.send_message.Settings
 import com.klinker.android.send_message.Transaction
+import com.kiwicup.scheduledmessenger.core.MmsBudget
 import com.kiwicup.scheduledmessenger.data.system.AttachmentStore
 import com.kiwicup.scheduledmessenger.data.system.DefaultSmsApp
 import com.kiwicup.scheduledmessenger.receivers.MmsSentReceiverImpl
@@ -70,11 +73,22 @@ class AndroidMmsSender @Inject constructor(
                 deliveryReports = false
             }
             val libMessage = Message(message.body, message.recipients.toTypedArray())
-            message.attachments.forEach { attachment ->
-                val (bytes, mime) = attachmentStore.readBytesForMms(attachment)
-                    ?: return SendResult.PermanentFailure("Attachment is missing: ${attachment.uri}")
-                libMessage.addMedia(bytes, mime)
-            }
+            // Non-image parts go through untouched, so read them first: what they and the text
+            // take comes out of the budget the pictures then share (see core MmsBudget).
+            val (images, others) = message.attachments.partition { it.isImage }
+            val otherParts = others.map { attachmentStore.readBytesForMms(it) ?: return SendResult.PermanentFailure("Attachment is missing: ${it.uri}") }
+            val perImage = MmsBudget.perImageBytes(images.size, otherParts.sumOf { it.bytes.size } + message.body.toByteArray().size)
+            val imageParts = images.map { attachmentStore.readBytesForMms(it, perImage) ?: return SendResult.PermanentFailure("Attachment is missing: ${it.uri}") }
+            // Back into the order the user attached them in.
+            val byAttachment = (images.zip(imageParts) + others.zip(otherParts)).toMap()
+            val parts = message.attachments.map { byAttachment.getValue(it) }
+            AppLog.d(
+                TAG,
+                "MMS parts: " + parts.joinToString { "${it.mimeType} ${it.originalBytes / 1024}KB->${it.bytes.size / 1024}KB" } +
+                    "; total ${parts.sumOf { it.bytes.size } / 1024}KB; budget ${MmsBudget.MESSAGE_BYTES / 1024}KB" +
+                    " (${perImage / 1024}KB per picture); carrier max ${carrierMaxMessageBytes()?.let { "${it / 1024}KB" } ?: "unknown"}"
+            )
+            parts.forEach { libMessage.addMedia(it.bytes, it.mimeType) }
             val sentIntent = Intent(context, MmsSentReceiverImpl::class.java).putExtra(MmsSentReceiverImpl.EXTRA_TOKEN, token)
             try {
                 Transaction(context, settings)
@@ -92,6 +106,17 @@ class AndroidMmsSender @Inject constructor(
             runCatching { context.unregisterReceiver(receiver) }
         }
     }
+
+    /**
+     * What the carrier says its MMS limit is, for the log only. Deliberately not used to raise
+     * the budget: a carrier's stated maximum and what it reliably delivers are not the same thing,
+     * which is why QKSMS and Fossify both ship defaults well below typical stated maximums. Having
+     * the value in the log lets a real failure be compared against it.
+     */
+    private fun carrierMaxMessageBytes(): Int? = runCatching {
+        val manager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java) else @Suppress("DEPRECATION") SmsManager.getDefault()
+        manager?.carrierConfigValues?.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE)?.takeIf { it > 0 }
+    }.getOrNull()
 
     companion object {
         const val SEND_TIMEOUT_MILLIS = 3L * 60L * 1000L
