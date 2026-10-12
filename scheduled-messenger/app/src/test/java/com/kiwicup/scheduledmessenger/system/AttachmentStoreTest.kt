@@ -3,6 +3,7 @@ package com.kiwicup.scheduledmessenger.system
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -71,5 +72,28 @@ class AttachmentStoreTest {
         assertEquals("image/jpeg", part.mimeType)
         assertEquals(photo.length().toInt(), part.originalBytes)
         assertNotNull("result must still be a decodable picture", BitmapFactory.decodeByteArray(part.bytes, 0, part.bytes.size))
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun aPortraitCameraPhotoStaysUprightAfterCompression() = runBlocking {
+        // Cameras store a portrait shot as landscape pixels plus EXIF "rotate 90". Re-encoding
+        // drops the tag, so the pixels themselves must be turned or the photo arrives sideways.
+        val landscapePixels = Bitmap.createBitmap(1200, 600, Bitmap.Config.ARGB_8888)
+        val random = Random(7)
+        landscapePixels.setPixels(IntArray(1200 * 600) { random.nextInt() or (0xFF shl 24) }, 0, 1200, 0, 0, 1200, 600)
+        val photo = File(context.cacheDir, "portrait.jpg")
+        photo.outputStream().use { landscapePixels.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+        ExifInterface(photo.absolutePath).apply {
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90.toString())
+            saveAttributes()
+        }
+
+        // A budget far below the file size forces the re-encode path.
+        val part = store.readBytesForMms(Attachment(Uri.fromFile(photo).toString(), "image/jpeg"), 20 * 1024)!!
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(part.bytes, 0, part.bytes.size, bounds)
+
+        assertTrue("expected portrait, got ${bounds.outWidth}x${bounds.outHeight}", bounds.outHeight > bounds.outWidth)
     }
 }

@@ -3,6 +3,9 @@ package com.kiwicup.scheduledmessenger.data.system
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import android.net.Uri
 import com.kiwicup.scheduledmessenger.core.Attachment
@@ -61,6 +64,7 @@ class AttachmentStore @Inject constructor(
         var sample = 1
         while (bounds.outWidth / sample > MMS_MAX_EDGE_PX || bounds.outHeight / sample > MMS_MAX_EDGE_PX) sample *= 2
         var bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.size, BitmapFactory.Options().apply { inSampleSize = sample })
+            ?.let { uprightFor(raw, it) }
             ?: return MmsPart(raw, attachment.mimeType, raw.size)
         var quality = 85
         while (true) {
@@ -75,6 +79,28 @@ class AttachmentStore @Inject constructor(
                 quality = 85
             }
         }
+    }
+
+    /**
+     * Applies the photo's EXIF rotation to the pixels. Re-encoding drops EXIF, and cameras store
+     * portrait shots as landscape pixels plus an orientation tag, so without this every portrait
+     * photo that gets compressed (nearly all of them, at a 300 KB budget) arrives sideways.
+     * Same handling as Fossify's ImageCompressor.determineImageRotation: rotations only (tags 6, 3,
+     * 8); the rare mirrored orientations are left as they are.
+     */
+    private fun uprightFor(raw: ByteArray, bitmap: Bitmap): Bitmap {
+        val orientation = runCatching {
+            ExifInterface(ByteArrayInputStream(raw)).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        val degrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> return bitmap
+        }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees) }, true)
+        if (rotated !== bitmap) bitmap.recycle()
+        return rotated
     }
 
     companion object {
