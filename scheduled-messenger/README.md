@@ -6,11 +6,11 @@
 
 Write a text now, send it later. Long-press any message to get a reminder about it at a time you choose.
 
-Primarily made with Claude! Engineering progress is tracked in [`roadmap.md`](roadmap.md).
+Primarily made with Claude! Engineering progress is tracked in [`roadmap.md`](roadmap.md); each feature, how the open-source reference apps implement it, and the open bugs and gaps are in [`docs/FEATURES.md`](docs/FEATURES.md).
 
 ## Status
 
-Feature complete for a first personal build: inbox import, scheduled sending, reminders with deep-linked notifications, queue management, reboot recovery and runtime permissions. 84 automated tests run on every push. Not yet exercised on a physical phone.
+Feature complete for a first personal build: inbox import, scheduled sending, reminders with deep-linked notifications, queue management, reboot recovery and runtime permissions. 84 automated tests run on every push. In daily use on a Pixel 8a (Android 17) as the default SMS app; picture messages are still being verified on device.
 
 ## How it works
 

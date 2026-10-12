@@ -10,9 +10,11 @@ package com.kiwicup.scheduledmessenger.core
  * The budget follows the open-source apps, which ship small defaults because US carriers drop
  * larger messages after the phone has already reported them "sent": QKSMS defaults to 300 KB
  * (domain/.../util/Preferences.kt `mmsSize`), Fossify to 200 KB (helpers/Config.kt
- * `mmsFileSizeLimit`). The MMS library itself tells Android 800 KB (MmsConfig.mMaxMessageSize),
- * which is why a too-large picture is accepted by the phone and lost at the carrier instead of
- * failing visibly.
+ * `mmsFileSizeLimit`). The MMS library passes its own limit to Android: 800 KB until
+ * `MmsConfig.init` loads the per-carrier `mms_config.xml` (generic file: 307200 bytes), which
+ * only happens once an MMS has been received in the process. So until then a too-large picture
+ * is accepted by the phone and can be lost at the carrier instead of failing visibly. 300 KB
+ * stays within both values. See docs/FEATURES.md, "MMS image size budget".
  */
 object MmsBudget {
 

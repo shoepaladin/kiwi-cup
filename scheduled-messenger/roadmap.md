@@ -135,9 +135,11 @@ same place, and whether Google's developer-verification requirement for sideload
 some countries from September 2026, global 2027) affects installs on this device.
 
 ## Remaining Work Before Daily Use (not in the four phases)
+> Feature-level gaps, bugs and how the reference apps (Fossify, QKSMS, Simple SMS) solve each one are now tracked in [`docs/FEATURES.md`](docs/FEATURES.md); its work queue supersedes the feature items below.
+
 - **Device smoke test** (user, next step): install the release APK from the APK workflow's artifact, clear the restricted-permission block (App info → ⋮ → "Allow restricted settings"), grant permissions, confirm the inbox imports, send a scheduled text to yourself, set a reminder, reboot and confirm the queue survives. This is the only remaining gate before daily use — everything below is a known limitation, not a blocker.
 - ~~**Exact alarms**~~ done in `34bbf3d`: `ExactAlarms` + `ExactAlarmReceiver` fire at the chosen minute via `setExactAndAllowWhileIdle`, gated on `canScheduleExactAlarms()`, with the WorkManager job kept as the safety net.
-- **Schema export + migrations** before the first shared release (`exportSchema = true`, drop `fallbackToDestructiveMigration`). The database is at v4; today an upgrade wipes local history.
+- ~~**Migrations**~~ done in `13025c7`: `Migrations.MIGRATION_1_2` (read state) with a test that upgrades a real version-1 database; the destructive fallback now applies to downgrades only. Still open: `exportSchema = true` with committed schema JSON.
 - **Contact names in the conversation list** — names already resolve inside an open thread (`ThreadViewModel` via `ContactNames`), but the list still shows raw numbers. The first attempt put a `displayName` field on `ThreadSummary`, which is the Room POJO that broke the build in `ab65b9f`; the right shape is a separate UI type mapped outside Room.
 - **Release build hardening**: the APK workflow signs with a throwaway keystore generated in CI when `SIDELOAD_KEYSTORE_BASE64` is unset, and `isMinifyEnabled` is still off. A real signing key and R8 with keep rules for Room/Hilt/WorkManager are needed before sharing builds with anyone else.
 - **Instrumented tests**: everything so far is JVM/Robolectric. Nothing has run on a real device or emulator, and the MMS send path in particular depends on carrier behaviour that no host-side test can reproduce.
