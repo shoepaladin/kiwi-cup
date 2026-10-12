@@ -33,7 +33,11 @@ module.exports = [
           { "label": "Victory 2",            "value": "10" },
           { "label": "Zaku II",              "value": "11" },
           { "label": "GM Sniper II",         "value": "12" },
-          { "label": "Kshatriya",            "value": "13" }
+          { "label": "Kshatriya",            "value": "13" },
+          { "label": "Gelgoog",              "value": "14" },
+          { "label": "Dom",                  "value": "15" },
+          { "label": "Gundam Hazel",         "value": "16" },
+          { "label": "Prototype Asshimar",   "value": "17" }
         ]
       }
     ]
