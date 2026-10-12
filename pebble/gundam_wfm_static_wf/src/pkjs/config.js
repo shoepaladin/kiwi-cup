@@ -37,7 +37,9 @@ module.exports = [
           { "label": "Gelgoog",              "value": "14" },
           { "label": "Dom",                  "value": "15" },
           { "label": "Gundam Hazel",         "value": "16" },
-          { "label": "Prototype Asshimar",   "value": "17" }
+          { "label": "Prototype Asshimar",   "value": "17" },
+          { "label": "Full Armor Gundam",    "value": "18" },
+          { "label": "Gouf Custom",          "value": "19" }
         ]
       }
     ]

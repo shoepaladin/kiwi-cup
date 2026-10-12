@@ -137,6 +137,18 @@
                     "type": "bitmap"
                 },
                 {
+                    "file": "images/fullarmor_idle.png",
+                    "name": "FULLARMOR_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/goufcustom_idle.png",
+                    "name": "GOUFCUSTOM_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
                     "file": "fonts/BlackOpsOne-Regular-emery.ttf",
                     "name": "FONT_BLACKOPS_42",
                     "targetPlatforms": null,
