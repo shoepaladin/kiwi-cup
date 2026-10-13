@@ -113,6 +113,42 @@
                     "type": "bitmap"
                 },
                 {
+                    "file": "images/gelgoog_idle.png",
+                    "name": "GELGOOG_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/dom_idle.png",
+                    "name": "DOM_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/hazel_idle.png",
+                    "name": "HAZEL_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/asshimar_idle.png",
+                    "name": "ASSHIMAR_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/fullarmor_idle.png",
+                    "name": "FULLARMOR_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/goufcustom_idle.png",
+                    "name": "GOUFCUSTOM_IDLE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
                     "file": "fonts/BlackOpsOne-Regular-emery.ttf",
                     "name": "FONT_BLACKOPS_42",
                     "targetPlatforms": null,
